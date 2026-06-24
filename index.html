@@ -6308,6 +6308,8 @@ function DebtReconciliationModal({ onClose }) {
       taxB: "Tax ID",
       person: "Ông/Bà",
       personB: "Name",
+      rep: "Người đại diện",
+      repB: "Representative",
       position: "Chức vụ",
       positionB: "Position",
       address: "Địa chỉ",
@@ -6413,6 +6415,8 @@ function DebtReconciliationModal({ onClose }) {
       taxB: "税号",
       person: "Ông/Bà",
       personB: "姓名",
+      rep: "Người đại diện",
+      repB: "代表人",
       position: "Chức vụ",
       positionB: "职位",
       address: "Địa chỉ",
@@ -6814,36 +6818,38 @@ function DebtReconciliationModal({ onClose }) {
           <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.partyIntroB} <strong>{dateStr}</strong>, {T.reconcileSentenceB} <strong>{toDateStr}</strong>。</p>
  
           <p style={{marginTop:8}}><strong>{T.seller}</strong></p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.sellerB}</p>
           <table style={{width:"100%",fontSize:12,borderCollapse:"collapse",paddingLeft:16}}>
             <tbody>
               <tr>
-                <td style={{width:"50%",paddingLeft:20,paddingBottom:2}}>{T.company}: <strong>{COMPANY.name}</strong></td>
-                <td style={{paddingBottom:2}}>{T.tax}: {COMPANY.mst}</td>
+                <td style={{width:"50%",paddingLeft:20,paddingBottom:2}}>{T.company} / {T.companyB}: <strong>{COMPANY.name}</strong></td>
+                <td style={{paddingBottom:2}}>{T.tax} / {T.taxB}: {COMPANY.mst}</td>
               </tr>
               <tr>
-                <td style={{paddingLeft:20,paddingBottom:2}}>{T.person}: <strong>{sellerRep || "……………………………"}</strong></td>
-                <td style={{paddingBottom:2}}>{T.position}: {sellerTitle || "……………………"}</td>
+                <td style={{paddingLeft:20,paddingBottom:2}}>{T.rep} / {T.repB}: <strong>{sellerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.position} / {T.positionB}: {sellerTitle || "……………………"}</td>
               </tr>
               <tr>
-                <td colSpan={2} style={{paddingLeft:20,paddingBottom:2,fontSize:11,color:"#555"}}>{T.companyB}: <strong>{COMPANY.name}</strong></td>
+                <td colSpan={2} style={{paddingLeft:20,paddingBottom:2,fontSize:11,color:"#555"}}>{T.company} / {T.companyB}: <strong>{COMPANY.name}</strong></td>
               </tr>
             </tbody>
           </table>
  
           <p style={{marginTop:8}}><strong>{T.buyer}</strong></p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.buyerB}</p>
           <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
             <tbody>
               <tr>
-                <td style={{width:"60%",paddingLeft:20,paddingBottom:2}}>{T.company}: <strong>{buyerName || "……………………………………………………"}</strong></td>
-                <td style={{paddingBottom:2}}>{T.tax}: {buyerTax || "………………………"}</td>
+                <td style={{width:"60%",paddingLeft:20,paddingBottom:2}}>{T.company} / {T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.tax} / {T.taxB}: {buyerTax || "………………………"}</td>
               </tr>
-              {buyerAddr && <tr><td colSpan={2} style={{paddingLeft:20,paddingBottom:2}}>{T.address}: {buyerAddr}</td></tr>}
+              {buyerAddr && <tr><td colSpan={2} style={{paddingLeft:20,paddingBottom:2}}>{T.address} / {T.addressB}: {buyerAddr}</td></tr>}
               <tr>
-                <td style={{paddingLeft:20,paddingBottom:2}}>{T.person}: <strong>{buyerRep || "……………………………"}</strong></td>
-                <td style={{paddingBottom:2}}>{T.position}: {buyerTitle || "……………………"}</td>
+                <td style={{paddingLeft:20,paddingBottom:2}}>{T.rep} / {T.repB}: <strong>{buyerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.position} / {T.positionB}: {buyerTitle || "……………………"}</td>
               </tr>
               <tr>
-                <td colSpan={2} style={{paddingLeft:20,paddingBottom:2,fontSize:11,color:"#555"}}>{T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></td>
+                <td colSpan={2} style={{paddingLeft:20,paddingBottom:2,fontSize:11,color:"#555"}}>{T.company} / {T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></td>
               </tr>
             </tbody>
           </table>
@@ -7061,12 +7067,16 @@ function DebtReconciliationModal({ onClose }) {
 
         {/* Kính gửi */}
         <div className="debt-party-block">
-          <p>{T.paymentTo}: <strong>{buyerName || "……………………………………………………"}</strong></p>
-          {buyerAddr && <p style={{marginTop:2}}>{T.address}: {buyerAddr}</p>}
-          <p style={{marginTop:2}}>{T.tax}: {buyerTax || "………………………"}</p>
+          <p>{T.paymentTo} / {T.paymentToB}:</p>
+          <p style={{marginTop:4}}>{T.company} / {T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></p>
+          {buyerAddr && <p style={{marginTop:2}}>{T.address} / {T.addressB}: {buyerAddr}</p>}
+          <p style={{marginTop:2}}>{T.tax} / {T.taxB}: {buyerTax || "………………………"}</p>
 
           <p style={{marginTop:10}}>
-            {T.paymentRequestNote} <strong>{buyerName || "Quý công ty"}</strong> {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
+            {T.paymentRequestNote} <strong>{buyerName || "Quý công ty"}</strong>.
+          </p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>
+            {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
           </p>
         </div>
 
@@ -7334,47 +7344,48 @@ function DebtReconciliationModal({ onClose }) {
                 {/* Bên bán */}
                 <div className="section-title" style={{marginBottom:8}}>🏢 Bên bán (Bên A)</div>
                 <div style={{background:"#f5f7fb",borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:12,color:"#555"}}>
+                  <div style={{fontWeight:700,color:"#1a2540"}}>{T.company} / {T.companyB}</div>
                   <strong style={{color:"#1a2540"}}>{COMPANY.name}</strong><br/>
-                  MST: {COMPANY.mst} · ĐT: {COMPANY.phone}
+                  {T.tax} / {T.taxB}: {COMPANY.mst} · {T.address} / {T.addressB}: {COMPANY.address}
                 </div>
                 <div className="form-row form-row-2">
                   <div className="form-group">
-                    <label>Người đại diện</label>
+                    <label>{T.rep} / {T.repB}</label>
                     <input className="form-control" value={sellerRep} onChange={e => setSellerRep(e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label>Chức vụ</label>
+                    <label>{T.position} / {T.positionB}</label>
                     <input className="form-control" value={sellerTitle} onChange={e => setSellerTitle(e.target.value)} />
                   </div>
                 </div>
  
                 {/* Bên mua */}
-                <div className="section-title" style={{marginBottom:8}}>🧑‍💼 Bên mua (Bên B)</div>
+                <div className="section-title" style={{marginBottom:8}}>🧑‍💼 {T.buyer} / {T.buyerB}</div>
                 <div style={{fontSize:11,color:"#888",marginBottom:8}}>
                   💡 Tự động điền từ file XML — có thể chỉnh sửa
                 </div>
                 <div className="form-group">
-                  <label>Tên công ty / khách hàng</label>
-                  <input className="form-control" value={buyerName} onChange={e => setBuyerName(e.target.value)} placeholder="Tên công ty bên mua" />
+                  <label>{T.company} / {T.companyB}</label>
+                  <input className="form-control" value={buyerName} onChange={e => setBuyerName(e.target.value)} placeholder={T.companyB} />
                 </div>
                 <div className="form-row form-row-2">
                   <div className="form-group">
-                    <label>Mã số thuế</label>
+                    <label>{T.tax} / {T.taxB}</label>
                     <input className="form-control" value={buyerTax} onChange={e => setBuyerTax(e.target.value)} />
                   </div>
                   <div className="form-group">
-                    <label>Địa chỉ</label>
+                    <label>{T.address} / {T.addressB}</label>
                     <input className="form-control" value={buyerAddr} onChange={e => setBuyerAddr(e.target.value)} />
                   </div>
                 </div>
                 <div className="form-row form-row-2">
                   <div className="form-group">
-                    <label>Người đại diện</label>
-                    <input className="form-control" value={buyerRep} onChange={e => setBuyerRep(e.target.value)} placeholder="Họ tên" />
+                    <label>{T.rep} / {T.repB}</label>
+                    <input className="form-control" value={buyerRep} onChange={e => setBuyerRep(e.target.value)} placeholder={T.repB} />
                   </div>
                   <div className="form-group">
-                    <label>Chức vụ</label>
-                    <input className="form-control" value={buyerTitle} onChange={e => setBuyerTitle(e.target.value)} placeholder="Chức vụ" />
+                    <label>{T.position} / {T.positionB}</label>
+                    <input className="form-control" value={buyerTitle} onChange={e => setBuyerTitle(e.target.value)} placeholder={T.positionB} />
                   </div>
                 </div>
               </>
