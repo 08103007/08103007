@@ -6508,6 +6508,8 @@ function DebtReconciliationModal({ onClose }) {
       paymentSellerSignB: "申请方代表（甲方）",
     }
   };
+
+  const T = DEBT_TEXT[debtLang] || DEBT_TEXT.vi_en;
  
   // ── Invoices state ──────────────────────────────────────────────────────────
   const [invoices,         setInvoices]         = React.useState([]);
