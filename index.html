@@ -6361,6 +6361,42 @@ function DebtReconciliationModal({ onClose }) {
       sellerSignB: "SELLER REPRESENTATIVE (PARTY A)",
       signSubNote: "(Ký, ghi rõ họ tên)",
       signSubNoteB: "(Sign and print full name)",
+      paymentTitle: "Đề nghị thanh toán",
+      paymentTitleB: "Payment Request",
+      paymentBasedOn: "Căn cứ Biên bản đối chiếu công nợ",
+      paymentBasedOnB: "Based on the Debt Reconciliation Statement",
+      paymentTo: "Kính gửi",
+      paymentToB: "To",
+      paymentAmountText: "Số tiền bằng chữ:",
+      paymentAmountTextB: "Amount in words:",
+      paymentInfo1: "Căn cứ kết quả đối chiếu công nợ giữa hai bên,",
+      paymentInfo1B: "Based on the debt reconciliation result between the two parties,",
+      paymentInfo2: "trân trọng đề nghị quý công ty thanh toán số tiền còn nợ như sau:",
+      paymentInfo2B: "we respectfully request your company to pay the outstanding amount as follows:",
+      paymentContent: "Nội dung",
+      paymentContentB: "Description",
+      paymentAmountHeader: "Số tiền (đ)",
+      paymentAmountHeaderB: "Amount (VND)",
+      paymentGoods: "Tổng tiền hàng (chưa VAT)",
+      paymentGoodsB: "Total goods (excl. VAT)",
+      paymentVat: "Tổng thuế VAT",
+      paymentVatB: "Total VAT",
+      paymentTotal: "TỔNG SỐ TIỀN ĐỀ NGHỊ THANH TOÁN",
+      paymentTotalB: "PAYMENT REQUEST TOTAL",
+      paymentRequestNote: "Kính đề nghị quý công ty thanh toán số tiền trên cho",
+      paymentRequestNoteB: "We kindly request your company to pay the above amount to",
+      paymentReferNote: "Mọi thông tin chi tiết về các hóa đơn liên quan, đề nghị tham khảo Biên bản đối chiếu công nợ",
+      paymentReferNoteB: "For details of the related invoices, please refer to the Debt Reconciliation Statement",
+      paymentBankInfo: "Thông tin chuyển khoản:",
+      paymentBankInfoB: "Bank transfer information:",
+      paymentBankHolderLabel: "Chủ TK",
+      paymentBankHolderLabelB: "Account holder",
+      paymentCooperate: "Rất mong nhận được sự hợp tác và thanh toán đúng hạn từ Quý công ty. Trân trọng cảm ơn!",
+      paymentCooperateB: "We appreciate your cooperation and timely payment. Thank you!",
+      paymentBuyerSign: "NGƯỜI ĐẠI DIỆN BÊN MUA",
+      paymentBuyerSignB: "BUYER REPRESENTATIVE",
+      paymentSellerSign: "ĐẠI DIỆN BÊN ĐỀ NGHỊ (BÊN A)",
+      paymentSellerSignB: "REQUESTING REPRESENTATIVE (PARTY A)",
     },
     vi_zh: {
       title: "Biên bản đối chiếu công nợ",
@@ -6430,6 +6466,42 @@ function DebtReconciliationModal({ onClose }) {
       sellerSignB: "销售方代表（甲方）",
       signSubNote: "(Ký, ghi rõ họ tên)",
       signSubNoteB: "(签名并填写姓名)",
+      paymentTitle: "Đề nghị thanh toán",
+      paymentTitleB: "付款申请书",
+      paymentBasedOn: "Căn cứ Biên bản đối chiếu công nợ",
+      paymentBasedOnB: "依据应收账款对账单",
+      paymentTo: "Kính gửi",
+      paymentToB: "致：",
+      paymentAmountText: "Số tiền bằng chữ:",
+      paymentAmountTextB: "大写金额：",
+      paymentInfo1: "Căn cứ kết quả đối chiếu công nợ giữa hai bên,",
+      paymentInfo1B: "根据双方对账结果，",
+      paymentInfo2: "trân trọng đề nghị quý công ty thanh toán số tiền còn nợ như sau:",
+      paymentInfo2B: "特此敬请贵公司支付如下欠款：",
+      paymentContent: "Nội dung",
+      paymentContentB: "内容",
+      paymentAmountHeader: "Số tiền (đ)",
+      paymentAmountHeaderB: "金额（VND）",
+      paymentGoods: "Tổng tiền hàng (chưa VAT)",
+      paymentGoodsB: "货物总额（不含增值税）",
+      paymentVat: "Tổng thuế VAT",
+      paymentVatB: "增值税总额",
+      paymentTotal: "TỔNG SỐ TIỀN ĐỀ NGHỊ THANH TOÁN",
+      paymentTotalB: "付款申请总额",
+      paymentRequestNote: "Kính đề nghị quý công ty thanh toán số tiền trên cho",
+      paymentRequestNoteB: "敬请贵公司向以下账户支付上述金额：",
+      paymentReferNote: "Mọi thông tin chi tiết về các hóa đơn liên quan, đề nghị tham khảo Biên bản đối chiếu công nợ",
+      paymentReferNoteB: "有关相关发票的详细信息，请参阅应收账款对账单",
+      paymentBankInfo: "Thông tin chuyển khoản:",
+      paymentBankInfoB: "银行转账信息：",
+      paymentBankHolderLabel: "Chủ TK",
+      paymentBankHolderLabelB: "账户持有人",
+      paymentCooperate: "Rất mong nhận được sự hợp tác và thanh toán đúng hạn từ Quý công ty. Trân trọng cảm ơn!",
+      paymentCooperateB: "感谢贵公司的配合与及时付款。谢谢！",
+      paymentBuyerSign: "NGƯỜI ĐẠI DIỆN BÊN MUA",
+      paymentBuyerSignB: "采购方代表",
+      paymentSellerSign: "ĐẠI DIỆN BÊN ĐỀ NGHỊ (BÊN A)",
+      paymentSellerSignB: "申请方代表（甲方）",
     }
   };
  
@@ -6945,6 +7017,7 @@ function DebtReconciliationModal({ onClose }) {
 
   // ── Render Đề nghị thanh toán (dựa trên biên bản đối chiếu này) ──────────────
   const renderPaymentRequest = () => {
+    const T = DEBT_TEXT[debtLang];
     const payNum = "DNTT-" + (refNum ? refNum.replace(/^BBDCCN-/, "") : todayFull.replace(/ /g,"_"));
     return (
       <div className="debt-preview" id="debtPreviewContent">
@@ -6975,23 +7048,25 @@ function DebtReconciliationModal({ onClose }) {
 
         {/* Tiêu đề */}
         <div className="debt-title">
-          <h1>Đề nghị thanh toán</h1>
+          <h1>{T.paymentTitle}</h1>
+          <div style={{fontSize:12,color:"#555",marginTop:4}}>{T.paymentTitleB}</div>
           <div className="ref">Số: {payNum}</div>
           <div style={{fontSize:11,color:"#666",marginTop:2}}>
-            Căn cứ Biên bản đối chiếu công nợ {refNum && <strong>số {refNum}</strong>} lập ngày <strong>{dateStr}</strong>,
-            đối chiếu công nợ đến ngày <strong>{toDateStr}</strong>
+            {T.paymentBasedOn} {refNum ? <strong>{T.paymentBasedOnB} {refNum}</strong> : <strong>{T.paymentBasedOnB}</strong>}
+          </div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            {T.paymentInfo1} <strong>{dateStr}</strong>, {T.paymentInfo2}
           </div>
         </div>
 
         {/* Kính gửi */}
         <div className="debt-party-block">
-          <p>Kính gửi: <strong>{buyerName || "……………………………………………………"}</strong></p>
-          {buyerAddr && <p style={{marginTop:2}}>Địa chỉ: {buyerAddr}</p>}
-          <p style={{marginTop:2}}>Mã số thuế: {buyerTax || "………………………"}</p>
+          <p>{T.paymentTo}: <strong>{buyerName || "……………………………………………………"}</strong></p>
+          {buyerAddr && <p style={{marginTop:2}}>{T.address}: {buyerAddr}</p>}
+          <p style={{marginTop:2}}>{T.tax}: {buyerTax || "………………………"}</p>
 
           <p style={{marginTop:10}}>
-            Căn cứ kết quả đối chiếu công nợ giữa hai bên, <strong>{COMPANY.name}</strong> trân trọng đề nghị&nbsp;
-            <strong>{buyerName || "Quý công ty"}</strong> thanh toán số tiền còn nợ như sau:
+            {T.paymentRequestNote} <strong>{buyerName || "Quý công ty"}</strong> {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
           </p>
         </div>
 
@@ -6999,21 +7074,30 @@ function DebtReconciliationModal({ onClose }) {
         <table className="debt-items-table">
           <thead>
             <tr>
-              <th style={{textAlign:"left"}}>Nội dung</th>
-              <th style={{width:140}}>Số tiền (đ)</th>
+              <th style={{textAlign:"left"}}>{T.paymentContent}</th>
+              <th style={{width:140}}>{T.paymentAmountHeader}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style={{fontSize:12,padding:"7px 10px"}}>Tổng tiền hàng (chưa VAT)</td>
+              <td style={{fontSize:12,padding:"7px 10px"}}>
+                {T.paymentGoods}
+                <div style={{fontSize:10,color:"#555",marginTop:2}}>{T.paymentGoodsB}</div>
+              </td>
               <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandSubtotal)}</td>
             </tr>
             <tr>
-              <td style={{fontSize:12,padding:"7px 10px"}}>Tổng thuế VAT</td>
+              <td style={{fontSize:12,padding:"7px 10px"}}>
+                {T.paymentVat}
+                <div style={{fontSize:10,color:"#555",marginTop:2}}>{T.paymentVatB}</div>
+              </td>
               <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandVat)}</td>
             </tr>
             <tr className="debt-grand-row">
-              <td style={{padding:"8px 10px",fontSize:14}}>TỔNG SỐ TIỀN ĐỀ NGHỊ THANH TOÁN</td>
+              <td style={{padding:"8px 10px",fontSize:14}}>
+                {T.paymentTotal}
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.paymentTotalB}</div>
+              </td>
               <td className="right" style={{padding:"8px 10px",fontSize:15,letterSpacing:"0.02em"}}>{fmt(grandTotal)}</td>
             </tr>
           </tbody>
@@ -7021,34 +7105,42 @@ function DebtReconciliationModal({ onClose }) {
 
         <div style={{marginTop:12,fontSize:12,lineHeight:1.8}}>
           <p>
-            Số tiền bằng chữ: <strong>{numberToWordsVN(grandTotal)}</strong>
+            {T.paymentAmountText} <strong>{debtLang === "vi_en" ? numberToWordsEN(grandTotal) : numberToWordsCN(grandTotal)}</strong>
           </p>
           <p style={{marginTop:6}}>
-            Kính đề nghị <strong>{buyerName || "Quý công ty"}</strong> thanh toán số tiền trên cho {COMPANY.name}&nbsp;
-            trong thời gian sớm nhất. Mọi thông tin chi tiết về các hóa đơn liên quan, đề nghị tham khảo Biên bản đối chiếu công nợ&nbsp;
-            {refNum ? <strong>số {refNum}</strong> : "đã lập"} kèm theo.
+            {T.paymentRequestNote} <strong>{buyerName || "Quý công ty"}</strong> {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
           </p>
           <p style={{marginTop:8}}>
-            Thông tin chuyển khoản: <strong>{COMPANY.bankName || "……………………"}</strong> — STK: <strong>{COMPANY.bankAccount || "……………………"}</strong>
-            {COMPANY.bankHolder ? <> — Chủ TK: <strong>{COMPANY.bankHolder}</strong></> : null}
+            {T.paymentReferNote}
+            <br />
+            <span style={{fontSize:11,color:"#555"}}>{T.paymentReferNoteB} {refNum ? <strong>{T.paymentBasedOnB} {refNum}</strong> : ""}</span>
           </p>
           <p style={{marginTop:8}}>
-            Rất mong nhận được sự hợp tác và thanh toán đúng hạn từ Quý công ty. Trân trọng cảm ơn!
+            {T.paymentBankInfo} <strong>{COMPANY.bankName || "……………………"}</strong> — STK: <strong>{COMPANY.bankAccount || "……………………"}</strong>
+            {COMPANY.bankHolder ? <> — {T.paymentBankHolderLabel}: <strong>{COMPANY.bankHolder}</strong></> : null}
+            <br />
+            <span style={{fontSize:11,color:"#555"}}>{T.paymentBankInfoB}</span>
+            {COMPANY.bankHolder ? <><br /><span style={{fontSize:11,color:"#555"}}>{T.paymentBankHolderLabelB}: <strong>{COMPANY.bankHolder}</strong></span></> : null}
+          </p>
+          <p style={{marginTop:8}}>
+            {T.paymentCooperate}
+            <br />
+            <span style={{fontSize:11,color:"#555"}}>{T.paymentCooperateB}</span>
           </p>
         </div>
 
         {/* Chữ ký */}
         <div className="debt-sign" style={{marginTop:28}}>
           <div className="debt-sign-block">
-            <div className="sign-title">NGƯỜI ĐẠI DIỆN BÊN MUA</div>
-            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Xác nhận đã nhận đề nghị)</div>
+            <div className="sign-title">{T.paymentBuyerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
             <div className="sign-space" />
             <div style={{fontWeight:600}}>{buyerRep || "……………………………"}</div>
             <div style={{fontSize:11,color:"#666"}}>{buyerTitle}</div>
           </div>
           <div className="debt-sign-block">
-            <div className="sign-title">ĐẠI DIỆN BÊN ĐỀ NGHỊ (BÊN A)</div>
-            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Ký, ghi rõ họ tên, đóng dấu)</div>
+            <div className="sign-title">{T.paymentSellerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
             <div className="sign-space" />
             <div style={{fontWeight:600}}>{sellerRep || "……………………………"}</div>
             <div style={{fontSize:11,color:"#666"}}>{sellerTitle}</div>
