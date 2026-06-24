@@ -6299,11 +6299,47 @@ function DebtReconciliationModal({ onClose }) {
   const [pdfLoading,       setPdfLoading]       = React.useState(false);
   const [saving,           setSaving]           = React.useState(false);
   const [saveMsg,          setSaveMsg]          = React.useState("");
+  const [savedRecs,        setSavedRecs]        = React.useState([]);
+  const [recListLoading,   setRecListLoading]   = React.useState(false);
   const fileRef = React.useRef(null);
+
+  const fetchSavedRecs = async () => {
+    setRecListLoading(true);
+    try {
+      const recs = await listDebtRecs();
+      setSavedRecs((recs || []).slice().sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0)));
+    } finally {
+      setRecListLoading(false);
+    }
+  };
+
+  const handleNewDebtRec = () => {
+    const newRef = generateDebtRecNumber();
+    setRefNum(newRef);
+    setDateStr(todayFull);
+    setToDateStr(endOfMonth);
+    setSellerRep(COMPANY.representative || "");
+    setSellerTitle(COMPANY.position || "");
+    setBuyerName("");
+    setBuyerTax("");
+    setBuyerAddr("");
+    setBuyerRep("");
+    setBuyerTitle("");
+    setInvoices([]);
+    setExpandedInv(new Set());
+    setSaveMsg("");
+    showToast("🆕 Tạo biên bản mới", 1500);
+  };
+
+  const handleReloadSavedRecs = async () => {
+    await fetchSavedRecs();
+    showToast("🔄 Đã tải lại danh sách biên bản", 1500);
+  };
 
   // ── Tự sinh số biên bản khi mở biên bản mới ─────────────────────────────────
   React.useEffect(() => {
     if (!refNum) setRefNum(generateDebtRecNumber());
+    fetchSavedRecs();
   }, []);
 
   // ── Tải lại biên bản đã lưu theo số biên bản (nếu có) ───────────────────────
@@ -6326,6 +6362,15 @@ function DebtReconciliationModal({ onClose }) {
     } catch(e) { /* không tìm thấy — bỏ qua, coi như biên bản mới */ }
   };
 
+  const handleDeleteDebtRec = async (id) => {
+    if (!window.confirm("Xóa biên bản này? Hành động không thể hoàn tác.")) return;
+    delete _mem.debtRecs[id];
+    _scheduleSave();
+    setSavedRecs(prev => prev.filter(r => r.id !== id));
+    if (refNum === id) setRefNum(generateDebtRecNumber());
+    showToast("🗑️ Đã xóa biên bản đối chiếu công nợ", 2000);
+  };
+
   // ── Lưu biên bản đối chiếu công nợ ───────────────────────────────────────────
   const handleSaveDebtRec = async () => {
     const num = refNum.trim() || generateDebtRecNumber();
@@ -6339,6 +6384,7 @@ function DebtReconciliationModal({ onClose }) {
         invoices,
       });
       setSaveMsg("✓ Đã lưu");
+      await fetchSavedRecs();
       showToast("💾 Đã lưu biên bản đối chiếu công nợ", 2000);
       setTimeout(() => setSaveMsg(""), 2500);
     } catch(e) {
@@ -6899,7 +6945,47 @@ function DebtReconciliationModal({ onClose }) {
                   {xmlError && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:6,fontSize:12,marginTop:8}}>{xmlError}</div>}
                 </div>
  
-                {/* ── 2. Danh sách HĐ đã import ── */}
+                {/* ── 2. Danh sách biên bản đã lưu ── */}
+                <div style={{marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
+                    <div className="section-title" style={{marginBottom:0}}>🗂️ Danh sách biên bản đã lưu</div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={handleReloadSavedRecs}>🔄 Tải lại</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={handleNewDebtRec}>🆕 Tạo mới</button>
+                    </div>
+                  </div>
+                  {recListLoading ? (
+                    <div style={{fontSize:12,color:"#666"}}>Đang tải danh sách...</div>
+                  ) : savedRecs.length === 0 ? (
+                    <div style={{fontSize:12,color:"#666"}}>Chưa có biên bản nào. Lưu biên bản để nó xuất hiện tại đây.</div>
+                  ) : (
+                    <div style={{display:"grid",gap:10,marginBottom:10}}>
+                      {savedRecs.map(rec => (
+                        <div key={rec.id} className="debt-invoice-card" style={{borderColor:rec.id===refNum?"#1a2540":"#e5e3dc"}}>
+                          <div className="debt-invoice-card-header" style={{cursor:"pointer"}} onClick={() => { setRefNum(rec.id); loadSavedByRefNum(rec.id); }}>
+                            <div>
+                              <div className="inv-num" style={{fontSize:12,fontWeight:600}}>{rec.refNum}</div>
+                              <div className="inv-date" style={{fontSize:11,color:"#888"}}>
+                                {rec.buyerName ? `${rec.buyerName} · ` : ""}{rec.invoices?.length || 0} hóa đơn
+                              </div>
+                            </div>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              <div className="inv-total" style={{fontSize:12,fontWeight:600}}>{fmt((rec.invoices||[]).reduce((s,i)=>s+(i.grand||0),0))} đ</div>
+                              <button type="button" className="btn btn-ghost btn-sm" style={{padding:"4px 8px"}} onClick={e => { e.stopPropagation(); handleDeleteDebtRec(rec.id); }}>
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                          <div style={{padding:"6px 10px",fontSize:11,color:"#555"}}>
+                            Cập nhật: {new Date(rec.updatedAt||0).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── 3. Danh sách HĐ đã import ── */}
                 {invoices.length > 0 && (
                   <div style={{marginBottom:16}}>
                     <div className="section-title" style={{marginBottom:6}}>
