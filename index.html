@@ -965,7 +965,18 @@ async function migrateFromLocalStorage() {
 // ── Xuất / Nhập JSON ─────────────────────────────────────────────────────────
 function exportToJSON() {
   _flushToLocalStorage();
-  const data = { quotes: _mem.quotes ?? [], products: _mem.products, customers: _mem.customers, contracts: _mem.contracts, handovers: _mem.handovers, deliveries: _mem.deliveries, tasks: _mem.tasks, notes: _mem.notes, exportedAt: new Date().toISOString() };
+  const data = {
+    quotes: _mem.quotes ?? [],
+    products: _mem.products,
+    customers: _mem.customers,
+    contracts: _mem.contracts,
+    handovers: _mem.handovers,
+    deliveries: _mem.deliveries,
+    debtRecs: _mem.debtRecs,
+    tasks: _mem.tasks,
+    notes: _mem.notes,
+    exportedAt: new Date().toISOString()
+  };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
@@ -988,6 +999,7 @@ function importFromJSON(onDone) {
       _mem.contracts  = (data.contracts  && typeof data.contracts  === "object") ? data.contracts  : {};
       _mem.handovers  = (data.handovers   && typeof data.handovers   === "object") ? data.handovers  : {};
       _mem.deliveries = (data.deliveries  && typeof data.deliveries  === "object") ? data.deliveries : {};
+      _mem.debtRecs   = (data.debtRecs   && typeof data.debtRecs   === "object") ? data.debtRecs   : {};
       await _flushToGAS();
       showToast(`✅ Đã nhập ${data.quotes.length} báo giá từ ${file.name}`);
       if (typeof onDone === "function") onDone(_mem.quotes);
