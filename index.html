@@ -3541,260 +3541,255 @@ const handlePDFClick = async () => {
   setPdfLoadingC(true);
   try {
     // vi_zh: pdfMake không hỗ trợ CJK → dùng html2canvas từ preview DOM
-    if (lang === "vi_zh") {
-      const el = document.getElementById("contract-preview-area");
-      if (!el) { alert("Không tìm thấy vùng xem trước hợp đồng."); return; }
+    // vi_zh: render một HTML tạm giống hệt layout pdfMake → html2canvas → PDF
+if (lang === "vi_zh") {
+  const FS      = fontSize || 12;
+  const FS_SM   = Math.round(FS * 0.88 * 10) / 10;
+  const FS_LG   = Math.round(FS * 1.1  * 10) / 10;
+  const FS_TITLE= Math.round(FS * 1.55 * 10) / 10;
+  const COL_NAVY= "#1A2540";
+  const COL_GRAY= "#555555";
+  const COL_LIGHT="#888888";
 
-      const wrapper = el.closest('[style*="21cm"]') || el.parentElement;
-      const SCALE = 3;
-      const A4_PX = 794;
+  const paymentB = form.paymentTermZh ||
+    `合同总价值的100%，相当于 ${fmt(total)} 越南盾（${numberToWordsCN(total)}），在设备交接安装完成后支付。`;
 
-      // Lưu style gốc
-      const savedStyle = {
-        width:    wrapper.style.width,
-        maxWidth: wrapper.style.maxWidth,
-        padding:  wrapper.style.padding,
-        margin:   wrapper.style.margin,
-        background: wrapper.style.background,
-      };
+  // ── Helper tạo cặp dòng song ngữ ──
+  const biRow = (vi, zh) => `
+    <p style="margin:0 0 1px;font-size:${FS}pt;color:#000">${vi}</p>
+    <p style="margin:0 0 4px;font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">${zh}</p>`;
 
-      wrapper.style.width    = A4_PX + "px";
-      wrapper.style.maxWidth = A4_PX + "px";
-      wrapper.style.background = "#ffffff";
+  const artHead = (vi, zh) => `
+    <p style="margin:10px 0 1px;font-size:${FS_LG}pt;font-weight:700;color:${COL_NAVY};text-transform:uppercase">${vi}</p>
+    <p style="margin:0 0 5px;font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">${zh}</p>`;
 
-      try {
-        // Thu thập bảng rows để tránh cắt giữa dòng
-        const noCutRanges = [];
-        wrapper.querySelectorAll("table tr").forEach(tr => {
-          const r  = tr.getBoundingClientRect();
-          const p  = wrapper.getBoundingClientRect();
-          noCutRanges.push({ top: r.top - p.top, bottom: r.bottom - p.top });
-        });
+  const partyHtml = (titleVi, titleZh, name, nameZh, rep, repZh, pos, posZh, addr, addrZh, tel, taxCode, accNo, bankVi, bankZh) => {
+    let html = biRow(`<b>${titleVi}: ${name}</b>`, `<b>${titleZh}: ${nameZh || name}</b>`);
+    if (rep)      html += biRow(`${T.rep}: ${rep}`,       `${T.repB}: ${repZh || rep}`);
+    if (pos)      html += biRow(`${T.position}: ${pos}`,   `${T.positionB}: ${posZh || pos}`);
+    if (addr)     html += biRow(`${T.address}: ${addr}`,   `${T.addressB}: ${addrZh || addr}`);
+    if (tel)      html += biRow(`${T.tel}: ${tel}`,         `${T.telB}: ${tel}`);
+    if (taxCode)  html += biRow(`${T.taxCode}: ${taxCode}`, `${T.taxCodeB}: ${taxCode}`);
+    if (accNo)    html += biRow(`${T.accountNo}: ${accNo}`, `${T.accountNoB}: ${accNo}`);
+    if (bankVi)   html += biRow(`${T.atBank}: ${bankVi}`,   `${T.atBankB}: ${bankZh || bankVi}`);
+    return html;
+  };
 
-        const canvas = await window.html2canvas(wrapper, {
-          scale:           SCALE,
-          useCORS:         true,
-          allowTaint:      true,
-          backgroundColor: "#ffffff",
-          logging:         false,
-          width:           A4_PX,
-          height:          wrapper.scrollHeight,
-          windowWidth:     A4_PX,
-          imageTimeout:    0,
-        });
+  // ── Bảng hàng hóa ──
+  const tdStyle = (align, extra) =>
+    `style="padding:4px 5px;border:0.5px solid #aaa;font-size:${FS_SM}pt;text-align:${align};vertical-align:top;${extra||''}"`;
 
-        const { jsPDF } = window.jspdf;
-        const PAGE_W = 210, PAGE_H = 297, MARGIN = 10;
-        const printW = PAGE_W - MARGIN * 2;
-        const printH = PAGE_H - MARGIN * 2;
-        const realW  = canvas.width  / SCALE;
-        const realH  = canvas.height / SCALE;
-        const mmPerPx  = printW / realW;
-        const pxPerPage = printH / mmPerPx;
+  let itemRowsHtml = "";
+  quote.items.forEach((it, i) => {
+    const line = (it.qty||0)*(it.price||0);
+    itemRowsHtml += `<tr>
+      <td ${tdStyle("center")}>${i+1}</td>
+      <td ${tdStyle("left")}>${it.name}${it.note ? `<div style="font-size:${FS_SM*0.85}pt;color:${COL_LIGHT};font-style:italic">${it.note}</div>` : ""}</td>
+      <td ${tdStyle("center")}>${it.qty}</td>
+      <td ${tdStyle("center")}>${it.unit}</td>
+      <td ${tdStyle("right")}>${fmt(it.price)}</td>
+      <td ${tdStyle("right","font-weight:700")}>${fmt(line)}</td>
+    </tr>`;
+  });
 
-        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-        let srcY = 0, page = 0;
+  const sumRowHtml = (vi, zh, val, bold) => `<tr>
+    <td colspan="5" ${tdStyle("right", bold?"font-weight:700":"")}>
+      <span style="font-size:${FS_SM}pt">${vi}</span><br>
+      <span style="font-size:${FS_SM*0.85}pt;color:${COL_GRAY};font-style:italic">${zh}</span>
+    </td>
+    <td ${tdStyle("right", bold?`font-weight:700;color:${COL_NAVY};font-size:${FS_SM*1.05}pt`:"")}>${fmt(val)}</td>
+  </tr>`;
 
-        while (srcY < realH) {
-          if (page > 0) doc.addPage();
+  const thStyle = `style="padding:4px 5px;border:0.5px solid #aaa;font-size:${FS_SM}pt;font-weight:700;background:#f0f0f0;text-align:center"`;
+  const tableHtml = `
+    <table style="width:100%;border-collapse:collapse;margin:4px 0">
+      <thead><tr>
+        ${T.itemsHeader.map((h,i) => `<th ${thStyle}>${h}<br><span style="font-size:${FS_SM*0.82}pt;color:${COL_LIGHT};font-weight:normal;font-style:italic">${T.itemsHeaderB[i]}</span></th>`).join("")}
+      </tr></thead>
+      <tbody>
+        ${itemRowsHtml}
+        ${sumRowHtml(T.rowTotal, T.rowTotalB, subtotal, false)}
+        ${sumRowHtml(T.rowVat(vatLabel(quote.vatRate)), T.rowVatB(vatLabel(quote.vatRate)), vat, false)}
+        ${sumRowHtml(T.rowGrand, T.rowGrandB, total, true)}
+      </tbody>
+    </table>`;
 
-          let slicePx  = Math.min(pxPerPage, realH - srcY);
-          let pageEndY = srcY + slicePx;
+  // ── Bảng chữ ký ──
+  const signHtml = `
+    <table style="width:100%;border-collapse:collapse;margin-top:24px">
+      <tr>
+        <td style="width:50%;text-align:center;padding:0 20px;border:none;vertical-align:top">
+          <p style="margin:0;font-size:${FS_SM}pt;font-weight:700">${T.signSeller}</p>
+          <p style="margin:0 0 8px;font-size:${FS_SM*0.85}pt;color:${COL_GRAY};font-style:italic">${T.signSellerB}</p>
+          <p style="margin:0;font-size:${FS_SM*0.85}pt;font-style:italic;color:${COL_GRAY}">(Ký, ghi rõ họ tên)</p>
+          <div style="height:64px"></div>
+          <p style="margin:0;font-size:${FS_SM}pt;font-weight:700">${COMPANY.representative||""}</p>
+        </td>
+        <td style="width:50%;text-align:center;padding:0 20px;border:none;vertical-align:top">
+          <p style="margin:0;font-size:${FS_SM}pt;font-weight:700">${T.signBuyer}</p>
+          <p style="margin:0 0 8px;font-size:${FS_SM*0.85}pt;color:${COL_GRAY};font-style:italic">${T.signBuyerB}</p>
+          <p style="margin:0;font-size:${FS_SM*0.85}pt;font-style:italic;color:${COL_GRAY}">(Ký, ghi rõ họ tên)</p>
+          <div style="height:64px"></div>
+          <p style="margin:0;font-size:${FS_SM}pt;font-weight:700">${form.buyerRep||""}</p>
+        </td>
+      </tr>
+    </table>`;
 
-          // Tránh cắt giữa hàng bảng
-          if (pageEndY < realH) {
-            for (const rng of noCutRanges) {
-              if (pageEndY > rng.top + 0.5 && pageEndY < rng.bottom - 0.5) {
-                const adj = rng.top - srcY;
-                if (adj > 0) slicePx = adj;
-                break;
-              }
-            }
-          }
+  // ── Ghép toàn bộ HTML ──
+  const ML = pageMargins.left   || 30;
+  const MR = pageMargins.right  || 20;
+  const MT = pageMargins.top    || 20;
+  const MB = pageMargins.bottom || 20;
 
-          const sliceMm = slicePx * mmPerPx;
-          const slice   = document.createElement("canvas");
-          slice.width   = canvas.width;
-          slice.height  = Math.ceil(slicePx * SCALE);
-          const ctx = slice.getContext("2d");
-          ctx.fillStyle = "#ffffff";
-          ctx.fillRect(0, 0, slice.width, slice.height);
-          ctx.drawImage(
-            canvas,
-            0, Math.floor(srcY * SCALE), canvas.width, Math.ceil(slicePx * SCALE),
-            0, 0, slice.width, slice.height
-          );
-          doc.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", MARGIN, MARGIN, printW, sliceMm);
-          srcY += slicePx;
-          page++;
-        }
+  const fullHtml = `
+    <div style="
+      font-family: 'Be Vietnam Pro', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      font-size: ${FS}pt;
+      line-height: 1.55;
+      color: #000;
+      background: #fff;
+      padding: ${MT}mm ${MR}mm ${MB}mm ${ML}mm;
+      box-sizing: border-box;
+      width: 794px;
+    ">
+      <!-- Quốc hiệu -->
+      <p style="text-align:center;margin:0;font-size:${FS*1.05}pt;font-weight:700">${T.natTitle1}</p>
+      <p style="text-align:center;margin:0 0 1px;font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">${T.natTitle1b}</p>
+      <p style="text-align:center;margin:0;font-size:${FS}pt;font-weight:700">${T.natTitle2}</p>
+      <p style="text-align:center;margin:0 0 14px;font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">${T.natTitle2b}</p>
 
-        doc.save("HopDong_" + (form.contractNumber || quote.quoteNumber) + ".pdf");
-      } finally {
-        wrapper.style.width    = savedStyle.width;
-        wrapper.style.maxWidth = savedStyle.maxWidth;
-        wrapper.style.padding  = savedStyle.padding;
-        wrapper.style.margin   = savedStyle.margin;
-        wrapper.style.background = savedStyle.background;
-      }
-      return; // kết thúc nhánh vi_zh
-    }
+      <!-- Tên hợp đồng -->
+      <p style="text-align:center;margin:0;font-size:${FS_TITLE}pt;font-weight:700;color:${COL_NAVY};text-transform:uppercase">${T.title}</p>
+      <p style="text-align:center;margin:0 0 2px;font-size:${FS_LG}pt;color:${COL_GRAY};font-style:italic">${T.titleB}</p>
+      <p style="text-align:center;margin:0 0 14px;font-size:${FS_SM}pt;color:${COL_LIGHT}">Số/No: ${form.contractNumber||"......"}</p>
 
-    // ── vi_en: giữ nguyên pdfMake như cũ ──────────────────────────────────
-    if (!window.pdfMake) {
-      alert("pdfmake chua load. Kiem tra ket noi internet va thu lai.");
-      return;
-    }
+      <!-- Căn cứ pháp lý -->
+      ${biRow(T.legalBasis, T.legalBasisB)}
+      ${biRow(T.today(form.contractDate), T.todayB(form.contractDate))}
+      <div style="margin-bottom:10px"></div>
 
-    const FS       = fontSize || 12;
-    const FS_SM    = Math.round(FS * 0.88 * 10) / 10;
-    const FS_LG    = Math.round(FS * 1.1  * 10) / 10;
-    const FS_TITLE = Math.round(FS * 1.55 * 10) / 10;
-    const FS_NAT   = Math.round(FS * 1.05 * 10) / 10;
+      <!-- Bên bán -->
+      ${partyHtml(T.seller, T.sellerB, COMPANY.name, COMPANY.nameEn, COMPANY.representative, COMPANY.representativeEn, COMPANY.position, COMPANY.positionEn, COMPANY.address, COMPANY.addressEn, COMPANY.phone, COMPANY.mst, COMPANY.bankAccount, COMPANY.bankName, COMPANY.bankNameEn)}
+      <div style="margin-bottom:8px"></div>
 
-    const mmToPt = mm => Math.round(mm * 2.8346 * 10) / 10;
-    const ML = mmToPt(pageMargins.left   || 30);
-    const MR = mmToPt(pageMargins.right  || 20);
-    const MT = mmToPt(pageMargins.top    || 20);
-    const MB = mmToPt(pageMargins.bottom || 20);
+      <!-- Bên mua -->
+      ${partyHtml(T.buyer, T.buyerB, form.buyerName, form.buyerNameEn||form.buyerName, form.buyerRep, form.buyerRepEn, form.buyerPosition, form.buyerPositionEn, form.buyerAddress, form.buyerAddressEn, form.buyerTel, form.buyerTaxCode, form.buyerAccountNo, form.buyerBank, form.buyerBankEn)}
+      <div style="margin-bottom:8px"></div>
 
-    const COL_NAVY  = "#1A2540";
-    const COL_GRAY  = "#555555";
-    const COL_LIGHT = "#888888";
+      ${biRow(T.agree, T.agreeB)}
+      <div style="margin-bottom:12px"></div>
 
-    const bi = (vi, other, opts) => {
-      const o = opts || {};
-      return [
-        { text: vi, fontSize: o.size || FS, bold: o.bold || false, color: o.color || "#000000", alignment: o.align || "left", margin: [0, o.spaceBefore || 0, 0, 1] },
-        { text: other, fontSize: o.sizeB || FS_SM, italics: true, color: COL_GRAY, alignment: o.align || "left", margin: [0, 0, 0, o.spaceAfter || 4] },
-      ];
-    };
+      <!-- Điều 1 -->
+      ${artHead(T.art1, T.art1B)}
+      ${biRow(`<b>1.1 ${T.art1_1}</b>`, T.art1_1B)}
+      ${biRow(T.art1_desc, T.art1_descB)}
+      ${tableHtml}
+      <p style="text-align:right;margin:2px 0 1px;font-size:${FS_SM}pt;font-weight:700">${T.inWords(numberToWordsVN(total))}</p>
+      <p style="text-align:right;margin:0 0 8px;font-size:${FS_SM*0.9}pt;color:${COL_GRAY};font-style:italic">${T.inWordsB(numberToWordsCN(total))}</p>
+      ${biRow(`1.2 ${T.art1_2}: ${T.quality}`, `${T.art1_2B}: ${T.qualityB}`)}
+      ${biRow(T.art1_3, T.art1_3B)}
+      ${T.docs.map((d,i) => biRow(`&nbsp;&nbsp;- ${d}`, `&nbsp;&nbsp;- ${T.docsB[i]}`)).join("")}
 
-    const artHeading = (vi, other) => [
-      { text: vi,    fontSize: FS_LG, bold: true, color: COL_NAVY, margin: [0, 10, 0, 1] },
-      { text: other, fontSize: FS_SM, italics: true, color: COL_GRAY, margin: [0, 0, 0, 5] },
-    ];
+      <!-- Điều 2 -->
+      ${artHead(T.art2, T.art2B)}
+      ${biRow(`${T.art2_lead}: ${form.paymentTerm}`, `${T.art2_leadB}: ${paymentB}`)}
+      <div style="margin-bottom:10px"></div>
 
-    const partyBlock = (titleVi, titleEn, name, nameEn, rep, repEn, pos, posEn, addr, addrEn, tel, taxCode, accNo, bankVi, bankEn) => {
-      const rows = [];
-      rows.push(...bi(titleVi + ": " + name, titleEn + ": " + (nameEn || name), { bold: true, spaceAfter: 1 }));
-      if (rep)     rows.push(...bi(T.rep      + ": " + rep,     T.repB      + ": " + (repEn  || rep),     { spaceAfter: 1 }));
-      if (pos)     rows.push(...bi(T.position + ": " + pos,     T.positionB + ": " + (posEn  || pos),     { spaceAfter: 1 }));
-      if (addr)    rows.push(...bi(T.address  + ": " + addr,    T.addressB  + ": " + (addrEn || addr),    { spaceAfter: 1 }));
-      if (tel)     rows.push(...bi(T.tel      + ": " + tel,     T.telB      + ": " + tel,                 { spaceAfter: 1 }));
-      if (taxCode) rows.push(...bi(T.taxCode  + ": " + taxCode, T.taxCodeB  + ": " + taxCode,             { spaceAfter: 1 }));
-      if (accNo)   rows.push(...bi(T.accountNo+ ": " + accNo,   T.accountNoB+ ": " + accNo,               { spaceAfter: 1 }));
-      if (bankVi)  rows.push(...bi(T.atBank   + ": " + bankVi,  T.atBankB   + ": " + (bankEn || bankVi),  { spaceAfter: 8 }));
-      return rows;
-    };
+      <!-- Điều 3 -->
+      ${artHead(T.art3, T.art3B)}
+      ${biRow(T.art3_1(form.deliveryDays), T.art3_1B(form.deliveryDays))}
+      ${biRow(T.art3_2(form.deliveryPlace), T.art3_2B(form.deliveryPlaceEn||form.deliveryPlace))}
+      <div style="margin-bottom:10px"></div>
 
-    const tableHeader = T.itemsHeader.map((h, i) => ({
-      stack: [
-        { text: h,                fontSize: FS_SM, bold: true,   color: "#000000" },
-        { text: T.itemsHeaderB[i], fontSize: FS_SM * 0.82, italics: true, color: COL_LIGHT },
-      ],
-      alignment: i === 1 ? "left" : "center",
-      margin: [2, 3, 2, 3],
-      fillColor: "#F0F0F0",
-    }));
+      <!-- Điều 4 -->
+      ${artHead(T.art4, T.art4B)}
+      ${biRow(clause("art4_1_vi",T.art4_1), clauseB("art4_1_b",T.art4_1B))}
+      ${biRow(clause("art4_2_vi",T.art4_2), clauseB("art4_2_b",T.art4_2B))}
+      ${biRow(clause("art4_3_vi",T.art4_3), clauseB("art4_3_b",T.art4_3B))}
+      ${biRow(clause("art4_4_vi",T.art4_4), clauseB("art4_4_b",T.art4_4B))}
+      <div style="margin-bottom:10px"></div>
 
-    const tableBody = [tableHeader];
-    quote.items.forEach((it, i) => {
-      const line = (it.qty || 0) * (it.price || 0);
-      tableBody.push([
-        { text: String(i + 1), alignment: "center", fontSize: FS_SM, margin: [2, 3, 2, 3] },
-        { stack: [{ text: it.name, fontSize: FS_SM }, ...(it.note ? [{ text: it.note, fontSize: FS_SM * 0.85, italics: true, color: COL_LIGHT }] : [])], margin: [2, 3, 2, 3] },
-        { text: String(it.qty), alignment: "center", fontSize: FS_SM, margin: [2, 3, 2, 3] },
-        { text: it.unit,        alignment: "center", fontSize: FS_SM, margin: [2, 3, 2, 3] },
-        { text: fmt(it.price),  alignment: "right",  fontSize: FS_SM, margin: [2, 3, 2, 3] },
-        { text: fmt(line),      alignment: "right",  fontSize: FS_SM, bold: true, margin: [2, 3, 2, 3] },
-      ]);
+      <!-- Điều 5 -->
+      ${artHead(T.art5, T.art5B)}
+      ${biRow(clause("art5_vi",T.art5_body), clauseB("art5_b",T.art5_bodyB))}
+      <div style="margin-bottom:10px"></div>
+
+      <!-- Điều 6 -->
+      ${artHead(T.art6, T.art6B)}
+      ${biRow(`6.1 ${clause("art6_1_vi",T.art6_1)}`, `6.1 ${clauseB("art6_1_b",T.art6_1B)}`)}
+      ${biRow(`6.2 ${clause("art6_2_vi",T.art6_2)}`, `6.2 ${clauseB("art6_2_b",T.art6_2B)}`)}
+      ${biRow(`6.3 ${clause("art6_3_vi",T.art6_3)}`, `6.3 ${clauseB("art6_3_b",T.art6_3B)}`)}
+      ${biRow(`6.4 ${clause("art6_4_vi",T.art6_4)}`, `6.4 ${clauseB("art6_4_b",T.art6_4B)}`)}
+      ${biRow(`6.5 ${clause("art6_5_vi",T.art6_5)}`, `6.5 ${clauseB("art6_5_b",T.art6_5B)}`)}
+      <div style="margin-bottom:16px"></div>
+
+      <!-- Chữ ký -->
+      ${signHtml}
+    </div>`;
+
+  // ── Tạo DOM tạm, render, xóa ──
+  const wrapper = document.createElement("div");
+  wrapper.style.cssText = "position:fixed;top:-99999px;left:-99999px;width:794px;background:#fff;";
+  wrapper.innerHTML = fullHtml;
+  document.body.appendChild(wrapper);
+
+  try {
+    // Thu thập no-cut ranges
+    const noCutRanges = [];
+    wrapper.querySelectorAll("table tr").forEach(tr => {
+      const r = tr.getBoundingClientRect();
+      const p = wrapper.getBoundingClientRect();
+      noCutRanges.push({ top: r.top - p.top, bottom: r.bottom - p.top });
     });
 
-    const sumRow = (labelVi, labelEn, val, isBold) => [
-      { colSpan: 5, stack: [{ text: labelVi, alignment: "right", bold: isBold || false, fontSize: FS_SM }, { text: labelEn, alignment: "right", italics: true, color: COL_GRAY, fontSize: FS_SM * 0.85 }], border: [true, true, true, true], margin: [2, 3, 4, 3] },
-      {}, {}, {}, {},
-      { text: fmt(val), alignment: "right", bold: isBold || false, fontSize: isBold ? FS_SM * 1.05 : FS_SM, color: isBold ? COL_NAVY : "#000000", margin: [2, 3, 2, 3] },
-    ];
+    const SCALE = 3;
+    const canvas = await window.html2canvas(wrapper, {
+      scale: SCALE, useCORS: true, allowTaint: true,
+      backgroundColor: "#ffffff", logging: false,
+      width: 794, height: wrapper.scrollHeight,
+      windowWidth: 794, imageTimeout: 0,
+    });
 
-    tableBody.push(sumRow(T.rowTotal, T.rowTotalB, subtotal, false));
-    tableBody.push(sumRow(T.rowVat(vatLabel(quote.vatRate)), T.rowVatB(vatLabel(quote.vatRate)), vat, false));
-    tableBody.push(sumRow(T.rowGrand, T.rowGrandB, total, true));
+    const { jsPDF } = window.jspdf;
+    const PAGE_W = 210, PAGE_H = 297, MARGIN = 10;
+    const printW = PAGE_W - MARGIN * 2, printH = PAGE_H - MARGIN * 2;
+    const realW = canvas.width / SCALE, realH = canvas.height / SCALE;
+    const mmPerPx = printW / realW, pxPerPage = printH / mmPerPx;
 
-    const itemsTable = {
-      table: { headerRows: 1, widths: [28, "*", 45, 38, 68, 76], body: tableBody },
-      layout: { hLineWidth: function() { return 0.5; }, vLineWidth: function() { return 0.5; }, hLineColor: function() { return "#AAAAAA"; }, vLineColor: function() { return "#AAAAAA"; } },
-      margin: [0, 4, 0, 4],
-    };
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    let srcY = 0, page = 0;
 
-    const signTable = {
-      table: { widths: ["*", "*"], body: [[
-        { stack: [{ text: T.signSeller, bold: true, fontSize: FS_SM, alignment: "center" }, { text: T.signSellerB, italics: true, fontSize: FS_SM * 0.85, color: COL_GRAY, alignment: "center" }, { text: "\n\n\n\n", fontSize: FS_SM }, { text: "(Ký, ghi rõ họ tên)", italics: true, fontSize: FS_SM * 0.85, alignment: "center" }, { text: COMPANY.representative, bold: true, fontSize: FS_SM, alignment: "center" }], border: [false, false, false, false] },
-        { stack: [{ text: T.signBuyer, bold: true, fontSize: FS_SM, alignment: "center" }, { text: T.signBuyerB, italics: true, fontSize: FS_SM * 0.85, color: COL_GRAY, alignment: "center" }, { text: "\n\n\n\n", fontSize: FS_SM }, { text: "(Ký, ghi rõ họ tên)", italics: true, fontSize: FS_SM * 0.85, alignment: "center" }, { text: form.buyerRep || "", bold: true, fontSize: FS_SM, alignment: "center" }], border: [false, false, false, false] },
-      ]]},
-      margin: [0, 24, 0, 0],
-    };
+    while (srcY < realH) {
+      if (page > 0) doc.addPage();
+      let slicePx = Math.min(pxPerPage, realH - srcY);
+      if (srcY + slicePx < realH) {
+        for (const rng of noCutRanges) {
+          if ((srcY + slicePx) > rng.top + 0.5 && (srcY + slicePx) < rng.bottom - 0.5) {
+            const adj = rng.top - srcY;
+            if (adj > 0) slicePx = adj;
+            break;
+          }
+        }
+      }
+      const sliceMm = slicePx * mmPerPx;
+      const slice = document.createElement("canvas");
+      slice.width = canvas.width;
+      slice.height = Math.ceil(slicePx * SCALE);
+      const ctx = slice.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, Math.floor(srcY * SCALE), canvas.width, Math.ceil(slicePx * SCALE), 0, 0, slice.width, slice.height);
+      doc.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", MARGIN, MARGIN, printW, sliceMm);
+      srcY += slicePx;
+      page++;
+    }
 
-    const paymentB = lang === "vi_en"
-      ? (form.paymentTermEn || `Pay 100% of the contract value equivalent to ${fmt(total)} VND (${numberToWordsEN(total)}) after handover and installation of the equipment.`)
-      : (form.paymentTermZh || `合同总价值的100%，相当于 ${fmt(total)} 越南盾（${numberToWordsCN(total)}），在设备交接安装完成后支付。`);
-
-    const docDefinition = {
-      pageSize: "A4",
-      pageMargins: [ML, MT, MR, MB],
-      defaultStyle: { font: "Roboto", fontSize: FS, lineHeight: 1.45 },
-      content: [
-        ...bi(T.natTitle1, T.natTitle1b, { bold: true, align: "center", size: FS_NAT, spaceAfter: 1 }),
-        ...bi(T.natTitle2, T.natTitle2b, { bold: true, align: "center", size: FS_SM,  spaceAfter: 14 }),
-        { text: T.title,  bold: true, fontSize: FS_TITLE, color: COL_NAVY, alignment: "center", margin: [0, 0, 0, 2] },
-        { text: T.titleB, italics: true, fontSize: FS_LG,  color: COL_GRAY, alignment: "center", margin: [0, 0, 0, 2] },
-        { text: "So/No: " + (form.contractNumber || "......"), fontSize: FS_SM, color: COL_LIGHT, alignment: "center", margin: [0, 0, 0, 14] },
-        ...bi(T.legalBasis, T.legalBasisB, { spaceAfter: 8 }),
-        ...bi(T.today(form.contractDate), T.todayB(form.contractDate), { spaceAfter: 10 }),
-        ...partyBlock(T.seller, T.sellerB, COMPANY.name, COMPANY.nameEn, COMPANY.representative, COMPANY.representativeEn, COMPANY.position, COMPANY.positionEn, COMPANY.address, COMPANY.addressEn, COMPANY.phone, COMPANY.mst, COMPANY.bankAccount, COMPANY.bankName, COMPANY.bankNameEn),
-        ...partyBlock(T.buyer, T.buyerB, form.buyerName, form.buyerNameEn || form.buyerName, form.buyerRep, form.buyerRepEn, form.buyerPosition, form.buyerPositionEn, form.buyerAddress, form.buyerAddressEn, form.buyerTel, form.buyerTaxCode, form.buyerAccountNo, form.buyerBank, form.buyerBankEn),
-        ...bi(T.agree, T.agreeB, { spaceAfter: 12 }),
-        ...artHeading(T.art1, T.art1B),
-        ...bi("1.1 " + T.art1_1, T.art1_1B, { bold: true, spaceAfter: 2 }),
-        ...bi(T.art1_desc, T.art1_descB, { spaceAfter: 4 }),
-        itemsTable,
-        { text: T.inWords(numberToWordsVN(total)), alignment: "right", bold: true, fontSize: FS_SM, margin: [0, 2, 0, 1] },
-        { text: T.inWordsB(numberToWordsEN(total)), alignment: "right", italics: true, color: COL_GRAY, fontSize: FS_SM * 0.9, margin: [0, 0, 0, 8] },
-        ...bi("1.2 " + T.art1_2 + ": " + T.quality, T.art1_2B + ": " + T.qualityB, { spaceAfter: 2 }),
-        ...bi(T.art1_3, T.art1_3B, { spaceAfter: 2 }),
-        ...T.docs.flatMap(function(d, i) { return bi("  - " + d, "  - " + T.docsB[i], { spaceAfter: 1 }); }),
-        ...artHeading(T.art2, T.art2B),
-        ...bi(T.art2_lead + ": " + form.paymentTerm, T.art2_leadB + ": " + paymentB, { spaceAfter: 10 }),
-        ...artHeading(T.art3, T.art3B),
-        ...bi(T.art3_1(form.deliveryDays), T.art3_1B(form.deliveryDays), { spaceAfter: 2 }),
-        ...bi(T.art3_2(form.deliveryPlace), T.art3_2B(form.deliveryPlaceEn || form.deliveryPlace), { spaceAfter: 10 }),
-        ...artHeading(T.art4, T.art4B),
-        ...bi(clause("art4_1_vi", T.art4_1), clauseB("art4_1_b", T.art4_1B), { spaceAfter: 2 }),
-        ...bi(clause("art4_2_vi", T.art4_2), clauseB("art4_2_b", T.art4_2B), { spaceAfter: 2 }),
-        ...bi(clause("art4_3_vi", T.art4_3), clauseB("art4_3_b", T.art4_3B), { spaceAfter: 2 }),
-        ...bi(clause("art4_4_vi", T.art4_4), clauseB("art4_4_b", T.art4_4B), { spaceAfter: 10 }),
-        ...artHeading(T.art5, T.art5B),
-        ...bi(clause("art5_vi", T.art5_body), clauseB("art5_b", T.art5_bodyB), { spaceAfter: 10 }),
-        ...artHeading(T.art6, T.art6B),
-        ...bi("6.1 " + clause("art6_1_vi", T.art6_1), "6.1 " + clauseB("art6_1_b", T.art6_1B), { spaceAfter: 2 }),
-        ...bi("6.2 " + clause("art6_2_vi", T.art6_2), "6.2 " + clauseB("art6_2_b", T.art6_2B), { spaceAfter: 2 }),
-        ...bi("6.3 " + clause("art6_3_vi", T.art6_3), "6.3 " + clauseB("art6_3_b", T.art6_3B), { spaceAfter: 2 }),
-        ...bi("6.4 " + clause("art6_4_vi", T.art6_4), "6.4 " + clauseB("art6_4_b", T.art6_4B), { spaceAfter: 2 }),
-        ...bi("6.5 " + clause("art6_5_vi", T.art6_5), "6.5 " + clauseB("art6_5_b", T.art6_5B), { spaceAfter: 16 }),
-        signTable,
-      ],
-    };
-
-    const filename = "HopDong_" + (form.contractNumber || quote.quoteNumber) + ".pdf";
-    window.pdfMake.createPdf(docDefinition).download(filename);
-
-  } catch(e) {
-    alert("Loi xuat PDF: " + e.message);
-    console.error(e);
+    doc.save("HopDong_" + (form.contractNumber || quote.quoteNumber) + ".pdf");
   } finally {
-    setPdfLoadingC(false);
+    document.body.removeChild(wrapper);
   }
-};
+  return;
+}
 
 
 
