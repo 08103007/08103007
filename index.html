@@ -447,6 +447,43 @@
   .xml-result-item:last-child { border-bottom:none; }
   .xml-result-item input[type=checkbox] { width:16px; height:16px; cursor:pointer; accent-color:#1a2540; }
   .xml-result-item:hover { background:#fafaf7; }
+  
+	  /* ── Debt Reconciliation ─────────────────────────────────────────────────── */
+	.debt-preview { font-family:'Be Vietnam Pro',sans-serif; padding:28px 32px; max-width:794px; margin:0 auto; background:#fff; font-size:12px; color:#000; line-height:1.6; }
+	.debt-header-table { width:100%; border-collapse:collapse; margin-bottom:14px; }
+	.debt-header-table td { vertical-align:top; padding:2px 6px; font-size:11px; }
+	.debt-header-left { width:55%; border-right:2px solid #1a2540; }
+	.debt-header-right { text-align:center; }
+	.debt-title { text-align:center; margin:14px 0 16px; }
+	.debt-title h1 { font-size:17px; font-weight:700; color:#1a2540; text-transform:uppercase; letter-spacing:0.04em; }
+	.debt-title .ref { font-size:11px; color:#666; margin-top:2px; }
+	.debt-party-block { font-size:12px; margin-bottom:6px; line-height:1.8; }
+	.debt-items-table { width:100%; border-collapse:collapse; margin:10px 0; font-size:11px; border:1px solid #333; table-layout:auto; }
+	.debt-items-table th { background:transparent; color:#1a2540; padding:6px 4px; font-weight:600; border-right:1px solid #333; border-bottom:1px solid #333; white-space:nowrap; text-align:center; }
+	.debt-items-table th:last-child { border-right:none; }
+	.debt-items-table td { padding:6px 4px; border-right:1px solid #333; border-bottom:1px solid #333; overflow-wrap:break-word; word-break:break-word; vertical-align:top; }
+	.debt-items-table td:last-child { border-right:none; }
+	.debt-items-table tr:last-child td { border-bottom:none; }
+	.debt-items-table .right { text-align:right; white-space:nowrap; }
+	.debt-items-table .center { text-align:center; }
+	.debt-subtotal-row td { background:#f5f7fb; font-weight:600; }
+	.debt-grand-row td { background:#eef0f8; color:#1a2540; font-weight:700; font-size:13px; }
+	.debt-sign { display:flex; justify-content:space-between; margin-top:28px; font-size:12px; }
+	.debt-sign-block { text-align:center; min-width:200px; }
+	.debt-sign-block .sign-title { font-weight:700; color:#1a2540; margin-bottom:3px; }
+	.debt-sign-block .sign-space { height:64px; }
+	.debt-xml-dropzone { border:2px dashed #d1cfc6; border-radius:8px; padding:20px; text-align:center; cursor:pointer; background:#fafaf7; transition:background 0.15s; }
+	.debt-xml-dropzone:hover { background:#f0f4ff; border-color:#1a2540; }
+	.debt-invoice-card { border:1px solid #e5e3dc; border-radius:8px; margin-bottom:10px; overflow:hidden; }
+	.debt-invoice-card-header { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; background:#f9f8f5; border-bottom:1px solid #e5e3dc; gap:8px; }
+	.debt-invoice-card-header .inv-num { font-weight:600; color:#1a2540; font-size:13px; }
+	.debt-invoice-card-header .inv-date { font-size:12px; color:#888; }
+	.debt-invoice-card-header .inv-total { font-weight:600; font-size:13px; color:#1a2540; }
+	@media print {
+	  .debt-items-table th { background:#fff !important; color:#1a2540 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+	  .debt-grand-row td { background:#eef0f8 !important; color:#1a2540 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+	}
+  
 
   </style>
 </head>
@@ -639,6 +676,7 @@ const LS_HANDOVERS  = "pmc_handovers_v4";
 const LS_TASKS      = "pmc_tasks_v4";
 const LS_NOTES      = "pmc_notes_v4";
 const LS_DELIVERIES = "pmc_deliveries_v4";
+const LS_DEBTRECS   = "pmc_debtrecs_v1"; // biên bản đối chiếu công nợ
 const LS_TOKEN  = "pmc_session_token";  // session token từ GAS
 
 // ── GAS_URL getter: đọc từ localStorage (không hardcode) ─────────────────────
@@ -654,6 +692,7 @@ const _mem = {
   contracts:  {},
   handovers:  {},
   deliveries: {},
+  debtRecs:   {},
   tasks:      [],
   notes:      [],
 };
@@ -697,6 +736,7 @@ async function _flushToGAS() {
           contracts:  _mem.contracts,
           handovers:  _mem.handovers,
           deliveries: _mem.deliveries,
+          debtRecs:   _mem.debtRecs,
           tasks:      _mem.tasks,
           notes:      _mem.notes,
         }
@@ -734,6 +774,7 @@ function _flushToLocalStorage() {
     localStorage.setItem(LS_CONTRACTS,  JSON.stringify(_mem.contracts));
     localStorage.setItem(LS_HANDOVERS,  JSON.stringify(_mem.handovers));
     localStorage.setItem(LS_DELIVERIES, JSON.stringify(_mem.deliveries));
+    localStorage.setItem(LS_DEBTRECS,   JSON.stringify(_mem.debtRecs));
     localStorage.setItem(LS_TASKS,      JSON.stringify(_mem.tasks));
     localStorage.setItem(LS_NOTES,      JSON.stringify(_mem.notes));
   } catch(e) { console.warn("localStorage full:", e); }
@@ -762,6 +803,7 @@ async function doLoad() {
         _mem.contracts  = (data.contracts  && typeof data.contracts  === "object") ? data.contracts  : {};
         _mem.handovers  = (data.handovers   && typeof data.handovers   === "object") ? data.handovers  : {};
         _mem.deliveries = (data.deliveries  && typeof data.deliveries  === "object") ? data.deliveries : {};
+        _mem.debtRecs   = (data.debtRecs    && typeof data.debtRecs    === "object") ? data.debtRecs   : {};
       _mem.tasks      = Array.isArray(data.tasks) ? data.tasks : [];
       _mem.notes      = Array.isArray(data.notes) ? data.notes : [];
         _mem.tasks      = Array.isArray(data.tasks) ? data.tasks : [];
@@ -800,6 +842,7 @@ function _initFromLocalStorage() {
   try { const ct= localStorage.getItem(LS_CONTRACTS);  _mem.contracts  = ct  ? JSON.parse(ct)  : {}; } catch { _mem.contracts  = {}; }
   try { const hw= localStorage.getItem(LS_HANDOVERS);   _mem.handovers  = hw  ? JSON.parse(hw)  : {}; } catch { _mem.handovers  = {}; }
   try { const dv= localStorage.getItem(LS_DELIVERIES);  _mem.deliveries = dv  ? JSON.parse(dv)  : {}; } catch { _mem.deliveries = {}; }
+  try { const dr= localStorage.getItem(LS_DEBTRECS);     _mem.debtRecs   = dr  ? JSON.parse(dr)  : {}; } catch { _mem.debtRecs   = {}; }
   try { const tk= localStorage.getItem(LS_TASKS);        _mem.tasks      = tk  ? JSON.parse(tk)  : []; } catch { _mem.tasks      = []; }
   try { const nt= localStorage.getItem(LS_NOTES);        _mem.notes      = nt  ? JSON.parse(nt)  : []; } catch { _mem.notes      = []; }
 }
@@ -875,6 +918,23 @@ function saveDelivery(id, data) {
   _mem.deliveries[id] = { ...data, id };
   _scheduleSave();
   return Promise.resolve();
+}
+
+// ── Biên bản đối chiếu công nợ ────────────────────────────────────────────────
+function loadDebtRec(id) { return Promise.resolve(_mem.debtRecs[id] || null); }
+function listDebtRecs() { return Promise.resolve(Object.values(_mem.debtRecs || {})); }
+function saveDebtRec(id, data) {
+  _mem.debtRecs[id] = { ...data, id, updatedAt: Date.now() };
+  _scheduleSave();
+  return Promise.resolve();
+}
+// Sinh số biên bản tự động: BBDCCN-XX/NĂM (XX tăng dần theo số biên bản đã có trong năm)
+function generateDebtRecNumber() {
+  const year = new Date().getFullYear();
+  const existing = Object.values(_mem.debtRecs || {});
+  const countThisYear = existing.filter(r => (r.refNum || "").includes("/" + year)).length;
+  const seq = String(countThisYear + 1).padStart(2, "0");
+  return `BBDCCN-${seq}/${year}`;
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
@@ -5595,6 +5655,7 @@ function App() {
   const [handoverQuote, setHandoverQuote] = useState(null);
   const [showNewHandover, setShowNewHandover] = useState(false);
   const [deliveryQuote, setDeliveryQuote] = useState(null);
+  const [showDebtRecon, setShowDebtRecon] = useState(false);
   const [search, setSearch] = useState("");
   const [itemSearch, setItemSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -5768,6 +5829,10 @@ function App() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             <span className="sidebar-label">Hợp đồng</span>
             <span className="sidebar-badge">{Object.keys(_mem.contracts||{}).length}</span>
+          </div>
+          <div className={`sidebar-item ${showDebtRecon?"active":""}`} onClick={()=>setShowDebtRecon(true)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"/><path d="M9 7V4a2 2 0 0 1 2-2h5l4 4v5a2 2 0 0 1-2 2h-3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+            <span className="sidebar-label">Đối chiếu CN</span>
           </div>
           <div className={`sidebar-item ${view==="tasks"?"active":""}`} onClick={()=>setView("tasks")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
@@ -6100,6 +6165,10 @@ function App() {
         />
       )}
 
+      {showDebtRecon && (
+        <DebtReconciliationModal onClose={() => setShowDebtRecon(false)} />
+      )}
+
       {deleteConfirm && (
         <div className="modal-overlay" onClick={()=>setDeleteConfirm(null)}>
           <div className="modal" style={{maxWidth:380}} onClick={e=>e.stopPropagation()}>
@@ -6121,6 +6190,861 @@ function App() {
   );
 }
 
+// ─── XML Parser helpers ───────────────────────────────────────────────────────
+// Đọc hóa đơn điện tử Việt Nam: thử nhiều tag name khác nhau (VNPT, MISA, FAST...)
+function parseInvoiceXml(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("File XML không hợp lệ");
+ 
+  // ── Thông tin hóa đơn ──────────────────────────────────────────────────────
+  const get = (...tags) => {
+    for (const t of tags) {
+      const el = doc.querySelector(t);
+      if (el && el.textContent.trim()) return el.textContent.trim();
+    }
+    return "";
+  };
+ 
+  const invoiceNumber = get("SHDon","so","invoiceNumber","SoHD","KHMSo","KHSo");
+  const serial        = get("KHHDon","KHieu","serial","KyHieu","KHMHDon");
+  const invoiceDate   = get("NLap","ngayLap","invoiceDate","NgayHD","TDLap");
+  const sellerName    = get("NMSThue","tenNguoiBan","sellerName","TenNBan","NBan > Ten","Ten");
+  const sellerTax     = get("MSThue","maSoThueNguoiBan","sellerTaxCode","MSTNBan","NBan > MST","MST");
+  const sellerAddr    = get("DChi","diaChiNguoiBan","sellerAddress","DCNBan","NBan > DChi");
+  const buyerName     = get("TNMHang","tenNguoiMua","buyerName","TenNMua","NMua > Ten","TenKH");
+  const buyerTax      = get("MSTNMHang","maSoThueNguoiMua","buyerTaxCode","MSTNMua","NMua > MST","MSTKH");
+  const buyerAddr     = get("DCNMHang","diaChiNguoiMua","buyerAddress","DCNMua","NMua > DChi","DCKH");
+ 
+  // ── Dòng hàng hóa ──────────────────────────────────────────────────────────
+  const itemNodes = doc.querySelectorAll("HHDVu,HHDVu,ChiTiet,Item,InvoiceItem,HangHoa");
+  const items = [];
+  itemNodes.forEach(node => {
+    const gname  = node.querySelector("THHDVu,TenHH,tenHangHoa,itemName,TenHangHoa,Ten")?.textContent?.trim() || "";
+    const unit   = node.querySelector("DVTinh,DonViTinh,donViTinh,unit,DVT")?.textContent?.trim() || "";
+    const qty    = parseFloat(node.querySelector("SLuong,soLuong,quantity,SoLuong,SL")?.textContent?.trim() || "0") || 0;
+    const price  = parseFloat((node.querySelector("DGia,donGia,unitPrice,DonGia,Gia")?.textContent?.trim() || "0").replace(/,/g,"")) || 0;
+    const vatRateRaw = node.querySelector("TSuat,thueVAT,vatRate,ThueVAT,TS,TSuatVAT")?.textContent?.trim() || "";
+    const vatAmt = parseFloat((node.querySelector("TThue,tienThueVAT,vatAmount,TienThue,ThueGTGT")?.textContent?.trim() || "0").replace(/,/g,"")) || 0;
+    const lineTotal = parseFloat((node.querySelector("ThTien,tienHangHoa,lineAmount,ThanhTien,TienHang")?.textContent?.trim() || "0").replace(/,/g,"")) || 0;
+ 
+    if (!gname) return;
+ 
+    // Phân tích thuế suất: "10%", "10", "KCT", "KK", "0%"
+    let vatRate = 10;
+    const vr = vatRateRaw.replace("%","").trim().toUpperCase();
+    if (vr === "KCT" || vr === "KK" || vr === "KCTUE" || vr === "") vatRate = -1;
+    else { const n = parseFloat(vr); if (!isNaN(n)) vatRate = n; }
+ 
+    const computedLine = lineTotal || (qty * price);
+    const computedVat  = vatAmt || (vatRate > 0 ? Math.round(computedLine * vatRate / 100) : 0);
+ 
+    items.push({ name: gname, unit, qty, price, vatRate, vatAmt: computedVat, lineTotal: computedLine });
+  });
+ 
+  // ── Tổng hợp ───────────────────────────────────────────────────────────────
+  const subtotalRaw = get("TTCThue","tienHangTruocThue","totalBeforeTax","TongTienHang","TTHang");
+  const vatTotalRaw = get("TgTThue","tienThueGTGT","totalVat","TongTienThue","TThueGTGT");
+  const grandRaw    = get("TgTTTBSo","tongTienThanhToan","grandTotal","TongTienThanhToan","TTToan");
+ 
+  const subtotal = parseFloat(subtotalRaw.replace(/,/g,"")) || items.reduce((s,it)=>s+it.lineTotal,0);
+  const vatTotal = parseFloat(vatTotalRaw.replace(/,/g,"")) || items.reduce((s,it)=>s+it.vatAmt,0);
+  const grand    = parseFloat(grandRaw.replace(/,/g,"")) || subtotal + vatTotal;
+ 
+  return {
+    invoiceNumber, serial, invoiceDate,
+    sellerName, sellerTax, sellerAddr,
+    buyerName, buyerTax, buyerAddr,
+    items, subtotal, vatTotal, grand,
+  };
+}
+ 
+// ─── DebtReconciliationModal ──────────────────────────────────────────────────
+function DebtReconciliationModal({ onClose }) {
+  const today = new Date();
+  const todayFull = `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
+  const endOfMonth = `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
+ 
+  // ── Form state ──────────────────────────────────────────────────────────────
+  const [refNum,           setRefNum]           = React.useState("");
+  const [dateStr,          setDateStr]          = React.useState(todayFull);
+  const [toDateStr,        setToDateStr]        = React.useState(endOfMonth);
+  // Bên bán (lấy từ COMPANY)
+  const [sellerRep,        setSellerRep]        = React.useState(COMPANY.representative || "");
+  const [sellerTitle,      setSellerTitle]      = React.useState(COMPANY.position || "");
+  // Bên mua (auto-fill từ XML, có thể sửa)
+  const [buyerName,        setBuyerName]        = React.useState("");
+  const [buyerTax,         setBuyerTax]         = React.useState("");
+  const [buyerAddr,        setBuyerAddr]        = React.useState("");
+  const [buyerRep,         setBuyerRep]         = React.useState("");
+  const [buyerTitle,       setBuyerTitle]       = React.useState("");
+ 
+  // ── Invoices state ──────────────────────────────────────────────────────────
+  const [invoices,         setInvoices]         = React.useState([]);
+  const [expandedInv,      setExpandedInv]      = React.useState(new Set());
+  const [xmlError,         setXmlError]         = React.useState("");
+  const [viewMode,         setViewMode]         = React.useState("form"); // "form" | "preview"
+  const [pdfLoading,       setPdfLoading]       = React.useState(false);
+  const [saving,           setSaving]           = React.useState(false);
+  const [saveMsg,          setSaveMsg]          = React.useState("");
+  const fileRef = React.useRef(null);
+
+  // ── Tự sinh số biên bản khi mở biên bản mới ─────────────────────────────────
+  React.useEffect(() => {
+    if (!refNum) setRefNum(generateDebtRecNumber());
+  }, []);
+
+  // ── Tải lại biên bản đã lưu theo số biên bản (nếu có) ───────────────────────
+  const loadSavedByRefNum = async (num) => {
+    if (!num || !num.trim()) return;
+    try {
+      const saved = await loadDebtRec(num.trim());
+      if (!saved) return;
+      setDateStr(saved.dateStr || dateStr);
+      setToDateStr(saved.toDateStr || toDateStr);
+      setSellerRep(saved.sellerRep || sellerRep);
+      setSellerTitle(saved.sellerTitle || sellerTitle);
+      setBuyerName(saved.buyerName || "");
+      setBuyerTax(saved.buyerTax || "");
+      setBuyerAddr(saved.buyerAddr || "");
+      setBuyerRep(saved.buyerRep || "");
+      setBuyerTitle(saved.buyerTitle || "");
+      if (Array.isArray(saved.invoices) && saved.invoices.length) setInvoices(saved.invoices);
+      showToast("📂 Đã tải biên bản đã lưu: " + num, 2000);
+    } catch(e) { /* không tìm thấy — bỏ qua, coi như biên bản mới */ }
+  };
+
+  // ── Lưu biên bản đối chiếu công nợ ───────────────────────────────────────────
+  const handleSaveDebtRec = async () => {
+    const num = refNum.trim() || generateDebtRecNumber();
+    if (!refNum.trim()) setRefNum(num);
+    setSaving(true); setSaveMsg("");
+    try {
+      await saveDebtRec(num, {
+        refNum: num, dateStr, toDateStr,
+        sellerRep, sellerTitle,
+        buyerName, buyerTax, buyerAddr, buyerRep, buyerTitle,
+        invoices,
+      });
+      setSaveMsg("✓ Đã lưu");
+      showToast("💾 Đã lưu biên bản đối chiếu công nợ", 2000);
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch(e) {
+      showToast("⚠️ Lỗi lưu biên bản: " + e.message, 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+ 
+  // ── Tổng hợp toàn bộ hóa đơn ───────────────────────────────────────────────
+  const grandSubtotal = invoices.reduce((s, inv) => s + inv.subtotal, 0);
+  const grandVat      = invoices.reduce((s, inv) => s + inv.vatTotal, 0);
+  const grandTotal    = invoices.reduce((s, inv) => s + inv.grand, 0);
+ 
+  // ── Đọc XML ─────────────────────────────────────────────────────────────────
+  const handleFiles = (files) => {
+    setXmlError("");
+    const readers = [...files].filter(f => f.name.toLowerCase().endsWith(".xml")).map(file =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const inv = parseInvoiceXml(ev.target.result);
+            inv._id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+            inv._fileName = file.name;
+            resolve({ ok: true, inv });
+          } catch(e) {
+            resolve({ ok: false, name: file.name, err: e.message });
+          }
+        };
+        reader.readAsText(file, "utf-8");
+      })
+    );
+ 
+    Promise.all(readers).then(results => {
+      const good = results.filter(r => r.ok).map(r => r.inv);
+      const bad  = results.filter(r => !r.ok);
+ 
+      if (good.length > 0) {
+        setInvoices(prev => {
+          // De-duplicate by invoiceNumber + serial
+          const existing = new Set(prev.map(i => i.serial + "_" + i.invoiceNumber));
+          const newOnes  = good.filter(i => !existing.has(i.serial + "_" + i.invoiceNumber));
+          const merged   = [...prev, ...newOnes];
+          // Auto-fill buyer info from first invoice with data
+          const firstWithBuyer = merged.find(i => i.buyerName);
+          if (firstWithBuyer && !buyerName) {
+            setBuyerName(firstWithBuyer.buyerName);
+            setBuyerTax(firstWithBuyer.buyerTax);
+            setBuyerAddr(firstWithBuyer.buyerAddr);
+          }
+          return merged;
+        });
+        setExpandedInv(prev => {
+          const next = new Set(prev);
+          good.forEach(i => next.add(i._id));
+          return next;
+        });
+      }
+      if (bad.length > 0) {
+        setXmlError(`⚠️ ${bad.length} file lỗi: ${bad.map(b => b.name).join(", ")}`);
+      }
+    });
+  };
+ 
+  const removeInvoice = (id) => setInvoices(prev => prev.filter(i => i._id !== id));
+ 
+  const toggleExpand = (id) => {
+    setExpandedInv(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+ 
+  // ── Sort invoices by date ────────────────────────────────────────────────────
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    const parseDate = d => {
+      if (!d) return 0;
+      const m = d.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (m) return new Date(m[3], m[2]-1, m[1]).getTime();
+      return new Date(d).getTime() || 0;
+    };
+    return parseDate(a.invoiceDate) - parseDate(b.invoiceDate);
+  });
+ 
+  // ── In ────────────────────────────────────────────────────────────────────────
+  const handlePrint = () => {
+    const el = document.getElementById("debtPreviewContent");
+    if (!el) return;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:794px;height:1px;border:none;";
+    document.body.appendChild(iframe);
+    const iDoc = iframe.contentDocument || iframe.contentWindow.document;
+    const styles = Array.from(document.querySelectorAll("style,link[rel='stylesheet']")).map(s => s.outerHTML).join("\n");
+    iDoc.open();
+    iDoc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap">
+      ${styles}
+      <style>
+        @page { margin:10mm; size:A4; }
+        html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+        body { background:#fff; margin:0; padding:0; }
+        .no-print { display:none !important; }
+        .debt-items-table th { background:#fff !important; color:#1a2540 !important; }
+        .debt-grand-row td { background:#eef0f8 !important; color:#1a2540 !important; }
+      </style>
+    </head><body>${el.outerHTML}</body></html>`);
+    iDoc.close();
+    iframe.contentWindow.focus();
+    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 500);
+  };
+ 
+  // ── Xuất PDF ─────────────────────────────────────────────────────────────────
+  const handlePDF = async () => {
+    const el = document.getElementById("debtPreviewContent");
+    if (!el) return;
+    const SCALE = 3, A4_PX = 794, PAD = 32;
+    const save = { width: el.style.width, maxWidth: el.style.maxWidth, padding: el.style.padding, margin: el.style.margin, bg: el.style.background };
+    el.style.width = A4_PX + "px"; el.style.maxWidth = A4_PX + "px";
+    el.style.padding = PAD + "px"; el.style.margin = "0"; el.style.background = "#ffffff";
+ 
+    const noCutRanges = [];
+    el.querySelectorAll(".debt-items-table tr").forEach(tr => {
+      const r = tr.getBoundingClientRect(), p = el.getBoundingClientRect();
+      noCutRanges.push({ top: r.top - p.top, bottom: r.bottom - p.top });
+    });
+ 
+    try {
+      const canvas = await window.html2canvas(el, { scale: SCALE, useCORS: true, allowTaint: true, backgroundColor: "#ffffff", logging: false, width: A4_PX, height: el.scrollHeight, windowWidth: A4_PX, imageTimeout: 0 });
+      const { jsPDF } = window.jspdf;
+      const MARGIN = 10, printW = 210 - MARGIN*2, printH = 297 - MARGIN*2;
+      const realW = canvas.width/SCALE, realH = canvas.height/SCALE;
+      const mmPerPx = printW/realW, pxPerPage = printH/mmPerPx;
+      const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+      let srcY = 0, page = 0;
+      while (srcY < realH) {
+        if (page > 0) doc.addPage();
+        let slicePx = Math.min(pxPerPage, realH - srcY);
+        if (srcY + slicePx < realH) {
+          for (const rng of noCutRanges) {
+            if ((srcY+slicePx) > rng.top+0.5 && (srcY+slicePx) < rng.bottom-0.5) {
+              const adj = rng.top - srcY; if (adj > 0) slicePx = adj; break;
+            }
+          }
+        }
+        const sliceMm = slicePx * mmPerPx;
+        const slice = document.createElement("canvas");
+        slice.width = canvas.width; slice.height = Math.ceil(slicePx*SCALE);
+        const ctx = slice.getContext("2d");
+        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, slice.width, slice.height);
+        ctx.drawImage(canvas, 0, Math.floor(srcY*SCALE), canvas.width, Math.ceil(slicePx*SCALE), 0, 0, slice.width, slice.height);
+        doc.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", MARGIN, MARGIN, printW, sliceMm);
+        srcY += slicePx; page++;
+      }
+      const prefix = viewMode === "payment" ? "DNTT_" : "BBDCCN_";
+      doc.save(prefix + (refNum || todayFull.replace(/ /g,"_")) + ".pdf");
+    } finally {
+      el.style.width = save.width; el.style.maxWidth = save.maxWidth;
+      el.style.padding = save.padding; el.style.margin = save.margin; el.style.background = save.bg;
+    }
+  };
+ 
+  const handlePDFClick = async () => { setPdfLoading(true); try { await handlePDF(); } finally { setPdfLoading(false); } };
+ 
+  // ── Render preview HTML ───────────────────────────────────────────────────────
+  // Đây là nội dung sẽ in / PDF
+  const renderPreview = () => {
+    let rowIdx = 0;
+    return (
+      <div className="debt-preview" id="debtPreviewContent">
+ 
+        {/* Quốc hiệu + Logo */}
+        <table className="debt-header-table">
+          <tbody>
+            <tr>
+              <td className="debt-header-left">
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <img src={getLogoUrl()} style={{width:48,height:48,objectFit:"contain"}} alt="Logo" />
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:"#1a2540"}}>{COMPANY.name}</div>
+                    <div style={{fontSize:10,color:"#555"}}>MST: {COMPANY.mst}</div>
+                    <div style={{fontSize:10,color:"#555"}}>ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
+                    <div style={{fontSize:10,color:"#555"}}>{COMPANY.address}</div>
+                  </div>
+                </div>
+              </td>
+              <td className="debt-header-right">
+                <div style={{fontWeight:700,fontSize:12}}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                <div style={{fontWeight:600,fontSize:12}}>Độc lập – Tự do – Hạnh phúc</div>
+                <div style={{fontSize:11,marginTop:3}}>⸻⸻⸻</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+ 
+        {/* Tiêu đề */}
+        <div className="debt-title">
+          <h1>Biên bản đối chiếu công nợ</h1>
+          {refNum && <div className="ref">Số: {refNum}</div>}
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            Ngày lập: {dateStr} — Đối chiếu đến ngày: <strong>{toDateStr}</strong>
+          </div>
+        </div>
+ 
+        {/* Thành phần tham gia */}
+        <div className="debt-party-block">
+          <p>Hôm nay, <strong>{dateStr}</strong>, chúng tôi gồm có:</p>
+ 
+          <p style={{marginTop:8}}><strong>ĐẠI DIỆN BÊN BÁN (Bên A):</strong></p>
+          <table style={{width:"100%",fontSize:12,borderCollapse:"collapse",paddingLeft:16}}>
+            <tbody>
+              <tr>
+                <td style={{width:"50%",paddingLeft:20,paddingBottom:2}}>Công ty: <strong>{COMPANY.name}</strong></td>
+                <td style={{paddingBottom:2}}>MST: {COMPANY.mst}</td>
+              </tr>
+              <tr>
+                <td style={{paddingLeft:20,paddingBottom:2}}>Ông/Bà: <strong>{sellerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>Chức vụ: {sellerTitle || "……………………"}</td>
+              </tr>
+            </tbody>
+          </table>
+ 
+          <p style={{marginTop:8}}><strong>ĐẠI DIỆN BÊN MUA (Bên B):</strong></p>
+          <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+            <tbody>
+              <tr>
+                <td style={{width:"60%",paddingLeft:20,paddingBottom:2}}>Công ty: <strong>{buyerName || "……………………………………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>MST: {buyerTax || "………………………"}</td>
+              </tr>
+              {buyerAddr && <tr><td colSpan={2} style={{paddingLeft:20,paddingBottom:2}}>Địa chỉ: {buyerAddr}</td></tr>}
+              <tr>
+                <td style={{paddingLeft:20,paddingBottom:2}}>Ông/Bà: <strong>{buyerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>Chức vụ: {buyerTitle || "……………………"}</td>
+              </tr>
+            </tbody>
+          </table>
+ 
+          <p style={{marginTop:10}}>
+            Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày <strong>{toDateStr}</strong>, cụ thể như sau:
+          </p>
+        </div>
+ 
+        {/* Bảng chi tiết */}
+        <table className="debt-items-table">
+          <thead>
+            <tr>
+              <th style={{width:32}}>STT</th>
+              <th style={{width:90,textAlign:"left"}}>Số / Ký hiệu HĐ</th>
+              <th style={{width:72,textAlign:"left"}}>Ngày HĐ</th>
+              <th style={{textAlign:"left"}}>Hàng hóa / Dịch vụ</th>
+              <th style={{width:58}}>ĐVT</th>
+              <th style={{width:40}}>SL</th>
+              <th style={{width:84}}>Đơn giá</th>
+              <th style={{width:68}}>Thuế (%)</th>
+              <th style={{width:88}}>Thành tiền</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedInvoices.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={{textAlign:"center",color:"#aaa",padding:"20px",fontStyle:"italic"}}>
+                  Chưa có hóa đơn nào — vui lòng import file XML
+                </td>
+              </tr>
+            ) : sortedInvoices.map((inv, invIdx) => {
+              const rows = [];
+              // ── Dòng nhóm hóa đơn ──────────────────────────────────────────
+              rows.push(
+                <tr key={"inv-" + inv._id} style={{background:"#f0f4ff"}}>
+                  <td colSpan={3} style={{fontWeight:700,fontSize:11,color:"#1a2540",padding:"6px 8px"}}>
+                    HĐ: {inv.serial && <span style={{fontFamily:"monospace"}}>{inv.serial}</span>}
+                    {inv.serial && inv.invoiceNumber ? " / " : ""}
+                    {inv.invoiceNumber && <span style={{fontFamily:"monospace",marginLeft:2}}>No. {inv.invoiceNumber}</span>}
+                  </td>
+                  <td colSpan={2} style={{fontSize:11,color:"#555",padding:"6px 8px"}}>
+                    Ngày: <strong>{inv.invoiceDate || "…"}</strong>
+                  </td>
+                  <td colSpan={4} style={{textAlign:"right",fontSize:11,fontWeight:600,color:"#1a2540",padding:"6px 8px"}}>
+                    Tổng HĐ: {fmt(inv.grand)} đ
+                  </td>
+                </tr>
+              );
+              // ── Các dòng hàng hóa ──────────────────────────────────────────
+              inv.items.forEach((it, iIdx) => {
+                rowIdx++;
+                const vatLbl = it.vatRate === -1 ? "KCT" : (it.vatRate || 0) + "%";
+                rows.push(
+                  <tr key={`it-${inv._id}-${iIdx}`}>
+                    <td className="center" style={{fontSize:11,color:"#888"}}>{rowIdx}</td>
+                    <td colSpan={2} style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
+                      {inv.serial || ""}{inv.serial && inv.invoiceNumber ? " / " : ""}{inv.invoiceNumber || ""}
+                    </td>
+                    <td style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
+                      {it.name}
+                    </td>
+                    <td className="center" style={{fontSize:11}}>{it.unit}</td>
+                    <td className="center" style={{fontSize:11}}>{it.qty !== 0 ? it.qty : "—"}</td>
+                    <td className="right" style={{fontSize:11}}>{it.price ? fmt(it.price) : "—"}</td>
+                    <td className="center" style={{fontSize:11,fontWeight:600}}>{vatLbl}</td>
+                    <td className="right" style={{fontSize:11,fontWeight:500}}>{fmt(it.lineTotal + it.vatAmt)}</td>
+                  </tr>
+                );
+              });
+              // ── Dòng subtotal hóa đơn ──────────────────────────────────────
+              rows.push(
+                <tr key={"sub-" + inv._id} className="debt-subtotal-row">
+                  <td colSpan={7} style={{textAlign:"right",padding:"5px 8px",fontSize:11}}>
+                    Tiền hàng: {fmt(inv.subtotal)} đ &nbsp;|&nbsp; VAT: {fmt(inv.vatTotal)} đ
+                  </td>
+                  <td style={{textAlign:"right",fontWeight:700,fontSize:12,padding:"5px 8px",color:"#1a2540"}} colSpan={2}>
+                    {fmt(inv.grand)} đ
+                  </td>
+                </tr>
+              );
+              return rows;
+            })}
+ 
+            {/* ── Dòng tổng cộng toàn bộ ── */}
+            {sortedInvoices.length > 0 && (
+              <>
+                <tr style={{background:"#eef0f8"}}>
+                  <td colSpan={7} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    Tổng tiền hàng (chưa VAT):
+                  </td>
+                  <td colSpan={2} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    {fmt(grandSubtotal)} đ
+                  </td>
+                </tr>
+                <tr style={{background:"#eef0f8"}}>
+                  <td colSpan={7} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    Tổng thuế VAT:
+                  </td>
+                  <td colSpan={2} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    {fmt(grandVat)} đ
+                  </td>
+                </tr>
+                <tr className="debt-grand-row">
+                  <td colSpan={7} style={{textAlign:"right",padding:"8px 10px",fontSize:14}}>
+                    TỔNG CỘNG PHẢI THU:
+                  </td>
+                  <td colSpan={2} style={{textAlign:"right",padding:"8px 10px",fontSize:15,letterSpacing:"0.02em"}}>
+                    {fmt(grandTotal)} đ
+                  </td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+ 
+        {/* Kết luận */}
+        {sortedInvoices.length > 0 && (
+          <div style={{marginTop:12,fontSize:12,lineHeight:1.8}}>
+            <p>
+              Như vậy, tính đến ngày <strong>{toDateStr}</strong>, {COMPANY.name} còn phải thu của&nbsp;
+              <strong>{buyerName || "Quý công ty"}</strong> số tiền là:&nbsp;
+              <strong>{fmt(grandTotal)} đồng</strong>
+            </p>
+            <p style={{fontStyle:"italic",color:"#555"}}>
+              (Viết bằng chữ: {numberToWordsVN(grandTotal)})
+            </p>
+            <p style={{marginTop:8}}>
+              Biên bản này được lập thành <strong>02 bản</strong>, mỗi bên giữ <strong>01 bản</strong> có giá trị như nhau.
+            </p>
+          </div>
+        )}
+ 
+        {/* Chữ ký */}
+        <div className="debt-sign" style={{marginTop:28}}>
+          <div className="debt-sign-block">
+            <div className="sign-title">ĐẠI DIỆN BÊN MUA (BÊN B)</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Ký, ghi rõ họ tên)</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600,borderBottom:buyerRep?"none":"1px solid #333",minWidth:160,display:"inline-block",minHeight:18}}>
+              {buyerRep || ""}
+            </div>
+            {buyerTitle && <div style={{fontSize:11,color:"#666",marginTop:2}}>{buyerTitle}</div>}
+            <div style={{fontSize:11,color:"#666"}}>{buyerName || ""}</div>
+          </div>
+          <div className="debt-sign-block">
+            <div className="sign-title">ĐẠI DIỆN BÊN BÁN (BÊN A)</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Ký, ghi rõ họ tên)</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{sellerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{sellerTitle}</div>
+            <div style={{fontSize:11,color:"#666"}}>{COMPANY.name}</div>
+          </div>
+        </div>
+ 
+      </div>
+    );
+  };
+
+  // ── Render Đề nghị thanh toán (dựa trên biên bản đối chiếu này) ──────────────
+  const renderPaymentRequest = () => {
+    const payNum = "DNTT-" + (refNum ? refNum.replace(/^BBDCCN-/, "") : todayFull.replace(/ /g,"_"));
+    return (
+      <div className="debt-preview" id="debtPreviewContent">
+
+        {/* Quốc hiệu + Logo */}
+        <table className="debt-header-table">
+          <tbody>
+            <tr>
+              <td className="debt-header-left">
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <img src={getLogoUrl()} style={{width:48,height:48,objectFit:"contain"}} alt="Logo" />
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:"#1a2540"}}>{COMPANY.name}</div>
+                    <div style={{fontSize:10,color:"#555"}}>MST: {COMPANY.mst}</div>
+                    <div style={{fontSize:10,color:"#555"}}>ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
+                    <div style={{fontSize:10,color:"#555"}}>{COMPANY.address}</div>
+                  </div>
+                </div>
+              </td>
+              <td className="debt-header-right">
+                <div style={{fontWeight:700,fontSize:12}}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                <div style={{fontWeight:600,fontSize:12}}>Độc lập – Tự do – Hạnh phúc</div>
+                <div style={{fontSize:11,marginTop:3}}>⸻⸻⸻</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Tiêu đề */}
+        <div className="debt-title">
+          <h1>Đề nghị thanh toán</h1>
+          <div className="ref">Số: {payNum}</div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            Căn cứ Biên bản đối chiếu công nợ {refNum && <strong>số {refNum}</strong>} lập ngày <strong>{dateStr}</strong>,
+            đối chiếu công nợ đến ngày <strong>{toDateStr}</strong>
+          </div>
+        </div>
+
+        {/* Kính gửi */}
+        <div className="debt-party-block">
+          <p>Kính gửi: <strong>{buyerName || "……………………………………………………"}</strong></p>
+          {buyerAddr && <p style={{marginTop:2}}>Địa chỉ: {buyerAddr}</p>}
+          <p style={{marginTop:2}}>Mã số thuế: {buyerTax || "………………………"}</p>
+
+          <p style={{marginTop:10}}>
+            Căn cứ kết quả đối chiếu công nợ giữa hai bên, <strong>{COMPANY.name}</strong> trân trọng đề nghị&nbsp;
+            <strong>{buyerName || "Quý công ty"}</strong> thanh toán số tiền còn nợ như sau:
+          </p>
+        </div>
+
+        {/* Bảng tổng hợp */}
+        <table className="debt-items-table">
+          <thead>
+            <tr>
+              <th style={{textAlign:"left"}}>Nội dung</th>
+              <th style={{width:140}}>Số tiền (đ)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{fontSize:12,padding:"7px 10px"}}>Tổng tiền hàng (chưa VAT)</td>
+              <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandSubtotal)}</td>
+            </tr>
+            <tr>
+              <td style={{fontSize:12,padding:"7px 10px"}}>Tổng thuế VAT</td>
+              <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandVat)}</td>
+            </tr>
+            <tr className="debt-grand-row">
+              <td style={{padding:"8px 10px",fontSize:14}}>TỔNG SỐ TIỀN ĐỀ NGHỊ THANH TOÁN</td>
+              <td className="right" style={{padding:"8px 10px",fontSize:15,letterSpacing:"0.02em"}}>{fmt(grandTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{marginTop:12,fontSize:12,lineHeight:1.8}}>
+          <p>
+            Số tiền bằng chữ: <strong>{numberToWordsVN(grandTotal)}</strong>
+          </p>
+          <p style={{marginTop:6}}>
+            Kính đề nghị <strong>{buyerName || "Quý công ty"}</strong> thanh toán số tiền trên cho {COMPANY.name}&nbsp;
+            trong thời gian sớm nhất. Mọi thông tin chi tiết về các hóa đơn liên quan, đề nghị tham khảo Biên bản đối chiếu công nợ&nbsp;
+            {refNum ? <strong>số {refNum}</strong> : "đã lập"} kèm theo.
+          </p>
+          <p style={{marginTop:8}}>
+            Thông tin chuyển khoản: <strong>{COMPANY.bankName || "……………………"}</strong> — STK: <strong>{COMPANY.bankAccount || "……………………"}</strong>
+            {COMPANY.bankHolder ? <> — Chủ TK: <strong>{COMPANY.bankHolder}</strong></> : null}
+          </p>
+          <p style={{marginTop:8}}>
+            Rất mong nhận được sự hợp tác và thanh toán đúng hạn từ Quý công ty. Trân trọng cảm ơn!
+          </p>
+        </div>
+
+        {/* Chữ ký */}
+        <div className="debt-sign" style={{marginTop:28}}>
+          <div className="debt-sign-block">
+            <div className="sign-title">NGƯỜI ĐẠI DIỆN BÊN MUA</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Xác nhận đã nhận đề nghị)</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{buyerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{buyerTitle}</div>
+          </div>
+          <div className="debt-sign-block">
+            <div className="sign-title">ĐẠI DIỆN BÊN ĐỀ NGHỊ (BÊN A)</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Ký, ghi rõ họ tên, đóng dấu)</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{sellerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{sellerTitle}</div>
+            <div style={{fontSize:11,color:"#666"}}>{COMPANY.name}</div>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+ 
+  // ── Render modal ──────────────────────────────────────────────────────────────
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{maxWidth:1100}}>
+ 
+        {/* Header */}
+        <div className="modal-header no-print">
+          <span className="modal-title">💰 Biên bản đối chiếu công nợ</span>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button className={`btn btn-sm ${viewMode==="form"?"btn-primary":"btn-ghost"}`}
+              onClick={() => setViewMode("form")}>⚙️ Nhập liệu</button>
+            <button className={`btn btn-sm ${viewMode==="preview"?"btn-primary":"btn-ghost"}`}
+              onClick={() => setViewMode("preview")}>👁️ Xem trước</button>
+            <button className={`btn btn-sm ${viewMode==="payment"?"btn-primary":"btn-ghost"}`}
+              onClick={() => setViewMode("payment")} disabled={invoices.length===0}
+              title="Tạo đề nghị thanh toán dựa trên biên bản này">🧾 Đề nghị thanh toán</button>
+            <button className="close-btn" onClick={onClose}>×</button>
+          </div>
+        </div>
+ 
+        <div className="modal-body" style={{display:"flex",gap:0,padding:0,overflow:"hidden"}}>
+ 
+          {/* ── CỘT TRÁI: Form nhập liệu ── */}
+          <div className="no-print" style={{
+            width: viewMode==="preview" ? 0 : 340,
+            minWidth: viewMode==="preview" ? 0 : 340,
+            overflow:"hidden",
+            transition:"width 0.2s, min-width 0.2s",
+            borderRight:"1px solid #e5e3dc",
+            overflowY:"auto",
+            padding: viewMode==="preview" ? 0 : "16px 18px",
+          }}>
+            {viewMode === "form" && (
+              <>
+                {/* ── 1. Import XML ── */}
+                <div style={{marginBottom:16}}>
+                  <div className="section-title" style={{marginBottom:8}}>📂 Import hóa đơn XML</div>
+                  <div className="debt-xml-dropzone"
+                    onClick={() => fileRef.current && fileRef.current.click()}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}>
+                    <div style={{fontSize:28,marginBottom:6}}>🗂️</div>
+                    <div style={{fontSize:13,color:"#555",fontWeight:500}}>Click hoặc kéo thả file XML</div>
+                    <div style={{fontSize:11,color:"#aaa",marginTop:3}}>Hỗ trợ nhiều file cùng lúc · VNPT, MISA, FAST...</div>
+                    <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" multiple style={{display:"none"}}
+                      onChange={e => { handleFiles(e.target.files); e.target.value=""; }} />
+                  </div>
+                  {xmlError && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:6,fontSize:12,marginTop:8}}>{xmlError}</div>}
+                </div>
+ 
+                {/* ── 2. Danh sách HĐ đã import ── */}
+                {invoices.length > 0 && (
+                  <div style={{marginBottom:16}}>
+                    <div className="section-title" style={{marginBottom:6}}>
+                      📋 {invoices.length} hóa đơn đã nhập
+                      <span style={{fontSize:11,fontWeight:400,marginLeft:8,color:"#888"}}>Tổng: {fmt(grandTotal)} đ</span>
+                    </div>
+                    {invoices.map(inv => (
+                      <div key={inv._id} className="debt-invoice-card">
+                        <div className="debt-invoice-card-header" onClick={() => toggleExpand(inv._id)} style={{cursor:"pointer"}}>
+                          <div>
+                            <div className="inv-num">
+                              {inv.serial && <span style={{fontFamily:"monospace",fontSize:11}}>{inv.serial}</span>}
+                              {inv.serial && inv.invoiceNumber ? " / " : ""}
+                              {inv.invoiceNumber && <span>No. {inv.invoiceNumber}</span>}
+                              {!inv.serial && !inv.invoiceNumber && <span style={{color:"#aaa",fontStyle:"italic"}}>Không có số HĐ</span>}
+                            </div>
+                            <div className="inv-date">📅 {inv.invoiceDate || "—"} · {inv.items.length} dòng hàng</div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                            <div className="inv-total">{fmt(inv.grand)} đ</div>
+                            <button onClick={e => { e.stopPropagation(); removeInvoice(inv._id); }}
+                              style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px",opacity:0.5}}
+                              onMouseEnter={e => e.currentTarget.style.opacity="1"}
+                              onMouseLeave={e => e.currentTarget.style.opacity="0.5"}
+                              title="Xóa hóa đơn này">✕</button>
+                            <span style={{color:"#aaa",fontSize:12}}>{expandedInv.has(inv._id)?"▲":"▼"}</span>
+                          </div>
+                        </div>
+                        {expandedInv.has(inv._id) && (
+                          <div style={{padding:"8px 10px",fontSize:11,background:"#fff"}}>
+                            {inv.items.map((it, i) => (
+                              <div key={i} style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"1px solid #f0ede6",alignItems:"flex-start"}}>
+                                <span style={{color:"#aaa",minWidth:16,textAlign:"right",flexShrink:0}}>{i+1}.</span>
+                                <div style={{flex:1}}>
+                                  <div style={{fontWeight:500,wordBreak:"break-word"}}>{it.name}</div>
+                                  <div style={{color:"#888",fontSize:10,marginTop:1}}>
+                                    {it.unit && `${it.unit} · `}SL: {it.qty} · {fmt(it.price)} đ ·&nbsp;
+                                    VAT {it.vatRate === -1 ? "KCT" : it.vatRate + "%"} →&nbsp;
+                                    <strong>{fmt(it.lineTotal + it.vatAmt)} đ</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <div style={{marginTop:6,textAlign:"right",color:"#555",fontSize:11}}>
+                              Hàng: {fmt(inv.subtotal)} · VAT: {fmt(inv.vatTotal)} · Tổng: <strong>{fmt(inv.grand)} đ</strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+ 
+                {/* ── 3. Thông tin biên bản ── */}
+                <div className="section-title" style={{marginBottom:8}}>📝 Thông tin biên bản</div>
+                <div className="form-group">
+                  <label>Số biên bản <span style={{fontWeight:400,color:"#aaa"}}>(tự sinh, có thể sửa)</span></label>
+                  <div style={{display:"flex",gap:6}}>
+                    <input className="form-control" value={refNum} onChange={e => setRefNum(e.target.value)}
+                      onBlur={e => loadSavedByRefNum(e.target.value)} placeholder="VD: BBDCCN-01/2026" />
+                    <button type="button" className="btn btn-ghost btn-sm" title="Sinh số mới"
+                      onClick={() => setRefNum(generateDebtRecNumber())}>🔄</button>
+                  </div>
+                  <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8}}>
+                    <button type="button" className="btn btn-success btn-sm" onClick={handleSaveDebtRec} disabled={saving}>
+                      {saving ? "⏳ Đang lưu..." : "💾 Lưu biên bản"}
+                    </button>
+                    {saveMsg && <span style={{color:"#16a34a",fontSize:12}}>{saveMsg}</span>}
+                  </div>
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>Ngày lập</label>
+                    <input className="form-control" value={dateStr} onChange={e => setDateStr(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Đối chiếu đến ngày</label>
+                    <input className="form-control" value={toDateStr} onChange={e => setToDateStr(e.target.value)} />
+                  </div>
+                </div>
+ 
+                {/* Bên bán */}
+                <div className="section-title" style={{marginBottom:8}}>🏢 Bên bán (Bên A)</div>
+                <div style={{background:"#f5f7fb",borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:12,color:"#555"}}>
+                  <strong style={{color:"#1a2540"}}>{COMPANY.name}</strong><br/>
+                  MST: {COMPANY.mst} · ĐT: {COMPANY.phone}
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>Người đại diện</label>
+                    <input className="form-control" value={sellerRep} onChange={e => setSellerRep(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Chức vụ</label>
+                    <input className="form-control" value={sellerTitle} onChange={e => setSellerTitle(e.target.value)} />
+                  </div>
+                </div>
+ 
+                {/* Bên mua */}
+                <div className="section-title" style={{marginBottom:8}}>🧑‍💼 Bên mua (Bên B)</div>
+                <div style={{fontSize:11,color:"#888",marginBottom:8}}>
+                  💡 Tự động điền từ file XML — có thể chỉnh sửa
+                </div>
+                <div className="form-group">
+                  <label>Tên công ty / khách hàng</label>
+                  <input className="form-control" value={buyerName} onChange={e => setBuyerName(e.target.value)} placeholder="Tên công ty bên mua" />
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>Mã số thuế</label>
+                    <input className="form-control" value={buyerTax} onChange={e => setBuyerTax(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Địa chỉ</label>
+                    <input className="form-control" value={buyerAddr} onChange={e => setBuyerAddr(e.target.value)} />
+                  </div>
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>Người đại diện</label>
+                    <input className="form-control" value={buyerRep} onChange={e => setBuyerRep(e.target.value)} placeholder="Họ tên" />
+                  </div>
+                  <div className="form-group">
+                    <label>Chức vụ</label>
+                    <input className="form-control" value={buyerTitle} onChange={e => setBuyerTitle(e.target.value)} placeholder="Chức vụ" />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+ 
+          {/* ── CỘT PHẢI: Preview ── */}
+          <div style={{flex:1,overflowY:"auto",padding:"16px",background:"#f9f8f5"}}>
+            <div style={{maxWidth:794,margin:"0 auto",boxShadow:"0 2px 16px rgba(0,0,0,0.10)",borderRadius:4}}>
+              {viewMode === "payment" ? renderPaymentRequest() : renderPreview()}
+            </div>
+          </div>
+        </div>
+ 
+        {/* Footer */}
+        <div className="modal-footer no-print">
+          <button className="btn btn-ghost" onClick={onClose}>Đóng</button>
+          <div style={{flex:1}} />
+          {invoices.length === 0 && (
+            <span style={{fontSize:12,color:"#aaa",alignSelf:"center"}}>⚠️ Import ít nhất 1 file XML để xuất</span>
+          )}
+          <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading || invoices.length === 0} style={{minWidth:120}}>
+            {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
+          </button>
+          <button className="btn btn-primary" onClick={handlePrint} disabled={invoices.length === 0}>
+            🖨️ In
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 </body>
