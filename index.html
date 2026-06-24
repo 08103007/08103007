@@ -6290,6 +6290,148 @@ function DebtReconciliationModal({ onClose }) {
   const [buyerAddr,        setBuyerAddr]        = React.useState("");
   const [buyerRep,         setBuyerRep]         = React.useState("");
   const [buyerTitle,       setBuyerTitle]       = React.useState("");
+  const [debtLang,         setDebtLang]         = React.useState("vi_en");
+ 
+  const DEBT_TEXT = {
+    vi_en: {
+      title: "Biên bản đối chiếu công nợ",
+      titleB: "Debt Reconciliation Statement",
+      partyIntro: "Hôm nay, chúng tôi gồm có:",
+      partyIntroB: "Today, the parties are as follows:",
+      seller: "ĐẠI DIỆN BÊN BÁN (Bên A)",
+      sellerB: "SELLER REPRESENTATIVE (Party A)",
+      buyer: "ĐẠI DIỆN BÊN MUA (Bên B)",
+      buyerB: "BUYER REPRESENTATIVE (Party B)",
+      company: "Công ty",
+      companyB: "Company",
+      tax: "MST",
+      taxB: "Tax ID",
+      person: "Ông/Bà",
+      personB: "Name",
+      position: "Chức vụ",
+      positionB: "Position",
+      address: "Địa chỉ",
+      addressB: "Address",
+      reconcileSentence: "Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày",
+      reconcileSentenceB: "Both parties have reconciled the receivables as of",
+      invoiceHeaders: [
+        ["STT", "No."],
+        ["Số / Ký hiệu HĐ", "Invoice No. / Series"],
+        ["Ngày HĐ", "Invoice Date"],
+        ["Hàng hóa / Dịch vụ", "Goods / Services"],
+        ["ĐVT", "Unit"],
+        ["SL", "Qty"],
+        ["Đơn giá", "Unit Price"],
+        ["Thuế (%)", "Tax (%)"],
+        ["Thành tiền", "Amount"],
+      ],
+      invoiceGroup: "HĐ:",
+      invoiceGroupB: "Inv:",
+      invoiceDateLabel: "Ngày:",
+      invoiceDateLabelB: "Date:",
+      invoiceTotalLabel: "Tổng HĐ:",
+      invoiceTotalLabelB: "Invoice total:",
+      invoiceSubtotalLabel: "Tiền hàng:",
+      invoiceSubtotalLabelB: "Goods:",
+      invoiceVatLabel: "VAT:",
+      invoiceVatLabelB: "VAT:",
+      invoiceGrandLabel: "Tổng:",
+      invoiceGrandLabelB: "Total:",
+      noInvoices: "Chưa có hóa đơn nào — vui lòng import file XML",
+      noInvoicesB: "No invoices yet — please import XML files",
+      totalGoods: "Tổng tiền hàng (chưa VAT):",
+      totalGoodsB: "Total goods (excl. VAT):",
+      totalVat: "Tổng thuế VAT:",
+      totalVatB: "Total VAT:",
+      grandTotal: "TỔNG CỘNG PHẢI THU:",
+      grandTotalB: "TOTAL RECEIVABLE:",
+      totalDue: "Như vậy, tính đến ngày",
+      totalDueB: "Therefore, as of",
+      oweAmount: "còn phải thu của",
+      oweAmountB: "the amount receivable from",
+      amountIs: "số tiền là:",
+      amountIsB: "is:",
+      inWords: "Viết bằng chữ:",
+      inWordsB: "In words:",
+      copiesNote: "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị như nhau.",
+      copiesNoteB: "This statement is made in two copies, each party keeps one with equal validity.",
+      buyerSign: "ĐẠI DIỆN BÊN MUA (BÊN B)",
+      buyerSignB: "BUYER REPRESENTATIVE (PARTY B)",
+      sellerSign: "ĐẠI DIỆN BÊN BÁN (BÊN A)",
+      sellerSignB: "SELLER REPRESENTATIVE (PARTY A)",
+      signSubNote: "(Ký, ghi rõ họ tên)",
+      signSubNoteB: "(Sign and print full name)",
+    },
+    vi_zh: {
+      title: "Biên bản đối chiếu công nợ",
+      titleB: "应收账款对账单",
+      partyIntro: "Hôm nay, chúng tôi gồm có:",
+      partyIntroB: "今天，双方组成如下：",
+      seller: "ĐẠI DIỆN BÊN BÁN (Bên A)",
+      sellerB: "销售方代表（甲方）",
+      buyer: "ĐẠI DIỆN BÊN MUA (Bên B)",
+      buyerB: "采购方代表（乙方）",
+      company: "Công ty",
+      companyB: "公司",
+      tax: "MST",
+      taxB: "税号",
+      person: "Ông/Bà",
+      personB: "姓名",
+      position: "Chức vụ",
+      positionB: "职位",
+      address: "Địa chỉ",
+      addressB: "地址",
+      reconcileSentence: "Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày",
+      reconcileSentenceB: "双方已就截至该日的应收账款进行核对，具体如下：",
+      invoiceHeaders: [
+        ["STT", "序号"],
+        ["Số / Ký hiệu HĐ", "发票号/系列"],
+        ["Ngày HĐ", "发票日期"],
+        ["Hàng hóa / Dịch vụ", "货物/服务"],
+        ["ĐVT", "单位"],
+        ["SL", "数量"],
+        ["Đơn giá", "单价"],
+        ["Thuế (%)", "税率"],
+        ["Thành tiền", "金额"],
+      ],
+      invoiceGroup: "HĐ:",
+      invoiceGroupB: "发票:",
+      invoiceDateLabel: "Ngày:",
+      invoiceDateLabelB: "日期:",
+      invoiceTotalLabel: "Tổng HĐ:",
+      invoiceTotalLabelB: "发票总额:",
+      invoiceSubtotalLabel: "Tiền hàng:",
+      invoiceSubtotalLabelB: "货物总额:",
+      invoiceVatLabel: "VAT:",
+      invoiceVatLabelB: "增值税:",
+      invoiceGrandLabel: "Tổng:",
+      invoiceGrandLabelB: "总计:",
+      noInvoices: "Chưa có hóa đơn nào — vui lòng import file XML",
+      noInvoicesB: "暂无发票 - 请导入 XML 文件",
+      totalGoods: "Tổng tiền hàng (chưa VAT):",
+      totalGoodsB: "货物总额（不含增值税）：",
+      totalVat: "Tổng thuế VAT:",
+      totalVatB: "增值税总额：",
+      grandTotal: "TỔNG CỘNG PHẢI THU:",
+      grandTotalB: "应收总额：",
+      totalDue: "Như vậy, tính đến ngày",
+      totalDueB: "因此，截至",
+      oweAmount: "còn phải thu của",
+      oweAmountB: "需向",
+      amountIs: "số tiền là:",
+      amountIsB: "金额为：",
+      inWords: "Viết bằng chữ:",
+      inWordsB: "大写金额：",
+      copiesNote: "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị như nhau.",
+      copiesNoteB: "本对账单一式两份，双方各执一份，效力相同。",
+      buyerSign: "ĐẠI DIỆN BÊN MUA (BÊN B)",
+      buyerSignB: "采购方代表（乙方）",
+      sellerSign: "ĐẠI DIỆN BÊN BÁN (BÊN A)",
+      sellerSignB: "销售方代表（甲方）",
+      signSubNote: "(Ký, ghi rõ họ tên)",
+      signSubNoteB: "(签名并填写姓名)",
+    }
+  };
  
   // ── Invoices state ──────────────────────────────────────────────────────────
   const [invoices,         setInvoices]         = React.useState([]);
@@ -6357,6 +6499,7 @@ function DebtReconciliationModal({ onClose }) {
       setBuyerAddr(saved.buyerAddr || "");
       setBuyerRep(saved.buyerRep || "");
       setBuyerTitle(saved.buyerTitle || "");
+      setDebtLang(saved.debtLang || "vi_en");
       if (Array.isArray(saved.invoices) && saved.invoices.length) setInvoices(saved.invoices);
       showToast("📂 Đã tải biên bản đã lưu: " + num, 2000);
     } catch(e) { /* không tìm thấy — bỏ qua, coi như biên bản mới */ }
@@ -6381,6 +6524,7 @@ function DebtReconciliationModal({ onClose }) {
         refNum: num, dateStr, toDateStr,
         sellerRep, sellerTitle,
         buyerName, buyerTax, buyerAddr, buyerRep, buyerTitle,
+        debtLang,
         invoices,
       });
       setSaveMsg("✓ Đã lưu");
@@ -6553,6 +6697,7 @@ function DebtReconciliationModal({ onClose }) {
   // ── Render preview HTML ───────────────────────────────────────────────────────
   // Đây là nội dung sẽ in / PDF
   const renderPreview = () => {
+    const T = DEBT_TEXT[debtLang];
     let rowIdx = 0;
     return (
       <div className="debt-preview" id="debtPreviewContent">
@@ -6583,7 +6728,8 @@ function DebtReconciliationModal({ onClose }) {
  
         {/* Tiêu đề */}
         <div className="debt-title">
-          <h1>Biên bản đối chiếu công nợ</h1>
+          <h1>{T.title}</h1>
+          <div style={{fontSize:12,color:"#555",marginTop:4}}>{T.titleB}</div>
           {refNum && <div className="ref">Số: {refNum}</div>}
           <div style={{fontSize:11,color:"#666",marginTop:2}}>
             Ngày lập: {dateStr} — Đối chiếu đến ngày: <strong>{toDateStr}</strong>
@@ -6592,62 +6738,66 @@ function DebtReconciliationModal({ onClose }) {
  
         {/* Thành phần tham gia */}
         <div className="debt-party-block">
-          <p>Hôm nay, <strong>{dateStr}</strong>, chúng tôi gồm có:</p>
+          <p>{T.partyIntro} <strong>{dateStr}</strong>, {T.reconcileSentence} <strong>{toDateStr}</strong>:</p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.partyIntroB} <strong>{dateStr}</strong>, {T.reconcileSentenceB} <strong>{toDateStr}</strong>。</p>
  
-          <p style={{marginTop:8}}><strong>ĐẠI DIỆN BÊN BÁN (Bên A):</strong></p>
+          <p style={{marginTop:8}}><strong>{T.seller}</strong></p>
           <table style={{width:"100%",fontSize:12,borderCollapse:"collapse",paddingLeft:16}}>
             <tbody>
               <tr>
-                <td style={{width:"50%",paddingLeft:20,paddingBottom:2}}>Công ty: <strong>{COMPANY.name}</strong></td>
-                <td style={{paddingBottom:2}}>MST: {COMPANY.mst}</td>
+                <td style={{width:"50%",paddingLeft:20,paddingBottom:2}}>{T.company}: <strong>{COMPANY.name}</strong></td>
+                <td style={{paddingBottom:2}}>{T.tax}: {COMPANY.mst}</td>
               </tr>
               <tr>
-                <td style={{paddingLeft:20,paddingBottom:2}}>Ông/Bà: <strong>{sellerRep || "……………………………"}</strong></td>
-                <td style={{paddingBottom:2}}>Chức vụ: {sellerTitle || "……………………"}</td>
+                <td style={{paddingLeft:20,paddingBottom:2}}>{T.person}: <strong>{sellerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.position}: {sellerTitle || "……………………"}</td>
+              </tr>
+              <tr>
+                <td colSpan={2} style={{paddingLeft:20,paddingBottom:2,fontSize:11,color:"#555"}}>{T.companyB}: <strong>{COMPANY.name}</strong></td>
               </tr>
             </tbody>
           </table>
  
-          <p style={{marginTop:8}}><strong>ĐẠI DIỆN BÊN MUA (Bên B):</strong></p>
+          <p style={{marginTop:8}}><strong>{T.buyer}</strong></p>
           <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
             <tbody>
               <tr>
-                <td style={{width:"60%",paddingLeft:20,paddingBottom:2}}>Công ty: <strong>{buyerName || "……………………………………………………"}</strong></td>
-                <td style={{paddingBottom:2}}>MST: {buyerTax || "………………………"}</td>
+                <td style={{width:"60%",paddingLeft:20,paddingBottom:2}}>{T.company}: <strong>{buyerName || "……………………………………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.tax}: {buyerTax || "………………………"}</td>
               </tr>
-              {buyerAddr && <tr><td colSpan={2} style={{paddingLeft:20,paddingBottom:2}}>Địa chỉ: {buyerAddr}</td></tr>}
+              {buyerAddr && <tr><td colSpan={2} style={{paddingLeft:20,paddingBottom:2}}>{T.address}: {buyerAddr}</td></tr>}
               <tr>
-                <td style={{paddingLeft:20,paddingBottom:2}}>Ông/Bà: <strong>{buyerRep || "……………………………"}</strong></td>
-                <td style={{paddingBottom:2}}>Chức vụ: {buyerTitle || "……………………"}</td>
+                <td style={{paddingLeft:20,paddingBottom:2}}>{T.person}: <strong>{buyerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.position}: {buyerTitle || "……………………"}</td>
+              </tr>
+              <tr>
+                <td colSpan={2} style={{paddingLeft:20,paddingBottom:2,fontSize:11,color:"#555"}}>{T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></td>
               </tr>
             </tbody>
           </table>
  
-          <p style={{marginTop:10}}>
-            Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày <strong>{toDateStr}</strong>, cụ thể như sau:
-          </p>
+          <p style={{marginTop:10}}>{T.reconcileSentence} <strong>{toDateStr}</strong>, {T.oweAmount} <strong>{buyerName || "Quý công ty"}</strong> {T.amountIs} <strong>{fmt(grandTotal)} đồng</strong>.</p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.reconcileSentenceB} <strong>{toDateStr}</strong>, {T.oweAmountB} <strong>{buyerName || (debtLang === "vi_en" ? "Your company" : "贵公司")}</strong> {T.amountIsB} <strong>{fmt(grandTotal)} VND</strong>.</p>
         </div>
  
         {/* Bảng chi tiết */}
         <table className="debt-items-table">
           <thead>
             <tr>
-              <th style={{width:32}}>STT</th>
-              <th style={{width:90,textAlign:"left"}}>Số / Ký hiệu HĐ</th>
-              <th style={{width:72,textAlign:"left"}}>Ngày HĐ</th>
-              <th style={{textAlign:"left"}}>Hàng hóa / Dịch vụ</th>
-              <th style={{width:58}}>ĐVT</th>
-              <th style={{width:40}}>SL</th>
-              <th style={{width:84}}>Đơn giá</th>
-              <th style={{width:68}}>Thuế (%)</th>
-              <th style={{width:88}}>Thành tiền</th>
+              {T.invoiceHeaders.map(([vi, other], idx) => (
+                <th key={idx} style={{width: idx === 0 ? 32 : idx === 1 ? 90 : idx === 2 ? 72 : idx === 4 ? 58 : idx === 5 ? 40 : idx === 6 ? 84 : idx === 7 ? 68 : idx === 8 ? 88 : undefined, textAlign: idx < 3 ? "left" : "center"}}>
+                  <div>{vi}</div>
+                  <div style={{fontSize:10,color:"#555",marginTop:2}}>{other}</div>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {sortedInvoices.length === 0 ? (
               <tr>
                 <td colSpan={9} style={{textAlign:"center",color:"#aaa",padding:"20px",fontStyle:"italic"}}>
-                  Chưa có hóa đơn nào — vui lòng import file XML
+                  <div>{T.noInvoices}</div>
+                  <div style={{marginTop:4,fontSize:11,color:"#555"}}>{T.noInvoicesB}</div>
                 </td>
               </tr>
             ) : sortedInvoices.map((inv, invIdx) => {
@@ -6656,15 +6806,17 @@ function DebtReconciliationModal({ onClose }) {
               rows.push(
                 <tr key={"inv-" + inv._id} style={{background:"#f0f4ff"}}>
                   <td colSpan={3} style={{fontWeight:700,fontSize:11,color:"#1a2540",padding:"6px 8px"}}>
-                    HĐ: {inv.serial && <span style={{fontFamily:"monospace"}}>{inv.serial}</span>}
+                    {T.invoiceGroup} {inv.serial && <span style={{fontFamily:"monospace"}}>{inv.serial}</span>}
                     {inv.serial && inv.invoiceNumber ? " / " : ""}
-                    {inv.invoiceNumber && <span style={{fontFamily:"monospace",marginLeft:2}}>No. {inv.invoiceNumber}</span>}
+                    {inv.invoiceNumber && <span style={{fontFamily:"monospace",marginLeft:2}}>{T.invoiceGroupB} {inv.invoiceNumber}</span>}
                   </td>
                   <td colSpan={2} style={{fontSize:11,color:"#555",padding:"6px 8px"}}>
-                    Ngày: <strong>{inv.invoiceDate || "…"}</strong>
+                    {T.invoiceDateLabel} <strong>{inv.invoiceDate || "…"}</strong>
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceDateLabelB}</div>
                   </td>
                   <td colSpan={4} style={{textAlign:"right",fontSize:11,fontWeight:600,color:"#1a2540",padding:"6px 8px"}}>
-                    Tổng HĐ: {fmt(inv.grand)} đ
+                    {T.invoiceTotalLabel} {fmt(inv.grand)} đ
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceTotalLabelB}</div>
                   </td>
                 </tr>
               );
@@ -6693,10 +6845,12 @@ function DebtReconciliationModal({ onClose }) {
               rows.push(
                 <tr key={"sub-" + inv._id} className="debt-subtotal-row">
                   <td colSpan={7} style={{textAlign:"right",padding:"5px 8px",fontSize:11}}>
-                    Tiền hàng: {fmt(inv.subtotal)} đ &nbsp;|&nbsp; VAT: {fmt(inv.vatTotal)} đ
+                    {T.invoiceSubtotalLabel} {fmt(inv.subtotal)} đ &nbsp;|&nbsp; {T.invoiceVatLabel} {fmt(inv.vatTotal)} đ
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceSubtotalLabelB} {fmt(inv.subtotal)} VND · {T.invoiceVatLabelB} {fmt(inv.vatTotal)} VND</div>
                   </td>
                   <td style={{textAlign:"right",fontWeight:700,fontSize:12,padding:"5px 8px",color:"#1a2540"}} colSpan={2}>
-                    {fmt(inv.grand)} đ
+                    {T.invoiceGrandLabel} {fmt(inv.grand)} đ
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceGrandLabelB} {fmt(inv.grand)} VND</div>
                   </td>
                 </tr>
               );
@@ -6708,7 +6862,8 @@ function DebtReconciliationModal({ onClose }) {
               <>
                 <tr style={{background:"#eef0f8"}}>
                   <td colSpan={7} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
-                    Tổng tiền hàng (chưa VAT):
+                    {T.totalGoods}
+                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.totalGoodsB}</div>
                   </td>
                   <td colSpan={2} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
                     {fmt(grandSubtotal)} đ
@@ -6716,7 +6871,8 @@ function DebtReconciliationModal({ onClose }) {
                 </tr>
                 <tr style={{background:"#eef0f8"}}>
                   <td colSpan={7} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
-                    Tổng thuế VAT:
+                    {T.totalVat}
+                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.totalVatB}</div>
                   </td>
                   <td colSpan={2} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
                     {fmt(grandVat)} đ
@@ -6724,7 +6880,8 @@ function DebtReconciliationModal({ onClose }) {
                 </tr>
                 <tr className="debt-grand-row">
                   <td colSpan={7} style={{textAlign:"right",padding:"8px 10px",fontSize:14}}>
-                    TỔNG CỘNG PHẢI THU:
+                    {T.grandTotal}
+                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.grandTotalB}</div>
                   </td>
                   <td colSpan={2} style={{textAlign:"right",padding:"8px 10px",fontSize:15,letterSpacing:"0.02em"}}>
                     {fmt(grandTotal)} đ
@@ -6739,15 +6896,21 @@ function DebtReconciliationModal({ onClose }) {
         {sortedInvoices.length > 0 && (
           <div style={{marginTop:12,fontSize:12,lineHeight:1.8}}>
             <p>
-              Như vậy, tính đến ngày <strong>{toDateStr}</strong>, {COMPANY.name} còn phải thu của&nbsp;
-              <strong>{buyerName || "Quý công ty"}</strong> số tiền là:&nbsp;
-              <strong>{fmt(grandTotal)} đồng</strong>
+              {T.totalDue} <strong>{toDateStr}</strong>, {COMPANY.name} {T.oweAmount} <strong>{buyerName || "Quý công ty"}</strong> {T.amountIs} <strong>{fmt(grandTotal)} đồng</strong>.
             </p>
-            <p style={{fontStyle:"italic",color:"#555"}}>
-              (Viết bằng chữ: {numberToWordsVN(grandTotal)})
+            <p style={{fontSize:11,color:"#555",marginTop:2}}>
+              {T.totalDueB} <strong>{toDateStr}</strong>, {COMPANY.name} {T.oweAmountB} <strong>{buyerName || (debtLang === "vi_en" ? "Your company" : "贵公司")}</strong> {T.amountIsB} <strong>{fmt(grandTotal)} VND</strong>。
+            </p>
+            <p style={{fontStyle:"italic",color:"#555",marginTop:8}}>
+              {T.inWords} {numberToWordsVN(grandTotal)}
+            </p>
+            <p style={{fontSize:11,color:"#555",marginTop:4}}>
+              {T.inWordsB} {debtLang === "vi_en" ? numberToWordsEN(grandTotal) : numberToWordsCN(grandTotal)}
             </p>
             <p style={{marginTop:8}}>
-              Biên bản này được lập thành <strong>02 bản</strong>, mỗi bên giữ <strong>01 bản</strong> có giá trị như nhau.
+              {T.copiesNote}
+              <br />
+              <span style={{fontSize:11,color:"#555"}}>{T.copiesNoteB}</span>
             </p>
           </div>
         )}
@@ -6755,22 +6918,24 @@ function DebtReconciliationModal({ onClose }) {
         {/* Chữ ký */}
         <div className="debt-sign" style={{marginTop:28}}>
           <div className="debt-sign-block">
-            <div className="sign-title">ĐẠI DIỆN BÊN MUA (BÊN B)</div>
-            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Ký, ghi rõ họ tên)</div>
+            <div className="sign-title">{T.buyerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
             <div className="sign-space" />
             <div style={{fontWeight:600,borderBottom:buyerRep?"none":"1px solid #333",minWidth:160,display:"inline-block",minHeight:18}}>
               {buyerRep || ""}
             </div>
             {buyerTitle && <div style={{fontSize:11,color:"#666",marginTop:2}}>{buyerTitle}</div>}
             <div style={{fontSize:11,color:"#666"}}>{buyerName || ""}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:4}}>{T.buyerSignB}</div>
           </div>
           <div className="debt-sign-block">
-            <div className="sign-title">ĐẠI DIỆN BÊN BÁN (BÊN A)</div>
-            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>(Ký, ghi rõ họ tên)</div>
+            <div className="sign-title">{T.sellerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
             <div className="sign-space" />
             <div style={{fontWeight:600}}>{sellerRep || "……………………………"}</div>
             <div style={{fontSize:11,color:"#666"}}>{sellerTitle}</div>
             <div style={{fontSize:11,color:"#666"}}>{COMPANY.name}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:4}}>{T.sellerSignB}</div>
           </div>
         </div>
  
@@ -7041,6 +7206,13 @@ function DebtReconciliationModal({ onClose }) {
  
                 {/* ── 3. Thông tin biên bản ── */}
                 <div className="section-title" style={{marginBottom:8}}>📝 Thông tin biên bản</div>
+                <div className="form-group">
+                  <label>Ngôn ngữ song ngữ</label>
+                  <select className="form-control" value={debtLang} onChange={e => setDebtLang(e.target.value)}>
+                    <option value="vi_en">Việt - Anh</option>
+                    <option value="vi_zh">Việt - Trung (giản thể)</option>
+                  </select>
+                </div>
                 <div className="form-group">
                   <label>Số biên bản <span style={{fontWeight:400,color:"#aaa"}}>(tự sinh, có thể sửa)</span></label>
                   <div style={{display:"flex",gap:6}}>
