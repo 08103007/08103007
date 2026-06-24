@@ -7069,7 +7069,7 @@ function DebtReconciliationModal({ onClose }) {
           <p style={{marginTop:2}}>{T.tax} / {T.taxB}: {buyerTax || "………………………"}</p>
 
           <p style={{marginTop:10}}>
-            {T.paymentRequestNote} <strong>{buyerName || "Quý công ty"}</strong>.
+            {T.paymentRequestNote} <strong>{COMPANY.name}</strong>.
           </p>
           <p style={{fontSize:11,color:"#555",marginTop:2}}>
             {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
@@ -7114,7 +7114,7 @@ function DebtReconciliationModal({ onClose }) {
             {T.paymentAmountText} <strong>{debtLang === "vi_en" ? numberToWordsEN(grandTotal) : numberToWordsCN(grandTotal)}</strong>
           </p>
           <p style={{marginTop:6}}>
-            {T.paymentRequestNote} <strong>{buyerName || "Quý công ty"}</strong> {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
+            {T.paymentRequestNote} <strong>{COMPANY.name}</strong> {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
           </p>
           <p style={{marginTop:8}}>
             {T.paymentReferNote}
