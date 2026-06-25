@@ -14,10 +14,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Be Vietnam Pro', sans-serif; background: #f5f4f0; color: #1a1a1a; font-size: 14px; }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f5f4f0; color: #1a1a1a; font-size: 14px; }
   #root { min-height: 100vh; }
 
   .app { display: flex; flex-direction: column; min-height: 100vh; }
@@ -139,7 +139,7 @@
     .quote-items-table { border-collapse: collapse !important; border: 1px solid #000 !important; }
   }
 
-  .quote-preview { font-family: 'Be Vietnam Pro', sans-serif; padding: 16px 0; max-width: 100%; margin: 0 auto; background: #fff; box-sizing: border-box; }
+  .quote-preview { font-family: 'Plus Jakarta Sans', sans-serif; padding: 16px 0; max-width: 100%; margin: 0 auto; background: #fff; box-sizing: border-box; }
   .quote-company-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; border-bottom: 3px solid #1a2540; padding-bottom: 14px; }
   .company-logo-img { width: 70px; height: 70px; object-fit: contain; }
   .company-info h2 { font-size: 14px; font-weight: 700; color: #1a2540; margin-bottom: 3px; }
@@ -186,7 +186,7 @@
   select.form-control { appearance: auto; }
 
   /* Handover document styles */
-  .handover-preview { font-family: 'Be Vietnam Pro', sans-serif; padding: 28px 32px; max-width: 794px; margin: 0 auto; background: #fff; font-size: 13px; color: #000; }
+  .handover-preview { font-family: 'Plus Jakarta Sans', sans-serif; padding: 28px 32px; max-width: 794px; margin: 0 auto; background: #fff; font-size: 13px; color: #000; }
   .handover-header-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
   .handover-header-table td { padding: 4px 8px; font-size: 11px; vertical-align: top; }
   .handover-header-table td:first-child { width: 55%; font-weight: 600; color: #1a2540; font-size: 12px; border-right: 2px solid #1a2540; }
@@ -449,7 +449,7 @@
   .xml-result-item:hover { background:#fafaf7; }
   
 	  /* ── Debt Reconciliation ─────────────────────────────────────────────────── */
-	.debt-preview { font-family:'Be Vietnam Pro',sans-serif; padding:28px 32px; max-width:794px; margin:0 auto; background:#fff; font-size:12px; color:#000; line-height:1.6; }
+	.debt-preview { font-family:'Plus Jakarta Sans',sans-serif; padding:28px 32px; max-width:794px; margin:0 auto; background:#fff; font-size:12px; color:#000; line-height:1.6; }
 	.debt-header-table { width:100%; border-collapse:collapse; margin-bottom:14px; }
 	.debt-header-table td { vertical-align:top; padding:2px 6px; font-size:11px; }
 	.debt-header-left { width:55%; border-right:2px solid #1a2540; }
@@ -1011,7 +1011,7 @@ function importFromJSON(onDone) {
 // ── Toast ─────────────────────────────────────────────────────────────────────
 function showToast(msg, duration = 3000) {
   const t = document.createElement("div");
-  t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2540;color:#fff;padding:10px 22px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3);font-family:'Be Vietnam Pro',sans-serif;pointer-events:none;";
+  t.style.cssText = "position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a2540;color:#fff;padding:10px 22px;border-radius:8px;font-size:13px;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3);font-family:'Plus Jakarta Sans',sans-serif;pointer-events:none;";
   t.innerHTML = msg;
   document.body.appendChild(t);
   setTimeout(() => t.remove(), duration);
@@ -3025,7 +3025,7 @@ function DeliveryModal({ quote, onClose }) {
 
           {/* ── Cột phải: Preview ── */}
           <div style={{ flex:1, overflowY:"auto" }}>
-            <div id="deliveryPreviewContent" style={{ fontFamily:"'Be Vietnam Pro',sans-serif", padding:28, maxWidth:794, margin:"0 auto", background:"#fff", fontSize:13, color:"#000" }}>
+            <div id="deliveryPreviewContent" style={{ fontFamily:"'Plus Jakarta Sans',sans-serif", padding:28, maxWidth:794, margin:"0 auto", background:"#fff", fontSize:13, color:"#000" }}>
 
               {/* Header: logo + quốc hiệu */}
               <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:14 }}>
@@ -3712,7 +3712,7 @@ const handlePDFClick = async () => {
       const MB = pageMargins.bottom || 20;
 
       const fullHtml = `
-        <div style="font-family:'Be Vietnam Pro','Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;font-size:${FS}pt;line-height:1.55;color:#000;background:#fff;padding:${MT}mm ${MR}mm ${MB}mm ${ML}mm;box-sizing:border-box;width:794px">
+        <div style="font-family:'Plus Jakarta Sans','Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;font-size:${FS}pt;line-height:1.55;color:#000;background:#fff;padding:${MT}mm ${MR}mm ${MB}mm ${ML}mm;box-sizing:border-box;width:794px">
           <p style="text-align:center;margin:0;font-size:${FS*1.05}pt;font-weight:700">${T.natTitle1}</p>
           <p style="text-align:center;margin:0 0 1px;font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">${T.natTitle1b}</p>
           <p style="text-align:center;margin:0;font-size:${FS}pt;font-weight:700">${T.natTitle2}</p>
