@@ -2297,9 +2297,9 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
                     return (
                       <tr key={it.id}>
                         <td style={{textAlign:"center"}}>{i+1}</td>
-                         <td style={{textAlign:"center",verticalAlign:"middle"}}>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%"}}>
-                            {it.image && <img src={it.image} alt="" style={{width:56,height:56,objectFit:"contain",borderRadius:4,backgroundColor:"#fafafb"}} />}
+                         <td style={{textAlign:"center",verticalAlign:"middle",padding:"8px 4px"}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",height:"100%",minHeight:56}}>
+                            {it.image && <img src={it.image} alt="" style={{width:"100%",height:"100%",maxWidth:96,maxHeight:96,objectFit:"contain",borderRadius:4,border:"1px solid #e5e3dc",backgroundColor:"#fafafb"}} />}
                           </div>
                         </td>
                         <td style={{whiteSpace:"normal",wordBreak:"break-word"}}>
