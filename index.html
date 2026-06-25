@@ -2095,10 +2095,10 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
     previewEl.style.margin   = "0";
     previewEl.style.background = "#ffffff";
 
-    // Collect "do not cut here" ranges (table rows), in px relative to previewEl's top
+    // Collect "do not cut here" ranges from block elements, in px relative to previewEl's top
     const noCutRanges = [];
-    previewEl.querySelectorAll(".quote-items-table tr").forEach(tr => {
-      const r = tr.getBoundingClientRect();
+    previewEl.querySelectorAll("p, h1, h2, h3, h4, h5, h6, table, tr, ul, ol, blockquote, section, header, footer").forEach(el => {
+      const r = el.getBoundingClientRect();
       const p = previewEl.getBoundingClientRect();
       noCutRanges.push({ top: r.top - p.top, bottom: r.bottom - p.top });
     });
@@ -2299,7 +2299,7 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
                         <td style={{textAlign:"center"}}>{i+1}</td>
                          <td style={{textAlign:"center",verticalAlign:"middle"}}>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%"}}>
-                            {it.image && <img src={it.image} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:4}} />}
+                            {it.image && <img src={it.image} alt="" style={{width:56,height:56,objectFit:"contain",borderRadius:4,backgroundColor:"#fafafb"}} />}
                           </div>
                         </td>
                         <td style={{whiteSpace:"normal",wordBreak:"break-word"}}>
@@ -3770,8 +3770,8 @@ const handlePDFClick = async () => {
       document.body.appendChild(wrapper);
 
       const noCutRanges = [];
-      wrapper.querySelectorAll("table tr").forEach(tr => {
-        const r = tr.getBoundingClientRect();
+      wrapper.querySelectorAll("p, h1, h2, h3, h4, h5, h6, table, tr, ul, ol, blockquote, section, header, footer").forEach(elm => {
+        const r = elm.getBoundingClientRect();
         const p = wrapper.getBoundingClientRect();
         noCutRanges.push({ top: r.top - p.top, bottom: r.bottom - p.top });
       });
@@ -6730,8 +6730,8 @@ function DebtReconciliationModal({ onClose }) {
     el.style.padding = PAD + "px"; el.style.margin = "0"; el.style.background = "#ffffff";
  
     const noCutRanges = [];
-    el.querySelectorAll(".debt-items-table tr").forEach(tr => {
-      const r = tr.getBoundingClientRect(), p = el.getBoundingClientRect();
+    el.querySelectorAll("p, h1, h2, h3, h4, h5, h6, table, tr, ul, ol, blockquote, section, header, footer").forEach(elm => {
+      const r = elm.getBoundingClientRect(), p = el.getBoundingClientRect();
       noCutRanges.push({ top: r.top - p.top, bottom: r.bottom - p.top });
     });
  
