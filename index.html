@@ -1322,7 +1322,26 @@ function downloadBlob(blob, filename) {
   setTimeout(() => toast.remove(), 4000);
 }
 // ─── Kết thúc DOCX builder ───────────────────────────────────────────────────
-
+function FormattedNumberInput({ value, onChange, className, placeholder }) {
+  const [focused, setFocused] = React.useState(false);
+  const inputRef = React.useRef(null);
+  const numVal = Number(value) || 0;
+  return (
+    <input
+      ref={inputRef}
+      type={focused ? "number" : "text"}
+      className={className}
+      placeholder={placeholder}
+      value={focused
+        ? (numVal === 0 ? "" : numVal)
+        : (numVal === 0 ? "" : numVal.toLocaleString("vi-VN"))}
+      style={{ textAlign: "right" }}
+      onFocus={() => setFocused(true)}
+      onBlur={e => { setFocused(false); onChange(Number(e.target.value) || 0); }}
+      onChange={e => { if (focused) onChange(Number(e.target.value) || 0); }}
+    />
+  );
+}
 function vatLabel(vatRate) {
   if (vatRate === -1) return "KCT";
   return (vatRate || 0) + "%";
@@ -1597,7 +1616,7 @@ function ItemRow({ it, idx, allQuotes, vatRate, onSetItem, onSetItemFields, onRe
         <input className="unit-input" value={it.unit} onChange={e=>onSetItem(idx,"unit",e.target.value)} />
       </td>
       <td style={{width:110}}>
-        <input className="price-input" type="number" min="0" value={it.price} onChange={e=>onSetItem(idx,"price",Number(e.target.value))} />
+        <FormattedNumberInput className="price-input" value={it.price} onChange={v=>onSetItem(idx,"price",v)} />
       </td>
       <td style={{width:80, textAlign:"center"}}>
         <select value={iVatRate} onChange={e=>onSetItem(idx,"vatRate",Number(e.target.value))}
@@ -1611,7 +1630,7 @@ function ItemRow({ it, idx, allQuotes, vatRate, onSetItem, onSetItemFields, onRe
       </td>
       <td className="total-cell" style={{width:110}}>{fmt(lineTotalWithVat)}</td>
       <td style={{width:120}} className="internal-col">
-        <input className="price-input" type="number" min="0" value={it.costNoVat||0} onChange={e=>setCostNoVat(Number(e.target.value))} placeholder="Giá nhập chưa VAT" />
+        <FormattedNumberInput className="price-input" value={it.costNoVat||0} onChange={v=>setCostNoVat(v)} placeholder="Giá nhập chưa VAT" />
       </td>
       <td style={{width:120}} className="internal-col">
         <input className="price-input" type="number" min="0" value={it.cost||0} onChange={e=>setCost(Number(e.target.value))} placeholder="Giá nhập đã gồm VAT" />
