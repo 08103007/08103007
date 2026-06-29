@@ -2001,9 +2001,11 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
     const itemsTable = dxTable([headerRow, ...itemRows, totalRow], totalW);
 
     // Recipient block
-    const recipBlock = [
+   const recipBlock = [
       dxPara([{text:"Kính gửi: ", bold:true},{text:quote.customer}], {spaceAfter:60}),
       ...(quote.contact ? [dxPara([{text:"Người liên hệ: ",bold:true},{text:quote.contact}],{spaceAfter:60})] : []),
+      ...(quote.address ? [dxPara([{text:"Địa chỉ: ",bold:true},{text:quote.address}],{spaceAfter:60})] : []),
+      ...(quote.taxId ? [dxPara([{text:"Mã số thuế: ",bold:true},{text:quote.taxId}],{spaceAfter:60})] : []),
       ...(quote.workContent ? [dxPara([{text:"Nội dung: ",bold:true},{text:quote.workContent}],{spaceAfter:60})] : []),
       dxPara(`Ngày báo giá: ${quote.date}`, {spaceAfter:80}),
     ];
@@ -2280,6 +2282,13 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
             <div className="quote-recipient">
 			  <strong>Kính gửi:</strong> <strong>{quote.customer}</strong>
 			  {quote.contact && <span style={{marginLeft:16}}>Người liên hệ: {quote.contact}</span>}
+			  {(quote.address || quote.taxId) && (
+			    <div style={{marginTop:2}}>
+			      {quote.address && <span>Địa chỉ: {quote.address}</span>}
+			      {quote.address && quote.taxId && <span style={{marginLeft:16}}>MST: {quote.taxId}</span>}
+			      {!quote.address && quote.taxId && <span>MST: {quote.taxId}</span>}
+			    </div>
+			  )}
 			  {quote.workContent && <div style={{marginTop:4}}><strong style={{fontStyle:"italic"}}>Nội dung:</strong> <em>{quote.workContent}</em></div>}
 			</div>
             {hasImages ? (
