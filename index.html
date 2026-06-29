@@ -2286,9 +2286,6 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
 			  {quote.contact && <div style={{marginTop:2}}>Người liên hệ: {quote.contact}</div>}
 			  {quote.workContent && <div style={{marginTop:4}}><strong style={{fontStyle:"italic"}}>Nội dung:</strong> <em>{quote.workContent}</em></div>}
 			</div>
-			  )}
-			  {quote.workContent && <div style={{marginTop:4}}><strong style={{fontStyle:"italic"}}>Nội dung:</strong> <em>{quote.workContent}</em></div>}
-			</div>
             {hasImages ? (
               /* ── Bảng CÓ ảnh: giữ nguyên layout cũ ── */
               <table className="quote-items-table">
