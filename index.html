@@ -5584,73 +5584,73 @@ function TasksView({ quotes }) {
   );
 }
 
-// ─── XmlImportModal: đọc XML hóa đơn điện tử → lấy tên hàng + ĐVT ──────────
+// ─── XmlImportModal: đọc XML hóa đơn điện tử → lấy hàng hóa + giá + khách hàng ──
 function XmlImportModal({ onImport, onClose }) {
-  const [items, setItems]       = React.useState([]);
+  const [invoice, setInvoice]   = React.useState(null); // kết quả parseInvoiceXml
   const [selected, setSelected] = React.useState(new Set());
   const [error, setError]       = React.useState("");
   const [fileName, setFileName] = React.useState("");
+  const [useInvoicePrice, setUseInvoicePrice] = React.useState(true);  // lấy đơn giá/SL từ HĐ
+  const [importCustomer, setImportCustomer]   = React.useState(true); // lấy thông tin khách hàng
   const fileRef = React.useRef(null);
 
-  const parseXml = (text) => {
-    try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, "application/xml");
-      const parseErr = doc.querySelector("parsererror");
-      if (parseErr) throw new Error("File XML không hợp lệ");
-
-      // Đọc tất cả <HHDVu> (dòng hàng hóa/dịch vụ)
-      const nodes = doc.querySelectorAll("HHDVu");
-      if (nodes.length === 0) throw new Error("Không tìm thấy dòng hàng hóa trong file XML");
-
-      const result = [];
-      nodes.forEach((node, i) => {
-        const name = node.querySelector("THHDVu")?.textContent?.trim() || "";
-        const unit = node.querySelector("DVTinh")?.textContent?.trim() || "Cái";
-        if (name) result.push({ id: i, name, unit });
-      });
-
-      if (result.length === 0) throw new Error("Không đọc được tên hàng hóa từ file XML");
-      setItems(result);
-      // Chọn tất cả mặc định
-      setSelected(new Set(result.map(it => it.id)));
-      setError("");
-    } catch(e) {
-      setError(e.message);
-      setItems([]);
-    }
-  };
-
-  const handleFile = (e) => {
-    const file = e.target.files && e.target.files[0];
+  const handleFile = (file) => {
     if (!file) return;
     setFileName(file.name);
+    setError("");
     const reader = new FileReader();
-    reader.onload = (ev) => parseXml(ev.target.result);
+    reader.onload = (ev) => {
+      try {
+        const inv = parseInvoiceXml(ev.target.result);
+        if (!inv.items || inv.items.length === 0) throw new Error("Không đọc được mặt hàng nào từ file XML");
+        setInvoice(inv);
+        setSelected(new Set(inv.items.map((_, i) => i)));
+      } catch(e) {
+        setError(e.message);
+        setInvoice(null);
+      }
+    };
     reader.readAsText(file, "utf-8");
   };
 
   const toggleAll = (checked) => {
-    setSelected(checked ? new Set(items.map(it => it.id)) : new Set());
+    if (!invoice) return;
+    setSelected(checked ? new Set(invoice.items.map((_, i) => i)) : new Set());
   };
 
-  const toggleOne = (id) => {
+  const toggleOne = (i) => {
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      next.has(i) ? next.delete(i) : next.add(i);
       return next;
     });
   };
 
   const handleImport = () => {
-    const chosen = items.filter(it => selected.has(it.id));
-    if (chosen.length === 0) { alert("Chưa chọn mặt hàng nào"); return; }
-    onImport(chosen);
+    if (!invoice) return;
+    const chosenItems = invoice.items
+      .filter((_, i) => selected.has(i))
+      .map(it => ({
+        name: it.name,
+        unit: it.unit || "Cái",
+        qty: useInvoicePrice ? (it.qty || 1) : 1,
+        price: useInvoicePrice ? (it.price || 0) : 0,
+        vatRate: useInvoicePrice ? (it.vatRate !== undefined ? it.vatRate : 8) : 8,
+      }));
+    if (chosenItems.length === 0) { alert("Chưa chọn mặt hàng nào"); return; }
+
+    const customer = importCustomer ? {
+      customer: invoice.buyerName || "",
+      address:  invoice.buyerAddr || "",
+      taxId:    invoice.buyerTax  || "",
+    } : null;
+
+    onImport(chosenItems, customer);
   };
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth:560, height:"auto", maxHeight:"90vh" }}>
+      <div className="modal" style={{ maxWidth:640, height:"auto", maxHeight:"90vh" }}>
         <div className="modal-header">
           <span className="modal-title">📄 Nhập hàng hóa từ XML hóa đơn điện tử</span>
           <button className="close-btn" onClick={onClose}>×</button>
@@ -5661,11 +5661,12 @@ function XmlImportModal({ onImport, onClose }) {
           <div style={{ border:"2px dashed #d1cfc6", borderRadius:8, padding:"20px", textAlign:"center", marginBottom:16, cursor:"pointer", background:"#fafaf7" }}
             onClick={() => fileRef.current && fileRef.current.click()}
             onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setFileName(f.name); const r = new FileReader(); r.onload = ev => parseXml(ev.target.result); r.readAsText(f,"utf-8"); } }}>
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}>
             <div style={{ fontSize:28, marginBottom:6 }}>📂</div>
             <div style={{ fontSize:13, color:"#555" }}>{fileName || "Click hoặc kéo thả file XML hóa đơn vào đây"}</div>
-            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>Hỗ trợ file XML hóa đơn điện tử chuẩn Việt Nam</div>
-            <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" style={{ display:"none" }} onChange={handleFile} />
+            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>Hỗ trợ file XML hóa đơn điện tử chuẩn Việt Nam (VNPT, MISA, FAST...)</div>
+            <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" style={{ display:"none" }}
+              onChange={e => { handleFile(e.target.files[0]); e.target.value = ""; }} />
           </div>
 
           {error && (
@@ -5674,40 +5675,95 @@ function XmlImportModal({ onImport, onClose }) {
             </div>
           )}
 
-          {items.length > 0 && (
+          {invoice && (
             <>
+              {/* Thông tin hóa đơn + khách hàng */}
+              <div style={{ background:"#f5f7fb", border:"1px solid #e0e4f0", borderRadius:8, padding:"12px 14px", marginBottom:14 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:"#5b6b94", marginBottom:8 }}>
+                  🧾 Hóa đơn số {invoice.invoiceNumber || "—"}{invoice.serial ? ` / ${invoice.serial}` : ""} {invoice.invoiceDate ? `— ngày ${invoice.invoiceDate}` : ""}
+                </div>
+                {invoice.buyerName ? (
+                  <label style={{ display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer", fontSize:13 }}>
+                    <input type="checkbox" checked={importCustomer} onChange={e => setImportCustomer(e.target.checked)} style={{ marginTop:3 }} />
+                    <div>
+                      <div><strong>Lấy thông tin khách hàng vào báo giá:</strong></div>
+                      <div style={{ color:"#444", marginTop:2 }}>
+                        {invoice.buyerName}
+                        {invoice.buyerTax ? ` — MST: ${invoice.buyerTax}` : ""}
+                        {invoice.buyerAddr ? <><br/>{invoice.buyerAddr}</> : ""}
+                      </div>
+                    </div>
+                  </label>
+                ) : (
+                  <div style={{ fontSize:12, color:"#aaa", fontStyle:"italic" }}>Không tìm thấy thông tin khách hàng trong file XML</div>
+                )}
+              </div>
+
+              <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontSize:13, marginBottom:12 }}>
+                <input type="checkbox" checked={useInvoicePrice} onChange={e => setUseInvoicePrice(e.target.checked)} />
+                <span><strong>Lấy đơn giá, số lượng, thuế suất từ hóa đơn</strong> <span style={{ color:"#888", fontWeight:400 }}>(bỏ chọn nếu chỉ muốn lấy tên hàng, tự nhập giá)</span></span>
+              </label>
+
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:"#1a2540" }}>
-                  Tìm thấy {items.length} mặt hàng — chọn để thêm vào báo giá:
+                  Tìm thấy {invoice.items.length} mặt hàng — chọn để thêm vào báo giá:
                 </div>
                 <label style={{ fontSize:12, color:"#666", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
                   <input type="checkbox"
-                    checked={selected.size === items.length}
+                    checked={selected.size === invoice.items.length}
                     onChange={e => toggleAll(e.target.checked)} />
                   Chọn tất cả
                 </label>
               </div>
+
               <div className="card" style={{ maxHeight:320, overflowY:"auto" }}>
-                {items.map(it => (
-                  <div key={it.id} className="xml-result-item" onClick={() => toggleOne(it.id)} style={{ cursor:"pointer" }}>
-                    <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggleOne(it.id)}
-                      onClick={e => e.stopPropagation()} />
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontWeight:500 }}>{it.name}</div>
-                      <div style={{ fontSize:11, color:"#888" }}>ĐVT: {it.unit}</div>
-                    </div>
-                  </div>
-                ))}
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                  <thead>
+                    <tr style={{ background:"#f9f8f5" }}>
+                      <th style={{ width:30 }}></th>
+                      <th style={{ textAlign:"left", padding:"6px 8px" }}>Tên hàng hóa</th>
+                      <th style={{ width:50, textAlign:"center" }}>ĐVT</th>
+                      <th style={{ width:50, textAlign:"center" }}>SL</th>
+                      <th style={{ width:90, textAlign:"right" }}>Đơn giá</th>
+                      <th style={{ width:50, textAlign:"center" }}>VAT</th>
+                      <th style={{ width:100, textAlign:"right" }}>Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {invoice.items.map((it, i) => {
+                      const vatLbl = it.vatRate === -1 ? "KCT" : (it.vatRate || 0) + "%";
+                      const lineTotal = (it.lineTotal || 0) + (it.vatAmt || 0);
+                      return (
+                        <tr key={i} className="xml-result-item" onClick={() => toggleOne(i)} style={{ cursor:"pointer" }}>
+                          <td style={{ textAlign:"center", padding:"6px 4px" }}>
+                            <input type="checkbox" checked={selected.has(i)} onChange={() => toggleOne(i)} onClick={e => e.stopPropagation()} />
+                          </td>
+                          <td style={{ padding:"6px 8px", fontWeight:500 }}>{it.name}</td>
+                          <td style={{ textAlign:"center" }}>{it.unit || "—"}</td>
+                          <td style={{ textAlign:"center" }}>{it.qty || "—"}</td>
+                          <td style={{ textAlign:"right" }}>{it.price ? fmt(it.price) : "—"}</td>
+                          <td style={{ textAlign:"center" }}>{vatLbl}</td>
+                          <td style={{ textAlign:"right", fontWeight:600 }}>{lineTotal ? fmt(lineTotal) : "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
               <div style={{ fontSize:12, color:"#888", marginTop:8, textAlign:"right" }}>
-                Đã chọn: <strong>{selected.size}</strong> / {items.length}
+                Đã chọn: <strong>{selected.size}</strong> / {invoice.items.length}
+                {useInvoicePrice && selected.size > 0 && (
+                  <> — Tổng: <strong style={{ color:"#1a2540" }}>
+                    {fmt(invoice.items.filter((_,i)=>selected.has(i)).reduce((s,it)=>s+(it.lineTotal||0)+(it.vatAmt||0),0))} đ
+                  </strong></>
+                )}
               </div>
             </>
           )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Hủy</button>
-          {items.length > 0 && (
+          {invoice && (
             <button className="btn btn-primary" onClick={handleImport} disabled={selected.size === 0}>
               ✅ Thêm {selected.size} mặt hàng vào báo giá
             </button>
