@@ -1753,14 +1753,26 @@ function QuoteModal({ quote, allQuotes, onSave, onClose }) {
     setForm(p => ({...p, items: [...p.items, { id: generateId(), name: "", note: "", qty: 1, unit: "Cái", price: 0, cost: 0, costNoVat: 0, image: "", vatRate: 8 }]}));
   };
 
-  const handleXmlImport = (xmlItems) => {
+  const handleXmlImport = (xmlItems, customer) => {
     const newItems = xmlItems.map(it => ({
-      id: generateId(), name: it.name, note: "", qty: 1,
-      unit: it.unit || "Cái", price: 0, cost: 0, costNoVat: 0, image: "", vatRate: 8
+      id: generateId(), name: it.name, note: "", qty: it.qty || 1,
+      unit: it.unit || "Cái", price: it.price || 0, cost: 0, costNoVat: 0,
+      image: "", vatRate: it.vatRate !== undefined ? it.vatRate : 8,
     }));
-    setForm(p => ({ ...p, items: [...p.items.filter(x => x.name.trim()), ...newItems] }));
+    setForm(p => ({
+      ...p,
+      items: [...p.items.filter(x => x.name.trim()), ...newItems],
+      ...(customer ? {
+        customer: customer.customer || p.customer,
+        address:  customer.address  || p.address,
+        taxId:    customer.taxId    || p.taxId,
+      } : {}),
+    }));
+    if (customer && customer.customer) {
+      upsertCatalogCustomer(customer).catch(() => {});
+    }
     setShowXmlImport(false);
-    showToast(`✅ Đã thêm ${newItems.length} mặt hàng từ XML`, 2500);
+    showToast(`✅ Đã thêm ${newItems.length} mặt hàng từ XML${customer && customer.customer ? " + thông tin khách hàng" : ""}`, 2800);
   };
 
   const removeItem = (idx) => {
