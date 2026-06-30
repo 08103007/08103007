@@ -2477,12 +2477,9 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
 					  const [d, m, y] = (quote.date || "").split("/");
 					  return d && m && y ? `${d} tháng ${m} năm ${y}` : `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
 					})()}</div>
-				</div>
                 <div className="company-name">{COMPANY.short}</div>
                 <div style={{height:50}} />
                 <div style={{fontWeight:600, fontSize:13, color:"#1a2540"}}>Trần Văn Thịnh</div>
-              </div>
-                <div className="company-name">{COMPANY.short}</div>
               </div>
             </div>
           </div>
