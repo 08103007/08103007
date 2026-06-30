@@ -2431,7 +2431,10 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
                 </ul>
               </div>
               <div className="quote-sign">
-                <div className="location-date">Phú Mỹ, ngày {String(today.getDate()).padStart(2,"0")} tháng {String(today.getMonth()+1).padStart(2,"0")} năm {today.getFullYear()}</div>
+                <div className="location-date">Phú Mỹ, ngày {(() => {
+					  const [d, m, y] = (quote.date || "").split("/");
+					  return d && m && y ? `${d} tháng ${m} năm ${y}` : `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
+					})()}</div>
                 <div className="company-name">{COMPANY.short}</div>
               </div>
             </div>
