@@ -5821,8 +5821,7 @@ function ReceiptModal({ onClose }) {
         if (inv.buyerName) setPayerName(inv.buyerName);
         if (inv.buyerAddr) setPayerAddr(inv.buyerAddr);
         if (inv.buyerTax)  setPayerTax(inv.buyerTax);
-        const itemNames = inv.items.map(it => it.name).filter(Boolean).slice(0,3).join(", ");
-        setReason(`Thu tiền theo hóa đơn${inv.serial || inv.invoiceNumber ? ` số ${inv.invoiceNumber || ""}${inv.serial ? " / " + inv.serial : ""}` : ""}${itemNames ? " — " + itemNames : ""}`);
+        setReason(`Thu tiền theo hóa đơn${inv.serial || inv.invoiceNumber ? ` số ${inv.invoiceNumber || ""}${inv.serial ? " / " + inv.serial : ""}` : ""}`);
         setAmount(Math.round(inv.grand || 0));
         setInvoiceRef(`${inv.serial || ""}${inv.serial && inv.invoiceNumber ? " / " : ""}${inv.invoiceNumber || ""}`);
         setAttachDocs("01 hóa đơn GTGT");
