@@ -587,6 +587,111 @@ function numberToWordsVN(num) { return new Intl.NumberFormat("vi-VN").format(num
 function numberToWordsEN(num) { return new Intl.NumberFormat("en").format(num) + " VND only"; }
 function numberToWordsCN(num) { return new Intl.NumberFormat("zh").format(num) + "越南盾整"; }
 
+const DEBT_ITEM_TRANSLATIONS = {
+  en: {
+    "máy tính": "computer",
+    "máy": "machine",
+    "bàn": "table",
+    "ghế": "chair",
+    "màn hình": "monitor",
+    "chuột": "mouse",
+    "bàn phím": "keyboard",
+    "cài đặt": "installation",
+    "phần mềm": "software",
+    "dịch vụ": "service",
+    "thiết bị": "equipment",
+    "cái": "unit",
+    "hộp": "box",
+    "bộ": "set",
+    "chiếc": "piece",
+    "hệ thống": "system",
+    "laptop": "laptop",
+    "desktop": "desktop",
+    "router": "router",
+    "switch": "switch",
+    "server": "server",
+    "modem": "modem",
+    "wifi": "Wi-Fi",
+    "cáp": "cable",
+    "pin": "battery",
+    "sạc": "charger",
+    "ổ cứng": "hard drive",
+    "ssd": "SSD",
+    "hdd": "HDD",
+    "ram": "RAM",
+    "cpu": "CPU",
+    "card đồ họa": "graphics card",
+    "bảo hành": "warranty",
+    "hỗ trợ": "support",
+    "lắp đặt": "installation",
+    "thi công": "construction",
+    "tủ": "cabinet"
+  },
+  zh: {
+    "máy tính": "计算机",
+    "máy": "机器",
+    "bàn": "桌子",
+    "ghế": "椅子",
+    "màn hình": "显示器",
+    "chuột": "鼠标",
+    "bàn phím": "键盘",
+    "cài đặt": "安装",
+    "phần mềm": "软件",
+    "dịch vụ": "服务",
+    "thiết bị": "设备",
+    "cái": "件",
+    "hộp": "盒",
+    "bộ": "套",
+    "chiếc": "台",
+    "hệ thống": "系统",
+    "laptop": "笔记本电脑",
+    "desktop": "台式机",
+    "router": "路由器",
+    "switch": "交换机",
+    "server": "服务器",
+    "modem": "调制解调器",
+    "wifi": "无线网络",
+    "cáp": "线缆",
+    "pin": "电池",
+    "sạc": "充电器",
+    "ổ cứng": "硬盘",
+    "ssd": "固态硬盘",
+    "hdd": "机械硬盘",
+    "ram": "内存",
+    "cpu": "处理器",
+    "card đồ họa": "显卡",
+    "bảo hành": "保修",
+    "hỗ trợ": "支持",
+    "lắp đặt": "安装",
+    "thi công": "施工",
+    "tủ": "柜子"
+  }
+};
+
+function escapeRegExp(str) {
+  return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getDebtAutoTranslation(text, targetLang) {
+  const source = (text || "").toString().trim();
+  if (!source) return "";
+  const dict = DEBT_ITEM_TRANSLATIONS[targetLang] || {};
+  let result = source;
+  Object.entries(dict).forEach(([src, trans]) => {
+    const regex = new RegExp(`\\b${escapeRegExp(src)}\\b`, "gi");
+    result = result.replace(regex, trans);
+  });
+  return result;
+}
+
+function getDebtBilingualDisplay(text, debtLang) {
+  const viText = (text || "").toString().trim();
+  if (!viText) return { vi: "", other: "" };
+  const targetLang = debtLang === "vi_en" ? "en" : "zh";
+  const translated = getDebtAutoTranslation(viText, targetLang);
+  return { vi: viText, other: translated && translated !== viText ? translated : "" };
+}
+
 // ─── Kết thúc đọc số thành chữ ──────────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -677,7 +782,6 @@ const LS_TASKS      = "pmc_tasks_v4";
 const LS_NOTES      = "pmc_notes_v4";
 const LS_DELIVERIES = "pmc_deliveries_v4";
 const LS_DEBTRECS   = "pmc_debtrecs_v1"; // biên bản đối chiếu công nợ
-const LS_RECEIPTS = "pmc_receipts_v1"; // phiếu thu
 const LS_TOKEN  = "pmc_session_token";  // session token từ GAS
 
 // ── GAS_URL getter: đọc từ localStorage (không hardcode) ─────────────────────
@@ -694,7 +798,6 @@ const _mem = {
   handovers:  {},
   deliveries: {},
   debtRecs:   {},
-	receipts:   {},
   tasks:      [],
   notes:      [],
 };
@@ -739,7 +842,6 @@ async function _flushToGAS() {
           handovers:  _mem.handovers,
           deliveries: _mem.deliveries,
           debtRecs:   _mem.debtRecs,
-			receipts: _mem.receipts,
           tasks:      _mem.tasks,
           notes:      _mem.notes,
         }
@@ -778,8 +880,6 @@ function _flushToLocalStorage() {
     localStorage.setItem(LS_HANDOVERS,  JSON.stringify(_mem.handovers));
     localStorage.setItem(LS_DELIVERIES, JSON.stringify(_mem.deliveries));
     localStorage.setItem(LS_DEBTRECS,   JSON.stringify(_mem.debtRecs));
-	  localStorage.setItem(LS_RECEIPTS, JSON.stringify(_mem.receipts));
-
     localStorage.setItem(LS_TASKS,      JSON.stringify(_mem.tasks));
     localStorage.setItem(LS_NOTES,      JSON.stringify(_mem.notes));
   } catch(e) { console.warn("localStorage full:", e); }
@@ -809,7 +909,6 @@ async function doLoad() {
         _mem.handovers  = (data.handovers   && typeof data.handovers   === "object") ? data.handovers  : {};
         _mem.deliveries = (data.deliveries  && typeof data.deliveries  === "object") ? data.deliveries : {};
         _mem.debtRecs   = (data.debtRecs    && typeof data.debtRecs    === "object") ? data.debtRecs   : {};
-		  _mem.receipts = (data.receipts && typeof data.receipts === "object") ? data.receipts : {};
       _mem.tasks      = Array.isArray(data.tasks) ? data.tasks : [];
       _mem.notes      = Array.isArray(data.notes) ? data.notes : [];
         _mem.tasks      = Array.isArray(data.tasks) ? data.tasks : [];
@@ -849,7 +948,6 @@ function _initFromLocalStorage() {
   try { const hw= localStorage.getItem(LS_HANDOVERS);   _mem.handovers  = hw  ? JSON.parse(hw)  : {}; } catch { _mem.handovers  = {}; }
   try { const dv= localStorage.getItem(LS_DELIVERIES);  _mem.deliveries = dv  ? JSON.parse(dv)  : {}; } catch { _mem.deliveries = {}; }
   try { const dr= localStorage.getItem(LS_DEBTRECS);     _mem.debtRecs   = dr  ? JSON.parse(dr)  : {}; } catch { _mem.debtRecs   = {}; }
-	try { const rc = localStorage.getItem(LS_RECEIPTS); _mem.receipts = rc ? JSON.parse(rc) : {}; } catch { _mem.receipts = {}; }
   try { const tk= localStorage.getItem(LS_TASKS);        _mem.tasks      = tk  ? JSON.parse(tk)  : []; } catch { _mem.tasks      = []; }
   try { const nt= localStorage.getItem(LS_NOTES);        _mem.notes      = nt  ? JSON.parse(nt)  : []; } catch { _mem.notes      = []; }
 }
@@ -943,28 +1041,7 @@ function generateDebtRecNumber() {
   const seq = String(countThisYear + 1).padStart(2, "0");
   return `BBDCCN-${seq}/${year}`;
 }
-// ── Phiếu thu ─────────────────────────────────────────────────────────────────
-function loadReceipt(id) { return Promise.resolve(_mem.receipts[id] || null); }
-function listReceipts() { return Promise.resolve(Object.values(_mem.receipts || {})); }
-function saveReceiptDoc(id, data) {
-  _mem.receipts[id] = { ...data, id, updatedAt: Date.now() };
-  _scheduleSave();
-  return Promise.resolve();
-}
-function deleteReceiptDoc(id) {
-  delete _mem.receipts[id];
-  _scheduleSave();
-  return Promise.resolve();
-}
-// Sinh số phiếu thu tự động: PT-XX/NĂM
-function generateReceiptNumber() {
-  const year = new Date().getFullYear();
-  const existing = Object.values(_mem.receipts || {});
-  const countThisYear = existing.filter(r => (r.refNum || "").includes("/" + year)).length;
-  const seq = String(countThisYear + 1).padStart(3, "0");
-  return `PT-${seq}/${year}`;
-}
-	
+
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 function loadTasks() { return Promise.resolve([...(_mem.tasks || [])]); }
 function saveTasks(tasks) {
@@ -1001,7 +1078,6 @@ function exportToJSON() {
     handovers: _mem.handovers,
     deliveries: _mem.deliveries,
     debtRecs: _mem.debtRecs,
-	  receipts: _mem.receipts,
     tasks: _mem.tasks,
     notes: _mem.notes,
     exportedAt: new Date().toISOString()
@@ -1029,7 +1105,6 @@ function importFromJSON(onDone) {
       _mem.handovers  = (data.handovers   && typeof data.handovers   === "object") ? data.handovers  : {};
       _mem.deliveries = (data.deliveries  && typeof data.deliveries  === "object") ? data.deliveries : {};
       _mem.debtRecs   = (data.debtRecs   && typeof data.debtRecs   === "object") ? data.debtRecs   : {};
-		_mem.receipts = (data.receipts && typeof data.receipts === "object") ? data.receipts : {};
       await _flushToGAS();
       showToast(`✅ Đã nhập ${data.quotes.length} báo giá từ ${file.name}`);
       if (typeof onDone === "function") onDone(_mem.quotes);
@@ -1753,26 +1828,14 @@ function QuoteModal({ quote, allQuotes, onSave, onClose }) {
     setForm(p => ({...p, items: [...p.items, { id: generateId(), name: "", note: "", qty: 1, unit: "Cái", price: 0, cost: 0, costNoVat: 0, image: "", vatRate: 8 }]}));
   };
 
-  const handleXmlImport = (xmlItems, customer) => {
+  const handleXmlImport = (xmlItems) => {
     const newItems = xmlItems.map(it => ({
-      id: generateId(), name: it.name, note: "", qty: it.qty || 1,
-      unit: it.unit || "Cái", price: it.price || 0, cost: 0, costNoVat: 0,
-      image: "", vatRate: it.vatRate !== undefined ? it.vatRate : 8,
+      id: generateId(), name: it.name, note: "", qty: 1,
+      unit: it.unit || "Cái", price: 0, cost: 0, costNoVat: 0, image: "", vatRate: 8
     }));
-    setForm(p => ({
-      ...p,
-      items: [...p.items.filter(x => x.name.trim()), ...newItems],
-      ...(customer ? {
-        customer: customer.customer || p.customer,
-        address:  customer.address  || p.address,
-        taxId:    customer.taxId    || p.taxId,
-      } : {}),
-    }));
-    if (customer && customer.customer) {
-      upsertCatalogCustomer(customer).catch(() => {});
-    }
+    setForm(p => ({ ...p, items: [...p.items.filter(x => x.name.trim()), ...newItems] }));
     setShowXmlImport(false);
-    showToast(`✅ Đã thêm ${newItems.length} mặt hàng từ XML${customer && customer.customer ? " + thông tin khách hàng" : ""}`, 2800);
+    showToast(`✅ Đã thêm ${newItems.length} mặt hàng từ XML`, 2500);
   };
 
   const removeItem = (idx) => {
@@ -2043,8 +2106,10 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
     const itemsTable = dxTable([headerRow, ...itemRows, totalRow], totalW);
 
     // Recipient block
-    const recipBlock = [
+   const recipBlock = [
       dxPara([{text:"Kính gửi: ", bold:true},{text:quote.customer}], {spaceAfter:60}),
+      ...(quote.taxId ? [dxPara([{text:"Mã số thuế: ",bold:true},{text:quote.taxId}],{spaceAfter:60})] : []),
+      ...(quote.address ? [dxPara([{text:"Địa chỉ: ",bold:true},{text:quote.address}],{spaceAfter:60})] : []),
       ...(quote.contact ? [dxPara([{text:"Người liên hệ: ",bold:true},{text:quote.contact}],{spaceAfter:60})] : []),
       ...(quote.workContent ? [dxPara([{text:"Nội dung: ",bold:true},{text:quote.workContent}],{spaceAfter:60})] : []),
       dxPara(`Ngày báo giá: ${quote.date}`, {spaceAfter:80}),
@@ -2473,13 +2538,8 @@ function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }
                 </ul>
               </div>
               <div className="quote-sign">
-                <div className="location-date">Phú Mỹ, ngày {(() => {
-					  const [d, m, y] = (quote.date || "").split("/");
-					  return d && m && y ? `${d} tháng ${m} năm ${y}` : `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
-					})()}</div>
+                <div className="location-date">Phú Mỹ, ngày {String(today.getDate()).padStart(2,"0")} tháng {String(today.getMonth()+1).padStart(2,"0")} năm {today.getFullYear()}</div>
                 <div className="company-name">{COMPANY.short}</div>
-                <div style={{height:50}} />
-                <div style={{fontWeight:600, fontSize:13, color:"#1a2540"}}>Trần Văn Thịnh</div>
               </div>
             </div>
           </div>
@@ -5586,73 +5646,73 @@ function TasksView({ quotes }) {
   );
 }
 
-// ─── XmlImportModal: đọc XML hóa đơn điện tử → lấy hàng hóa + giá + khách hàng ──
+// ─── XmlImportModal: đọc XML hóa đơn điện tử → lấy tên hàng + ĐVT ──────────
 function XmlImportModal({ onImport, onClose }) {
-  const [invoice, setInvoice]   = React.useState(null); // kết quả parseInvoiceXml
+  const [items, setItems]       = React.useState([]);
   const [selected, setSelected] = React.useState(new Set());
   const [error, setError]       = React.useState("");
   const [fileName, setFileName] = React.useState("");
-  const [useInvoicePrice, setUseInvoicePrice] = React.useState(true);  // lấy đơn giá/SL từ HĐ
-  const [importCustomer, setImportCustomer]   = React.useState(true); // lấy thông tin khách hàng
   const fileRef = React.useRef(null);
 
-  const handleFile = (file) => {
+  const parseXml = (text) => {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, "application/xml");
+      const parseErr = doc.querySelector("parsererror");
+      if (parseErr) throw new Error("File XML không hợp lệ");
+
+      // Đọc tất cả <HHDVu> (dòng hàng hóa/dịch vụ)
+      const nodes = doc.querySelectorAll("HHDVu");
+      if (nodes.length === 0) throw new Error("Không tìm thấy dòng hàng hóa trong file XML");
+
+      const result = [];
+      nodes.forEach((node, i) => {
+        const name = node.querySelector("THHDVu")?.textContent?.trim() || "";
+        const unit = node.querySelector("DVTinh")?.textContent?.trim() || "Cái";
+        if (name) result.push({ id: i, name, unit });
+      });
+
+      if (result.length === 0) throw new Error("Không đọc được tên hàng hóa từ file XML");
+      setItems(result);
+      // Chọn tất cả mặc định
+      setSelected(new Set(result.map(it => it.id)));
+      setError("");
+    } catch(e) {
+      setError(e.message);
+      setItems([]);
+    }
+  };
+
+  const handleFile = (e) => {
+    const file = e.target.files && e.target.files[0];
     if (!file) return;
     setFileName(file.name);
-    setError("");
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const inv = parseInvoiceXml(ev.target.result);
-        if (!inv.items || inv.items.length === 0) throw new Error("Không đọc được mặt hàng nào từ file XML");
-        setInvoice(inv);
-        setSelected(new Set(inv.items.map((_, i) => i)));
-      } catch(e) {
-        setError(e.message);
-        setInvoice(null);
-      }
-    };
+    reader.onload = (ev) => parseXml(ev.target.result);
     reader.readAsText(file, "utf-8");
   };
 
   const toggleAll = (checked) => {
-    if (!invoice) return;
-    setSelected(checked ? new Set(invoice.items.map((_, i) => i)) : new Set());
+    setSelected(checked ? new Set(items.map(it => it.id)) : new Set());
   };
 
-  const toggleOne = (i) => {
+  const toggleOne = (id) => {
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
 
   const handleImport = () => {
-    if (!invoice) return;
-    const chosenItems = invoice.items
-      .filter((_, i) => selected.has(i))
-      .map(it => ({
-        name: it.name,
-        unit: it.unit || "Cái",
-        qty: useInvoicePrice ? (it.qty || 1) : 1,
-        price: useInvoicePrice ? (it.price || 0) : 0,
-        vatRate: useInvoicePrice ? (it.vatRate !== undefined ? it.vatRate : 8) : 8,
-      }));
-    if (chosenItems.length === 0) { alert("Chưa chọn mặt hàng nào"); return; }
-
-    const customer = importCustomer ? {
-      customer: invoice.buyerName || "",
-      address:  invoice.buyerAddr || "",
-      taxId:    invoice.buyerTax  || "",
-    } : null;
-
-    onImport(chosenItems, customer);
+    const chosen = items.filter(it => selected.has(it.id));
+    if (chosen.length === 0) { alert("Chưa chọn mặt hàng nào"); return; }
+    onImport(chosen);
   };
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth:640, height:"auto", maxHeight:"90vh" }}>
+      <div className="modal" style={{ maxWidth:560, height:"auto", maxHeight:"90vh" }}>
         <div className="modal-header">
           <span className="modal-title">📄 Nhập hàng hóa từ XML hóa đơn điện tử</span>
           <button className="close-btn" onClick={onClose}>×</button>
@@ -5663,12 +5723,11 @@ function XmlImportModal({ onImport, onClose }) {
           <div style={{ border:"2px dashed #d1cfc6", borderRadius:8, padding:"20px", textAlign:"center", marginBottom:16, cursor:"pointer", background:"#fafaf7" }}
             onClick={() => fileRef.current && fileRef.current.click()}
             onDragOver={e => e.preventDefault()}
-            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}>
+            onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setFileName(f.name); const r = new FileReader(); r.onload = ev => parseXml(ev.target.result); r.readAsText(f,"utf-8"); } }}>
             <div style={{ fontSize:28, marginBottom:6 }}>📂</div>
             <div style={{ fontSize:13, color:"#555" }}>{fileName || "Click hoặc kéo thả file XML hóa đơn vào đây"}</div>
-            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>Hỗ trợ file XML hóa đơn điện tử chuẩn Việt Nam (VNPT, MISA, FAST...)</div>
-            <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" style={{ display:"none" }}
-              onChange={e => { handleFile(e.target.files[0]); e.target.value = ""; }} />
+            <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>Hỗ trợ file XML hóa đơn điện tử chuẩn Việt Nam</div>
+            <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" style={{ display:"none" }} onChange={handleFile} />
           </div>
 
           {error && (
@@ -5677,535 +5736,44 @@ function XmlImportModal({ onImport, onClose }) {
             </div>
           )}
 
-          {invoice && (
+          {items.length > 0 && (
             <>
-              {/* Thông tin hóa đơn + khách hàng */}
-              <div style={{ background:"#f5f7fb", border:"1px solid #e0e4f0", borderRadius:8, padding:"12px 14px", marginBottom:14 }}>
-                <div style={{ fontSize:12, fontWeight:600, color:"#5b6b94", marginBottom:8 }}>
-                  🧾 Hóa đơn số {invoice.invoiceNumber || "—"}{invoice.serial ? ` / ${invoice.serial}` : ""} {invoice.invoiceDate ? `— ngày ${invoice.invoiceDate}` : ""}
-                </div>
-                {invoice.buyerName ? (
-                  <label style={{ display:"flex", alignItems:"flex-start", gap:8, cursor:"pointer", fontSize:13 }}>
-                    <input type="checkbox" checked={importCustomer} onChange={e => setImportCustomer(e.target.checked)} style={{ marginTop:3 }} />
-                    <div>
-                      <div><strong>Lấy thông tin khách hàng vào báo giá:</strong></div>
-                      <div style={{ color:"#444", marginTop:2 }}>
-                        {invoice.buyerName}
-                        {invoice.buyerTax ? ` — MST: ${invoice.buyerTax}` : ""}
-                        {invoice.buyerAddr ? <><br/>{invoice.buyerAddr}</> : ""}
-                      </div>
-                    </div>
-                  </label>
-                ) : (
-                  <div style={{ fontSize:12, color:"#aaa", fontStyle:"italic" }}>Không tìm thấy thông tin khách hàng trong file XML</div>
-                )}
-              </div>
-
-              <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontSize:13, marginBottom:12 }}>
-                <input type="checkbox" checked={useInvoicePrice} onChange={e => setUseInvoicePrice(e.target.checked)} />
-                <span><strong>Lấy đơn giá, số lượng, thuế suất từ hóa đơn</strong> <span style={{ color:"#888", fontWeight:400 }}>(bỏ chọn nếu chỉ muốn lấy tên hàng, tự nhập giá)</span></span>
-              </label>
-
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:8 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:"#1a2540" }}>
-                  Tìm thấy {invoice.items.length} mặt hàng — chọn để thêm vào báo giá:
+                  Tìm thấy {items.length} mặt hàng — chọn để thêm vào báo giá:
                 </div>
                 <label style={{ fontSize:12, color:"#666", cursor:"pointer", display:"flex", alignItems:"center", gap:5 }}>
                   <input type="checkbox"
-                    checked={selected.size === invoice.items.length}
+                    checked={selected.size === items.length}
                     onChange={e => toggleAll(e.target.checked)} />
                   Chọn tất cả
                 </label>
               </div>
-
               <div className="card" style={{ maxHeight:320, overflowY:"auto" }}>
-                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
-                  <thead>
-                    <tr style={{ background:"#f9f8f5" }}>
-                      <th style={{ width:30 }}></th>
-                      <th style={{ textAlign:"left", padding:"6px 8px" }}>Tên hàng hóa</th>
-                      <th style={{ width:50, textAlign:"center" }}>ĐVT</th>
-                      <th style={{ width:50, textAlign:"center" }}>SL</th>
-                      <th style={{ width:90, textAlign:"right" }}>Đơn giá</th>
-                      <th style={{ width:50, textAlign:"center" }}>VAT</th>
-                      <th style={{ width:100, textAlign:"right" }}>Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoice.items.map((it, i) => {
-                      const vatLbl = it.vatRate === -1 ? "KCT" : (it.vatRate || 0) + "%";
-                      const lineTotal = (it.lineTotal || 0) + (it.vatAmt || 0);
-                      return (
-                        <tr key={i} className="xml-result-item" onClick={() => toggleOne(i)} style={{ cursor:"pointer" }}>
-                          <td style={{ textAlign:"center", padding:"6px 4px" }}>
-                            <input type="checkbox" checked={selected.has(i)} onChange={() => toggleOne(i)} onClick={e => e.stopPropagation()} />
-                          </td>
-                          <td style={{ padding:"6px 8px", fontWeight:500 }}>{it.name}</td>
-                          <td style={{ textAlign:"center" }}>{it.unit || "—"}</td>
-                          <td style={{ textAlign:"center" }}>{it.qty || "—"}</td>
-                          <td style={{ textAlign:"right" }}>{it.price ? fmt(it.price) : "—"}</td>
-                          <td style={{ textAlign:"center" }}>{vatLbl}</td>
-                          <td style={{ textAlign:"right", fontWeight:600 }}>{lineTotal ? fmt(lineTotal) : "—"}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {items.map(it => (
+                  <div key={it.id} className="xml-result-item" onClick={() => toggleOne(it.id)} style={{ cursor:"pointer" }}>
+                    <input type="checkbox" checked={selected.has(it.id)} onChange={() => toggleOne(it.id)}
+                      onClick={e => e.stopPropagation()} />
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:500 }}>{it.name}</div>
+                      <div style={{ fontSize:11, color:"#888" }}>ĐVT: {it.unit}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
               <div style={{ fontSize:12, color:"#888", marginTop:8, textAlign:"right" }}>
-                Đã chọn: <strong>{selected.size}</strong> / {invoice.items.length}
-                {useInvoicePrice && selected.size > 0 && (
-                  <> — Tổng: <strong style={{ color:"#1a2540" }}>
-                    {fmt(invoice.items.filter((_,i)=>selected.has(i)).reduce((s,it)=>s+(it.lineTotal||0)+(it.vatAmt||0),0))} đ
-                  </strong></>
-                )}
+                Đã chọn: <strong>{selected.size}</strong> / {items.length}
               </div>
             </>
           )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Hủy</button>
-          {invoice && (
+          {items.length > 0 && (
             <button className="btn btn-primary" onClick={handleImport} disabled={selected.size === 0}>
               ✅ Thêm {selected.size} mặt hàng vào báo giá
             </button>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-// ═══════════════════════════════════════════════════════════════════════════════
-// PHIẾU THU – Mẫu 01-TT (Thông tư 200/133/2016/TT-BTC)
-// Tạo độc lập hoặc import file XML hóa đơn để tự động điền người nộp tiền,
-// lý do nộp (theo tên hàng hóa/dịch vụ trên hóa đơn) và số tiền.
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function genReceiptId() { return "rc" + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
-
-function ReceiptModal({ onClose }) {
-  const today = new Date();
-  const todayFull = `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
-
-  const [refNum,       setRefNum]       = React.useState("");
-  const [dateStr,      setDateStr]      = React.useState(todayFull);
-  const [payerName,    setPayerName]    = React.useState("");      // Họ tên người nộp tiền
-  const [payerAddr,    setPayerAddr]    = React.useState("");      // Địa chỉ / đơn vị
-  const [payerTax,     setPayerTax]     = React.useState("");      // MST (nếu có)
-  const [reason,       setReason]       = React.useState("");      // Lý do nộp
-  const [amount,       setAmount]       = React.useState(0);       // Số tiền
-  const [attachDocs,   setAttachDocs]   = React.useState("");      // Kèm theo … chứng từ gốc
-  const [accountantName, setAccountantName] = React.useState("");  // Kế toán trưởng
-  const [cashierName,    setCashierName]    = React.useState(COMPANY.representative || ""); // Thủ quỹ / người lập
-  const [paymentMethod,  setPaymentMethod]  = React.useState("cash"); // cash | transfer
-  const [invoiceRef,     setInvoiceRef]     = React.useState("");  // Tham chiếu HĐ (số/ký hiệu)
-
-  const [pdfLoading, setPdfLoading] = React.useState(false);
-  const [saving,     setSaving]     = React.useState(false);
-  const [saveMsg,    setSaveMsg]    = React.useState("");
-  const [xmlError,   setXmlError]   = React.useState("");
-  const [savedList,  setSavedList]  = React.useState([]);
-  const [listLoading,setListLoading]= React.useState(false);
-  const fileRef = React.useRef(null);
-
-  const fetchSaved = async () => {
-    setListLoading(true);
-    try {
-      const recs = await listReceipts();
-      setSavedList((recs || []).slice().sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0)));
-    } finally { setListLoading(false); }
-  };
-
-  React.useEffect(() => {
-    if (!refNum) setRefNum(generateReceiptNumber());
-    fetchSaved();
-  }, []);
-
-  const handleNew = () => {
-    setRefNum(generateReceiptNumber());
-    setDateStr(todayFull);
-    setPayerName(""); setPayerAddr(""); setPayerTax("");
-    setReason(""); setAmount(0); setAttachDocs(""); setInvoiceRef("");
-    setCashierName(COMPANY.representative || "");
-    setSaveMsg("");
-    showToast("🆕 Tạo phiếu thu mới", 1500);
-  };
-
-  const loadSavedByRef = async (num) => {
-    if (!num || !num.trim()) return;
-    try {
-      const saved = await loadReceipt(num.trim());
-      if (!saved) return;
-      setDateStr(saved.dateStr || dateStr);
-      setPayerName(saved.payerName || "");
-      setPayerAddr(saved.payerAddr || "");
-      setPayerTax(saved.payerTax || "");
-      setReason(saved.reason || "");
-      setAmount(saved.amount || 0);
-      setAttachDocs(saved.attachDocs || "");
-      setAccountantName(saved.accountantName || "");
-      setCashierName(saved.cashierName || COMPANY.representative || "");
-      setPaymentMethod(saved.paymentMethod || "cash");
-      setInvoiceRef(saved.invoiceRef || "");
-      showToast("📂 Đã tải phiếu thu: " + num, 1800);
-    } catch(e) { /* phiếu mới — bỏ qua */ }
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm("Xóa phiếu thu này?")) return;
-    await deleteReceiptDoc(id);
-    setSavedList(prev => prev.filter(r => r.id !== id));
-    if (refNum === id) setRefNum(generateReceiptNumber());
-    showToast("🗑️ Đã xóa phiếu thu", 1800);
-  };
-
-  const handleSave = async () => {
-    const num = refNum.trim() || generateReceiptNumber();
-    if (!refNum.trim()) setRefNum(num);
-    if (!payerName.trim()) { alert("Vui lòng nhập tên người nộp tiền."); return; }
-    if (!amount || amount <= 0) { alert("Vui lòng nhập số tiền."); return; }
-    setSaving(true); setSaveMsg("");
-    try {
-      await saveReceiptDoc(num, {
-        refNum: num, dateStr, payerName, payerAddr, payerTax,
-        reason, amount, attachDocs, accountantName, cashierName,
-        paymentMethod, invoiceRef,
-      });
-      setSaveMsg("✓ Đã lưu");
-      await fetchSaved();
-      showToast("💾 Đã lưu phiếu thu", 1800);
-      setTimeout(() => setSaveMsg(""), 2500);
-    } catch(e) {
-      showToast("⚠️ Lỗi lưu phiếu thu: " + e.message, 3000);
-    } finally { setSaving(false); }
-  };
-
-  // ── Import XML hóa đơn: tự điền người nộp + lý do + số tiền ─────────────────
-  const handleXmlFile = (file) => {
-    if (!file) return;
-    setXmlError("");
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const inv = parseInvoiceXml(ev.target.result);
-        if (inv.buyerName) setPayerName(inv.buyerName);
-        if (inv.buyerAddr) setPayerAddr(inv.buyerAddr);
-        if (inv.buyerTax)  setPayerTax(inv.buyerTax);
-        setReason(`Thu tiền theo hóa đơn${inv.serial || inv.invoiceNumber ? ` số ${inv.invoiceNumber || ""}${inv.serial ? " / " + inv.serial : ""}` : ""}`);
-        setAmount(Math.round(inv.grand || 0));
-        setInvoiceRef(`${inv.serial || ""}${inv.serial && inv.invoiceNumber ? " / " : ""}${inv.invoiceNumber || ""}`);
-        setAttachDocs("01 hóa đơn GTGT");
-        showToast("✅ Đã nạp thông tin từ hóa đơn XML", 2200);
-      } catch(e) {
-        setXmlError("❌ " + e.message);
-      }
-    };
-    reader.readAsText(file, "utf-8");
-  };
-
-  // ── In ───────────────────────────────────────────────────────────────────────
-  const handlePrint = () => {
-    const el = document.getElementById("receiptPreviewContent");
-    if (!el) return;
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:794px;height:1px;border:none;";
-    document.body.appendChild(iframe);
-    const iDoc = iframe.contentDocument || iframe.contentWindow.document;
-    const styles = Array.from(document.querySelectorAll("style,link[rel='stylesheet']")).map(s => s.outerHTML).join("\n");
-    iDoc.open();
-    iDoc.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700&display=swap">
-      ${styles}
-      <style>
-        @page { margin:10mm; size:A4; }
-        html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-        body { background:#fff; margin:0; padding:0; }
-        .no-print { display:none !important; }
-        .receipt-table th, .receipt-table td { border-color:#000 !important; }
-      </style>
-    </head><body>${el.outerHTML}</body></html>`);
-    iDoc.close();
-    iframe.contentWindow.focus();
-    setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 500);
-  };
-
-  // ── Xuất PDF (dùng chung pattern html2canvas + jsPDF) ────────────────────────
-  const handlePDF = async () => {
-    const el = document.getElementById("receiptPreviewContent");
-    if (!el) return;
-    const SCALE = 3, A4_PX = 794, PAD = 36;
-    const save = { width: el.style.width, maxWidth: el.style.maxWidth, padding: el.style.padding, margin: el.style.margin, bg: el.style.background };
-    el.style.width = A4_PX + "px"; el.style.maxWidth = A4_PX + "px";
-    el.style.padding = PAD + "px"; el.style.margin = "0"; el.style.background = "#ffffff";
-    try {
-      const canvas = await window.html2canvas(el, { scale: SCALE, useCORS: true, allowTaint: true, backgroundColor: "#ffffff", logging: false, width: A4_PX, height: el.scrollHeight, windowWidth: A4_PX, imageTimeout: 0 });
-      const { jsPDF } = window.jspdf;
-      const MARGIN = 10, printW = 210 - MARGIN*2, printH = 297 - MARGIN*2;
-      const realW = canvas.width/SCALE, realH = canvas.height/SCALE;
-      const mmPerPx = printW/realW, pxPerPage = printH/mmPerPx;
-      const doc = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
-      let srcY = 0, page = 0;
-      while (srcY < realH) {
-        if (page > 0) doc.addPage();
-        const slicePx = Math.min(pxPerPage, realH - srcY);
-        const sliceMm = slicePx * mmPerPx;
-        const slice = document.createElement("canvas");
-        slice.width = canvas.width; slice.height = Math.ceil(slicePx*SCALE);
-        const ctx = slice.getContext("2d");
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, slice.width, slice.height);
-        ctx.drawImage(canvas, 0, Math.floor(srcY*SCALE), canvas.width, Math.ceil(slicePx*SCALE), 0, 0, slice.width, slice.height);
-        doc.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", MARGIN, MARGIN, printW, sliceMm);
-        srcY += slicePx; page++;
-      }
-      doc.save("PhieuThu_" + (refNum || todayFull.replace(/ /g,"_")) + ".pdf");
-    } finally {
-      el.style.width = save.width; el.style.maxWidth = save.maxWidth;
-      el.style.padding = save.padding; el.style.margin = save.margin; el.style.background = save.bg;
-    }
-  };
-  const handlePDFClick = async () => { setPdfLoading(true); try { await handlePDF(); } finally { setPdfLoading(false); } };
-
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 1080 }}>
-        <div className="modal-header no-print">
-          <span className="modal-title">🧾 Phiếu thu</span>
-          <button className="close-btn" onClick={onClose}>×</button>
-        </div>
-
-        <div className="modal-body" style={{ display: "flex", gap: 0, padding: 0, overflow: "hidden" }}>
-
-          {/* ── Cột trái: Form ── */}
-          <div className="no-print hw-form-col" style={{ width: 340, flexShrink: 0, borderRight: "1px solid #e5e3dc", padding: "16px 18px", overflowY: "auto" }}>
-
-            {/* Import XML */}
-            <div className="hw-form-section">
-              <h4>📂 Nạp từ hóa đơn XML</h4>
-              <div className="debt-xml-dropzone"
-                onClick={() => fileRef.current && fileRef.current.click()}
-                onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleXmlFile(f); }}>
-                <div style={{ fontSize: 24, marginBottom: 4 }}>🗂️</div>
-                <div style={{ fontSize: 12, color: "#555" }}>Click hoặc kéo thả 1 file XML hóa đơn</div>
-                <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>Tự điền người nộp, lý do nộp, số tiền</div>
-                <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" style={{ display: "none" }}
-                  onChange={e => { handleXmlFile(e.target.files[0]); e.target.value = ""; }} />
-              </div>
-              {xmlError && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, fontSize: 12, marginTop: 8 }}>{xmlError}</div>}
-            </div>
-
-            {/* Danh sách đã lưu */}
-            <div className="hw-form-section">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                <h4 style={{ margin: 0, border: "none", padding: 0 }}>🗂️ Phiếu thu đã lưu</h4>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={fetchSaved}>🔄</button>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={handleNew}>🆕 Mới</button>
-                </div>
-              </div>
-              {listLoading ? (
-                <div style={{ fontSize: 12, color: "#666" }}>Đang tải...</div>
-              ) : savedList.length === 0 ? (
-                <div style={{ fontSize: 12, color: "#666" }}>Chưa có phiếu thu nào.</div>
-              ) : (
-                <div style={{ display: "grid", gap: 8 }}>
-                  {savedList.map(rec => (
-                    <div key={rec.id} className="debt-invoice-card" style={{ borderColor: rec.id === refNum ? "#1a2540" : "#e5e3dc" }}>
-                      <div className="debt-invoice-card-header" style={{ cursor: "pointer" }} onClick={() => { setRefNum(rec.id); loadSavedByRef(rec.id); }}>
-                        <div>
-                          <div className="inv-num" style={{ fontSize: 12 }}>{rec.refNum}</div>
-                          <div className="inv-date" style={{ fontSize: 11, color: "#888" }}>{rec.payerName || "—"}</div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div className="inv-total" style={{ fontSize: 12 }}>{fmt(rec.amount)} đ</div>
-                          <button type="button" className="btn btn-ghost btn-sm" style={{ padding: "4px 8px" }}
-                            onClick={e => { e.stopPropagation(); handleDelete(rec.id); }}>🗑️</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Thông tin phiếu */}
-            <div className="hw-form-section">
-              <h4>📝 Thông tin phiếu thu</h4>
-              <div className="form-group">
-                <label>Số phiếu thu</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input className="form-control" value={refNum} onChange={e => setRefNum(e.target.value)}
-                    onBlur={e => loadSavedByRef(e.target.value)} />
-                  <button type="button" className="btn btn-ghost btn-sm" title="Sinh số mới" onClick={() => setRefNum(generateReceiptNumber())}>🔄</button>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Ngày lập</label>
-                <input className="form-control" value={dateStr} onChange={e => setDateStr(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Hình thức thu</label>
-                <select className="form-control" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
-                  <option value="cash">Tiền mặt</option>
-                  <option value="transfer">Chuyển khoản</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Người nộp tiền */}
-            <div className="hw-form-section">
-              <h4>🧑‍💼 Người nộp tiền</h4>
-              <div className="form-group">
-                <label>Họ tên / Đơn vị nộp *</label>
-                <input className="form-control" value={payerName} onChange={e => setPayerName(e.target.value)} placeholder="VD: CÔNG TY TNHH ABC" />
-              </div>
-              <div className="form-group">
-                <label>Địa chỉ</label>
-                <input className="form-control" value={payerAddr} onChange={e => setPayerAddr(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Mã số thuế (nếu có)</label>
-                <input className="form-control" value={payerTax} onChange={e => setPayerTax(e.target.value)} />
-              </div>
-            </div>
-
-            {/* Nội dung thu */}
-            <div className="hw-form-section">
-              <h4>💵 Nội dung thu</h4>
-              <div className="form-group">
-                <label>Lý do nộp *</label>
-                <textarea className="form-control" rows={3} value={reason} onChange={e => setReason(e.target.value)} placeholder="VD: Thu tiền theo hóa đơn số..." />
-              </div>
-              <div className="form-group">
-                <label>Số tiền (đ) *</label>
-                <FormattedNumberInput className="form-control" value={amount} onChange={setAmount} placeholder="0" />
-              </div>
-              <div className="form-group">
-                <label>Tham chiếu hóa đơn (số / ký hiệu)</label>
-                <input className="form-control" value={invoiceRef} onChange={e => setInvoiceRef(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Kèm theo chứng từ gốc</label>
-                <input className="form-control" value={attachDocs} onChange={e => setAttachDocs(e.target.value)} placeholder="VD: 01 hóa đơn GTGT" />
-              </div>
-            </div>
-
-            {/* Người ký */}
-            <div className="hw-form-section">
-              <h4>✍️ Người ký</h4>
-              <div className="form-group">
-                <label>Người lập phiếu / Thủ quỹ</label>
-                <input className="form-control" value={cashierName} onChange={e => setCashierName(e.target.value)} />
-              </div>
-              <div className="form-group">
-                <label>Kế toán trưởng (nếu có)</label>
-                <input className="form-control" value={accountantName} onChange={e => setAccountantName(e.target.value)} placeholder="Để trống nếu không có" />
-              </div>
-            </div>
-          </div>
-
-          {/* ── Cột phải: Preview ── */}
-          <div style={{ flex: 1, overflowY: "auto", padding: 16, background: "#f9f8f5" }}>
-            <div style={{ maxWidth: 794, margin: "0 auto", boxShadow: "0 2px 16px rgba(0,0,0,0.10)" }}>
-              <div id="receiptPreviewContent" style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", padding: 28, maxWidth: 794, margin: "0 auto", background: "#fff", fontSize: 13, color: "#000" }}>
-
-                {/* Header: công ty trái / quốc hiệu phải */}
-                <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 10 }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ width: "55%", verticalAlign: "top" }}>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{COMPANY.name}</div>
-                        <div style={{ fontSize: 10, color: "#555" }}>Địa chỉ: {COMPANY.address}</div>
-                        <div style={{ fontSize: 10, color: "#555" }}>MST: {COMPANY.mst}</div>
-                      </td>
-                      <td style={{ textAlign: "center", verticalAlign: "top" }}>
-                        <div style={{ fontWeight: 700, fontSize: 12 }}>Mẫu số: 01-TT</div>
-                        <div style={{ fontSize: 10, color: "#555" }}>(Ban hành theo TT 200/133/2016/TT-BTC)</div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                {/* Tiêu đề */}
-                <div style={{ textAlign: "center", margin: "10px 0 16px" }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: "#1a2540", textTransform: "uppercase", letterSpacing: "0.05em" }}>Phiếu thu</div>
-                  <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>Ngày {dateStr}</div>
-                  <div style={{ fontSize: 12, color: "#666" }}>Số: <strong>{refNum}</strong></div>
-                  {paymentMethod === "transfer" && COMPANY.bankAccount && (
-                    <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
-                      Nợ TK: {COMPANY.bankAccount} ({COMPANY.bankName}) &nbsp;|&nbsp; Có TK: 131
-                    </div>
-                  )}
-                </div>
-
-                {/* Nội dung phiếu */}
-                <div style={{ fontSize: 13, lineHeight: 2 }}>
-                  <p>Họ tên người nộp tiền: <strong>{payerName || "……………………………………………………"}</strong></p>
-                  {payerTax && <p>Mã số thuế: <strong>{payerTax}</strong></p>}
-                  <p>Địa chỉ: {payerAddr || "……………………………………………………………………"}</p>
-                  <p>Lý do nộp: <strong>{reason || "……………………………………………………"}</strong></p>
-                  <p>
-                    Số tiền: <strong>{fmt(amount)} đồng</strong>
-                    &nbsp;(Viết bằng chữ: <em>{numberToWordsVN(amount)}</em>)
-                  </p>
-                  {invoiceRef && <p>Kèm theo hóa đơn: <strong>{invoiceRef}</strong></p>}
-                  <p>Kèm theo: <strong>{attachDocs || "……………………"}</strong> chứng từ gốc.</p>
-                </div>
-
-                {/* Chữ ký */}
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 28, fontSize: 12 }}>
-                  <tbody>
-                    <tr>
-                      <td style={{ textAlign: "center", width: "25%" }}>
-                        <div style={{ fontWeight: 700 }}>Giám đốc</div>
-                        <div style={{ fontSize: 10, color: "#888" }}>(Ký, họ tên, đóng dấu)</div>
-                        <div style={{ height: 56 }} />
-                        <div style={{ fontWeight: 600 }}>{COMPANY.representative}</div>
-                      </td>
-                      <td style={{ textAlign: "center", width: "25%" }}>
-                        <div style={{ fontWeight: 700 }}>Kế toán trưởng</div>
-                        <div style={{ fontSize: 10, color: "#888" }}>(Ký, họ tên)</div>
-                        <div style={{ height: 56 }} />
-                        <div style={{ fontWeight: 600 }}>{accountantName || ""}</div>
-                      </td>
-                      <td style={{ textAlign: "center", width: "25%" }}>
-                        <div style={{ fontWeight: 700 }}>Người nộp tiền</div>
-                        <div style={{ fontSize: 10, color: "#888" }}>(Ký, họ tên)</div>
-                        <div style={{ height: 56 }} />
-                        <div style={{ fontWeight: 600 }}>{payerName ? "" : ""}</div>
-                      </td>
-                      <td style={{ textAlign: "center", width: "25%" }}>
-                        <div style={{ fontWeight: 700 }}>Người lập phiếu</div>
-                        <div style={{ fontSize: 10, color: "#888" }}>(Ký, họ tên)</div>
-                        <div style={{ height: 56 }} />
-                        <div style={{ fontWeight: 600 }}>{cashierName || ""}</div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <div style={{ marginTop: 18, fontSize: 11, color: "#888" }}>
-                  Đã nhận đủ số tiền (viết bằng chữ): <em>{numberToWordsVN(amount)}</em>
-                </div>
-                {paymentMethod === "transfer" && (
-                  <div style={{ marginTop: 4, fontSize: 11, color: "#888" }}>
-                    + Tỷ giá ngoại tệ (nếu có): ……………………… &nbsp; + Số tiền quy đổi: ………………………
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="modal-footer no-print">
-          <button className="btn btn-ghost" onClick={onClose}>Đóng</button>
-          <button className="btn btn-ghost" onClick={handleSave} disabled={saving}>
-            {saving ? "⏳ Đang lưu..." : "💾 Lưu phiếu thu"}{saveMsg && <span style={{ color: "#16a34a", marginLeft: 6 }}>{saveMsg}</span>}
-          </button>
-          <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading} style={{ minWidth: 110 }}>
-            {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
-          </button>
-          <button className="btn btn-primary" onClick={handlePrint}>🖨️ In</button>
         </div>
       </div>
     </div>
@@ -6218,7 +5786,7 @@ function App() {
   const [loaded, setLoaded] = useState(false);
   const [authed, setAuthed]       = useState(() => isAuthenticated());
   const [gasReady, setGasReady]   = useState(() => hasGasUrl());
-const [showReceiptModal, setShowReceiptModal] = useState(false);
+
   const [view, setView] = useState("list");
   const [showModal, setShowModal] = useState(false);
   const [editQuote, setEditQuote] = useState(null);
@@ -6406,10 +5974,6 @@ const [showReceiptModal, setShowReceiptModal] = useState(false);
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 7H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"/><path d="M9 7V4a2 2 0 0 1 2-2h5l4 4v5a2 2 0 0 1-2 2h-3"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
             <span className="sidebar-label">Đối chiếu CN</span>
           </div>
-			<div className={`sidebar-item ${showReceiptModal?"active":""}`} onClick={()=>setShowReceiptModal(true)}>
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 6v0M18 6v0M6 18v0M18 18v0"/></svg>
-  <span className="sidebar-label">Phiếu thu</span>
-</div>
           <div className={`sidebar-item ${view==="tasks"?"active":""}`} onClick={()=>setView("tasks")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/></svg>
             <span className="sidebar-label">Công việc</span>
@@ -6744,9 +6308,6 @@ const [showReceiptModal, setShowReceiptModal] = useState(false);
       {showDebtRecon && (
         <DebtReconciliationModal onClose={() => setShowDebtRecon(false)} />
       )}
-		{showReceiptModal && (
-  <ReceiptModal onClose={() => setShowReceiptModal(false)} />
-)}
 
       {deleteConfirm && (
         <div className="modal-overlay" onClick={()=>setDeleteConfirm(null)}>
@@ -7338,6 +6899,52 @@ function DebtReconciliationModal({ onClose }) {
   };
  
   const handlePDFClick = async () => { setPdfLoading(true); try { await handlePDF(); } finally { setPdfLoading(false); } };
+
+  const handleExcel = () => {
+    const rows = [];
+    rows.push(["BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ", "", "", "", "", "", "", "", "", ""]);
+    rows.push(["Số biên bản", refNum || ""]);
+    rows.push(["Ngày lập", dateStr]);
+    rows.push(["Đối chiếu đến ngày", toDateStr]);
+    rows.push(["Bên bán", COMPANY.name]);
+    rows.push(["Bên mua", buyerName || ""]);
+    rows.push([]);
+    rows.push(["STT", "Số / Ký hiệu HĐ", "Ngày HĐ", "Hàng hóa / Dịch vụ (VN)", "Hàng hóa / Dịch vụ (EN/CN)", "ĐVT (VN)", "ĐVT (EN/CN)", "SL", "Đơn giá", "Thuế (%)", "Thành tiền"]);
+
+    let stt = 1;
+    sortedInvoices.forEach(inv => {
+      inv.items.forEach(it => {
+        const nameDisplay = getDebtBilingualDisplay(it.name, debtLang);
+        const unitDisplay = getDebtBilingualDisplay(it.unit, debtLang);
+        rows.push([
+          stt++,
+          inv.serial ? `${inv.serial}${inv.invoiceNumber ? ` / ${inv.invoiceNumber}` : ""}` : (inv.invoiceNumber || ""),
+          inv.invoiceDate || "",
+          nameDisplay.vi,
+          nameDisplay.other || "",
+          it.unit || "",
+          unitDisplay.other || "",
+          it.qty || 0,
+          it.price || 0,
+          it.vatRate === -1 ? "KCT" : `${it.vatRate || 0}%`,
+          (it.lineTotal + it.vatAmt) || 0
+        ]);
+      });
+    });
+
+    rows.push([]);
+    rows.push(["Tổng tiền hàng (chưa VAT)", grandSubtotal]);
+    rows.push(["Tổng thuế VAT", grandVat]);
+    rows.push(["Tổng cộng phải thu", grandTotal]);
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 6 }, { wch: 24 }, { wch: 14 }, { wch: 36 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 16 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, "Biên bản đối chiếu");
+    XLSX.writeFile(wb, `BBDCCN_${(refNum || "debt").replace(/[^a-zA-Z0-9]+/g, "_")}.xlsx");
+  };
  
   // ── Render preview HTML ───────────────────────────────────────────────────────
   // Đây là nội dung sẽ in / PDF
@@ -7472,9 +7079,19 @@ function DebtReconciliationModal({ onClose }) {
                       {inv.serial || ""}{inv.serial && inv.invoiceNumber ? " / " : ""}{inv.invoiceNumber || ""}
                     </td>
                     <td style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
-                      {it.name}
+                      <div>{it.name}</div>
+                      {(() => {
+                        const translatedName = getDebtBilingualDisplay(it.name, debtLang).other;
+                        return translatedName ? <div style={{fontSize:10,color:"#555",marginTop:2}}>{translatedName}</div> : null;
+                      })()}
                     </td>
-                    <td className="center" style={{fontSize:11}}>{it.unit}</td>
+                    <td className="center" style={{fontSize:11}}>
+                      <div>{it.unit || "—"}</div>
+                      {(() => {
+                        const translatedUnit = getDebtBilingualDisplay(it.unit, debtLang).other;
+                        return translatedUnit ? <div style={{fontSize:10,color:"#555",marginTop:2}}>{translatedUnit}</div> : null;
+                      })()}
+                    </td>
                     <td className="center" style={{fontSize:11}}>{it.qty !== 0 ? it.qty : "—"}</td>
                     <td className="right" style={{fontSize:11}}>{it.price ? fmt(it.price) : "—"}</td>
                     <td className="center" style={{fontSize:11,fontWeight:600}}>{vatLbl}</td>
@@ -7970,6 +7587,9 @@ function DebtReconciliationModal({ onClose }) {
           {invoices.length === 0 && (
             <span style={{fontSize:12,color:"#aaa",alignSelf:"center"}}>⚠️ Import ít nhất 1 file XML để xuất</span>
           )}
+          <button className="btn btn-excel" onClick={handleExcel} disabled={invoices.length === 0} style={{minWidth:120}}>
+            📊 Xuất Excel
+          </button>
           <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading || invoices.length === 0} style={{minWidth:120}}>
             {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
           </button>
