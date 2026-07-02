@@ -6692,7 +6692,13 @@ function DebtReconciliationModal({ onClose }) {
   };
  
   const removeInvoice = (id) => setInvoices(prev => prev.filter(i => i._id !== id));
- 
+ const updateItemNote = (invId, itemIdx, value) => {
+  setInvoices(prev => prev.map(inv => {
+    if (inv._id !== invId) return inv;
+    const items = inv.items.map((it, i) => i === itemIdx ? { ...it, extraNote: value } : it);
+    return { ...inv, items };
+  }));
+};
   const toggleExpand = (id) => {
     setExpandedInv(prev => {
       const next = new Set(prev);
@@ -6933,6 +6939,19 @@ function DebtReconciliationModal({ onClose }) {
                     <td className="right" style={{fontSize:11,fontWeight:500}}>{fmt(it.lineTotal + it.vatAmt)}</td>
                   </tr>
                 );
+				   if (it.extraNote) {
+    rows.push(
+      <tr key={`note-${inv._id}-${iIdx}`}>
+        <td colSpan={3}></td>
+        <td colSpan={2} style={{padding:"0 7px 6px",borderTop:"none"}}>
+          <div style={{fontSize:10,color:"#888",fontStyle:"italic",background:"#fafbfd",border:"1px dashed #dde1ea",borderRadius:3,padding:"2px 6px"}}>
+            {it.extraNote}
+          </div>
+        </td>
+        <td colSpan={4}></td>
+      </tr>
+    );
+  }
               });
               // ── Dòng subtotal hóa đơn ──────────────────────────────────────
               rows.push(
@@ -7308,6 +7327,13 @@ function DebtReconciliationModal({ onClose }) {
                                     VAT {it.vatRate === -1 ? "KCT" : it.vatRate + "%"} →&nbsp;
                                     <strong>{fmt(it.lineTotal + it.vatAmt)} đ</strong>
                                   </div>
+									<input
+        type="text"
+        value={it.extraNote || ""}
+        onChange={e => updateItemNote(inv._id, i, e.target.value)}
+        placeholder="+ Thêm thông tin hiển thị trong biên bản..."
+        style={{width:"100%",fontSize:10,padding:"3px 6px",marginTop:4,border:"1px dashed #ccc",borderRadius:4,outline:"none",boxSizing:"border-box"}}
+      />
                                 </div>
                               </div>
                             ))}
