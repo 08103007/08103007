@@ -6943,7 +6943,7 @@ function DebtReconciliationModal({ onClose }) {
       { wch: 6 }, { wch: 24 }, { wch: 14 }, { wch: 36 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 16 }
     ];
     XLSX.utils.book_append_sheet(wb, ws, "Biên bản đối chiếu");
-    XLSX.writeFile(wb, `BBDCCN_${(refNum || "debt").replace(/[^a-zA-Z0-9]+/g, "_")}.xlsx");
+    XLSX.writeFile(wb, `BBDCCN_${(refNum || "debt").replace(/[^a-zA-Z0-9]+/g, "_")}.xlsx`);
   };
  
   // ── Render preview HTML ───────────────────────────────────────────────────────
