@@ -919,7 +919,6 @@ function parseInvoiceXml(xmlText) {
 }
 
 // ─── DebtReconciliationModal (Patched) ─────────────────────────────────────────
-// ─── DebtReconciliationModal ──────────────────────────────────────────────────
 function DebtReconciliationModal({ onClose }) {
   const today = new Date();
   const todayFull = `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
@@ -929,10 +928,8 @@ function DebtReconciliationModal({ onClose }) {
   const [refNum,           setRefNum]           = React.useState("");
   const [dateStr,          setDateStr]          = React.useState(todayFull);
   const [toDateStr,        setToDateStr]        = React.useState(endOfMonth);
-  // Bên bán (lấy từ COMPANY)
   const [sellerRep,        setSellerRep]        = React.useState(COMPANY.representative || "");
   const [sellerTitle,      setSellerTitle]      = React.useState(COMPANY.position || "");
-  // Bên mua (auto-fill từ XML, có thể sửa)
   const [buyerName,        setBuyerName]        = React.useState("");
   const [buyerTax,         setBuyerTax]         = React.useState("");
   const [buyerAddr,        setBuyerAddr]        = React.useState("");
@@ -1091,6 +1088,7 @@ function DebtReconciliationModal({ onClose }) {
   const [invoices,         setInvoices]         = React.useState([]);
   const [expandedInv,      setExpandedInv]      = React.useState(new Set());
   const [xmlError,         setXmlError]         = React.useState("");
+  const [viewMode,         setViewMode]         = React.useState("form"); // "form" | "preview" | "payment"
   const [pdfLoading,       setPdfLoading]       = React.useState(false);
   const [saving,           setSaving]           = React.useState(false);
   const [saveMsg,          setSaveMsg]          = React.useState("");
@@ -1131,13 +1129,11 @@ function DebtReconciliationModal({ onClose }) {
     showToast("🔄 Đã tải lại danh sách biên bản", 1500);
   };
 
-  // ── Tự sinh số biên bản khi mở biên bản mới ─────────────────────────────────
   React.useEffect(() => {
     if (!refNum) setRefNum(generateDebtRecNumber());
     fetchSavedRecs();
   }, []);
 
-  // ── Tải lại biên bản đã lưu theo số biên bản (nếu có) ───────────────────────
   const loadSavedByRefNum = async (num) => {
     if (!num || !num.trim()) return;
     try {
@@ -1155,7 +1151,7 @@ function DebtReconciliationModal({ onClose }) {
       setDebtLang(saved.debtLang || "vi_en");
       if (Array.isArray(saved.invoices) && saved.invoices.length) setInvoices(saved.invoices);
       showToast("📂 Đã tải biên bản đã lưu: " + num, 2000);
-    } catch(e) { /* không tìm thấy — bỏ qua, coi như biên bản mới */ }
+    } catch(e) { }
   };
 
   const handleDeleteDebtRec = async (id) => {
@@ -1167,7 +1163,6 @@ function DebtReconciliationModal({ onClose }) {
     showToast("🗑️ Đã xóa biên bản đối chiếu công nợ", 2000);
   };
 
-  // ── Lưu biên bản đối chiếu công nợ ───────────────────────────────────────────
   const handleSaveDebtRec = async () => {
     const num = refNum.trim() || generateDebtRecNumber();
     if (!refNum.trim()) setRefNum(num);
@@ -1191,12 +1186,10 @@ function DebtReconciliationModal({ onClose }) {
     }
   };
  
-  // ── Tổng hợp toàn bộ hóa đơn ───────────────────────────────────────────────
   const grandSubtotal = invoices.reduce((s, inv) => s + inv.subtotal, 0);
   const grandVat      = invoices.reduce((s, inv) => s + inv.vatTotal, 0);
   const grandTotal    = invoices.reduce((s, inv) => s + inv.grand, 0);
  
-  // ── Đọc XML ─────────────────────────────────────────────────────────────────
   const handleFiles = (files) => {
     setXmlError("");
     const readers = [...files].filter(f => f.name.toLowerCase().endsWith(".xml")).map(file =>
@@ -1255,7 +1248,6 @@ function DebtReconciliationModal({ onClose }) {
     });
   };
 
-  // ── Helper Dịch Thủ Công ─────────────────────────────────────────────────────
   const updateItemTrans = (invId, itemIdx, field, val) => {
     setInvoices(prev => prev.map(inv => {
       if (inv._id !== invId) return inv;
@@ -1265,7 +1257,6 @@ function DebtReconciliationModal({ onClose }) {
     }));
   };
  
-  // ── Sort invoices by date ────────────────────────────────────────────────────
   const sortedInvoices = [...invoices].sort((a, b) => {
     const parseDate = d => {
       if (!d) return 0;
@@ -1276,7 +1267,6 @@ function DebtReconciliationModal({ onClose }) {
     return parseDate(a.invoiceDate) - parseDate(b.invoiceDate);
   });
  
-  // ── In ────────────────────────────────────────────────────────────────────────
   const handlePrint = () => {
     const el = document.getElementById("debtPreviewContent");
     if (!el) return;
@@ -1303,7 +1293,6 @@ function DebtReconciliationModal({ onClose }) {
     setTimeout(() => { iframe.contentWindow.print(); setTimeout(() => document.body.removeChild(iframe), 1000); }, 500);
   };
  
-  // ── Xuất PDF ─────────────────────────────────────────────────────────────────
   const handlePDF = async () => {
     const el = document.getElementById("debtPreviewContent");
     if (!el) return;
@@ -1354,7 +1343,6 @@ function DebtReconciliationModal({ onClose }) {
  
   const handlePDFClick = async () => { setPdfLoading(true); try { await handlePDF(); } finally { setPdfLoading(false); } };
 
-  // ── Xuất Excel ───────────────────────────────────────────────────────────────
   const handleExcel = () => {
     const rows = [];
     rows.push(["BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ", "", "", "", "", "", "", "", "", ""]);
@@ -1403,7 +1391,6 @@ function DebtReconciliationModal({ onClose }) {
     let stt = 1;
     return (
       <div className="debt-preview" id="debtPreviewContent">
-        {/* Quốc hiệu + Logo */}
         <table className="debt-header-table">
           <tbody>
             <tr>
@@ -1419,7 +1406,7 @@ function DebtReconciliationModal({ onClose }) {
                 </div>
               </td>
               <td className="debt-header-right">
-                <div style={{fontWeight:700,fontSize:12}}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                <div style={{fontWeight:700,fontSize:12}}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆAM</div>
                 <div style={{fontWeight:600,fontSize:12}}>Độc lập – Tự do – Hạnh phúc</div>
                 <div style={{fontSize:11,marginTop:3}}>⸻⸻⸻</div>
               </td>
@@ -1427,7 +1414,6 @@ function DebtReconciliationModal({ onClose }) {
           </tbody>
         </table>
  
-        {/* Tiêu đề */}
         <div className="debt-title">
           <h1>{T.title}</h1>
           <div style={{fontSize:12,color:"#555",marginTop:4}}>{T.titleB}</div>
@@ -1437,7 +1423,6 @@ function DebtReconciliationModal({ onClose }) {
           </div>
         </div>
  
-        {/* Thành phần tham gia */}
         <div className="debt-party-block">
           <p>{T.partyIntro} <strong>{dateStr}</strong>, {T.reconcileSentence} <strong>{toDateStr}</strong>:</p>
           <table style={{width:"100%", marginTop:8, marginBottom:16}}>
@@ -1466,7 +1451,6 @@ function DebtReconciliationModal({ onClose }) {
           </table>
         </div>
 
-        {/* Items Table */}
         <table className="debt-items-table">
           <thead>
             <tr>
@@ -1575,56 +1559,204 @@ function DebtReconciliationModal({ onClose }) {
     );
   };
 
+  const renderPaymentRequest = () => {
+    const payNum = "DNTT-" + (refNum ? refNum.replace(/^BBDCCN-/, "") : todayFull.replace(/ /g,"_"));
+    return (
+      <div className="debt-preview" id="debtPreviewContent">
+        <table className="debt-header-table">
+          <tbody>
+            <tr>
+              <td className="debt-header-left">
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <img src={getLogoUrl()} style={{width:48,height:48,objectFit:"contain"}} alt="Logo" />
+                  <div>
+                    <div style={{fontWeight:700,fontSize:13,color:"#1a2540"}}>{COMPANY.name}</div>
+                    <div style={{fontSize:10,color:"#555"}}>MST: {COMPANY.mst}</div>
+                    <div style={{fontSize:10,color:"#555"}}>ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
+                    <div style={{fontSize:10,color:"#555"}}>{COMPANY.address}</div>
+                  </div>
+                </div>
+              </td>
+              <td className="debt-header-right">
+                <div style={{fontWeight:700,fontSize:12}}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                <div style={{fontWeight:600,fontSize:12}}>Độc lập – Tự do – Hạnh phúc</div>
+                <div style={{fontSize:11,marginTop:3}}>⸻⸻⸻</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="debt-title">
+          <h1>{T.paymentTitle}</h1>
+          <div style={{fontSize:12,color:"#555",marginTop:4}}>{T.paymentTitleB}</div>
+          <div className="ref">Số: {payNum}</div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            {T.paymentBasedOn} {refNum ? <strong>{T.paymentBasedOnB} {refNum}</strong> : <strong>{T.paymentBasedOnB}</strong>}
+          </div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            {T.paymentInfo1} <strong>{dateStr}</strong>, {T.paymentInfo2}
+          </div>
+        </div>
+
+        <div className="debt-party-block">
+          <p>{T.paymentTo} / {T.paymentToB}:</p>
+          <p style={{marginTop:4}}>{T.company} / {T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></p>
+          {buyerAddr && <p style={{marginTop:2}}>{T.address} / {T.addressB}: {buyerAddr}</p>}
+          <p style={{marginTop:2}}>{T.tax} / {T.taxB}: {buyerTax || "………………………"}</p>
+          <p style={{marginTop:10}}> {T.paymentRequestNote} <strong>{COMPANY.name}</strong>. </p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}> {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>. </p>
+        </div>
+
+        <table className="debt-items-table">
+          <thead>
+            <tr>
+              <th style={{textAlign:"left"}}>{T.paymentContent}</th>
+              <th style={{width:140}}>{T.paymentAmountHeader}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{fontSize:12,padding:"7px 10px"}}>
+                {T.paymentGoods} <div style={{fontSize:10,color:"#555",marginTop:2}}>{T.paymentGoodsB}</div>
+              </td>
+              <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandSubtotal)}</td>
+            </tr>
+            <tr>
+              <td style={{fontSize:12,padding:"7px 10px"}}>
+                {T.paymentVat} <div style={{fontSize:10,color:"#555",marginTop:2}}>{T.paymentVatB}</div>
+              </td>
+              <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandVat)}</td>
+            </tr>
+            <tr className="debt-grand-row">
+              <td style={{padding:"8px 10px",fontSize:14}}>
+                {T.paymentTotal} <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.paymentTotalB}</div>
+              </td>
+              <td className="right" style={{padding:"8px 10px",fontSize:15,letterSpacing:"0.02em"}}>{fmt(grandTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style={{marginTop:12,fontSize:12,lineHeight:1.8}}>
+          <p>
+            {T.paymentAmountText} <strong>{debtLang === "vi_en" ? numberToWordsEN(grandTotal) : numberToWordsCN(grandTotal)}</strong>
+          </p>
+          <p style={{marginTop:6}}>
+            {T.paymentRequestNote} <strong>{COMPANY.name}</strong> {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
+          </p>
+          <p style={{marginTop:8}}>
+            {T.paymentReferNote} <br />
+            <span style={{fontSize:11,color:"#555"}}>{T.paymentReferNoteB} {refNum ? <strong>{T.paymentBasedOnB} {refNum}</strong> : ""}</span>
+          </p>
+          <p style={{marginTop:8}}>
+            {T.paymentBankInfo} <strong>{COMPANY.bankName || "……………………"}</strong> — STK: <strong>{COMPANY.bankAccount || "……………………"}</strong> {COMPANY.bankHolder ? <> — {T.paymentBankHolderLabel}: <strong>{COMPANY.bankHolder}</strong></> : null}
+            <br />
+            <span style={{fontSize:11,color:"#555"}}>{T.paymentBankInfoB}</span>
+            {COMPANY.bankHolder ? <><br /><span style={{fontSize:11,color:"#555"}}>{T.paymentBankHolderLabelB}: <strong>{COMPANY.bankHolder}</strong></span></> : null}
+          </p>
+          <p style={{marginTop:8}}>
+            {T.paymentCooperate} <br />
+            <span style={{fontSize:11,color:"#555"}}>{T.paymentCooperateB}</span>
+          </p>
+        </div>
+
+        <div className="debt-sign" style={{marginTop:28}}>
+          <div className="debt-sign-block">
+            <div className="sign-title">{T.paymentBuyerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{buyerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{buyerTitle}</div>
+          </div>
+          <div className="debt-sign-block">
+            <div className="sign-title">{T.paymentSellerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{sellerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{sellerTitle}</div>
+            <div style={{fontSize:11,color:"#666"}}>{COMPANY.name}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth:1200 }}>
         <div className="modal-header no-print">
-          <span className="modal-title">📑 Biên bản đối chiếu công nợ</span>
-          <div style={{display:"flex", gap:8}}>
-            <select className="form-control" style={{width:160}} value={debtLang} onChange={e=>setDebtLang(e.target.value)}>
-              <option value="vi_en">Việt - Anh</option>
-              <option value="vi_zh">Việt - Trung</option>
-            </select>
+          <span className="modal-title">💰 Biên bản đối chiếu công nợ</span>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button className={`btn btn-sm ${viewMode==="form"?"btn-primary":"btn-ghost"}`} onClick={() => setViewMode("form")}>⚙️ Nhập liệu</button>
+            <button className={`btn btn-sm ${viewMode==="preview"?"btn-primary":"btn-ghost"}`} onClick={() => setViewMode("preview")}>👁️ Xem trước</button>
+            <button className={`btn btn-sm ${viewMode==="payment"?"btn-primary":"btn-ghost"}`} onClick={() => setViewMode("payment")} disabled={invoices.length===0} title="Tạo đề nghị thanh toán">🧾 Đề nghị thanh toán</button>
             <button className="close-btn" onClick={onClose}>×</button>
           </div>
         </div>
 
-        <div className="modal-body" style={{ display:"flex", gap:20, padding:16 }}>
+        <div className="modal-body" style={{ display:"flex", gap:0, padding:0, overflow:"hidden" }}>
           
           {/* Cột trái: Form */}
-          <div className="no-print hw-form-col" style={{ width: 340, flexShrink: 0, borderRight: "1px solid #e5e3dc", paddingRight: 20, overflowY: "auto" }}>
+          <div className="no-print" style={{ width: viewMode==="preview"||viewMode==="payment" ? 0 : 340, minWidth: viewMode==="preview"||viewMode==="payment" ? 0 : 340, overflow:"hidden", transition:"width 0.2s, min-width 0.2s", borderRight:"1px solid #e5e3dc", overflowY:"auto", padding: viewMode==="preview"||viewMode==="payment" ? 0 : "16px 18px" }}>
             
-            <div className="hw-form-section">
-              <h4>Quản lý biên bản</h4>
-              <div className="form-group" style={{display:"flex", gap:8, marginBottom:10}}>
-                <button className="btn btn-ghost btn-sm" style={{flex:1}} onClick={handleNewDebtRec}>🆕 Tạo mới</button>
-                <button className="btn btn-ghost btn-sm" onClick={handleReloadSavedRecs} title="Tải lại danh sách">🔄</button>
+            <div style={{marginBottom:16}}>
+              <div className="section-title" style={{marginBottom:8}}>📂 Import hóa đơn XML</div>
+              <div className="debt-xml-dropzone" onClick={() => fileRef.current && fileRef.current.click()} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}>
+                <div style={{fontSize:28,marginBottom:6}}>🗂️</div>
+                <div style={{fontSize:13,color:"#555",fontWeight:500}}>Click hoặc kéo thả file XML</div>
+                <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" multiple style={{display:"none"}} onChange={e => { handleFiles(e.target.files); e.target.value=""; }} />
+              </div>
+              {xmlError && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:6,fontSize:12,marginTop:8}}>{xmlError}</div>}
+            </div>
+
+            <div style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
+                <div className="section-title" style={{marginBottom:0}}>🗂️ Biên bản đã lưu</div>
+                <div style={{display:"flex",gap:6}}>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={handleReloadSavedRecs}>🔄 Tải lại</button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={handleNewDebtRec}>🆕 Tạo mới</button>
+                </div>
               </div>
               {savedRecs.length > 0 && (
-                <div className="form-group">
-                  <label>Biên bản đã lưu ({savedRecs.length})</label>
-                  <div style={{maxHeight:140, overflowY:"auto", border:"1px solid #e5e3dc", borderRadius:6, background:"#f9f8f5"}}>
-                    {savedRecs.map(r => (
-                      <div key={r.id} style={{display:"flex", justifyContent:"space-between", alignItems:"center", padding:"6px 10px", borderBottom:"1px solid #eee", fontSize:12}}>
-                        <div style={{cursor:"pointer", flex:1}} onClick={() => loadSavedByRefNum(r.refNum)}>
-                          <span style={{fontWeight:600, color: refNum === r.refNum ? "#2563eb" : "#1a2540"}}>{r.refNum}</span>
-                          <div style={{fontSize:10, color:"#888"}}>{r.buyerName || "Chưa có tên KH"}</div>
+                <div style={{display:"grid",gap:10,marginBottom:10}}>
+                  {savedRecs.map(rec => (
+                    <div key={rec.id} className="debt-invoice-card" style={{borderColor:rec.id===refNum?"#1a2540":"#e5e3dc"}}>
+                      <div className="debt-invoice-card-header" style={{cursor:"pointer"}} onClick={() => { setRefNum(rec.id); loadSavedByRefNum(rec.id); }}>
+                        <div style={{flex:1}}>
+                          <div className="inv-num" style={{fontSize:12,fontWeight:600}}>{rec.refNum}</div>
+                          <div className="inv-date" style={{fontSize:11,color:"#888"}}>{rec.buyerName || "Chưa nhập tên KH"}</div>
                         </div>
-                        <button onClick={(e) => { e.stopPropagation(); handleDeleteDebtRec(r.id); }} style={{background:"none", border:"none", color:"#dc2626", cursor:"pointer", padding:"4px"}} title="Xóa">🗑️</button>
+                        <button type="button" className="btn btn-ghost btn-sm" style={{padding:"4px 8px"}} onClick={e => { e.stopPropagation(); handleDeleteDebtRec(rec.id); }}>🗑️</button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
             <div className="hw-form-section">
               <h4>Thông tin chung</h4>
-              <div className="form-row form-row-2">
-                <div className="form-group"><label>Số biên bản</label><input className="form-control" value={refNum} onChange={e=>setRefNum(e.target.value)} /></div>
-                <div className="form-group"><label>Ngày lập</label><input className="form-control" value={dateStr} onChange={e=>setDateStr(e.target.value)} /></div>
+              <div className="form-group">
+                <label>Số biên bản</label>
+                <div style={{display:"flex",gap:6}}>
+                  <input className="form-control" value={refNum} onChange={e => setRefNum(e.target.value)} onBlur={e => loadSavedByRefNum(e.target.value)} />
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRefNum(generateDebtRecNumber())}>🔄</button>
+                </div>
+                <button type="button" className="btn btn-success btn-sm" style={{marginTop:8}} onClick={handleSaveDebtRec} disabled={saving}>
+                  {saving ? "⏳ Đang lưu..." : "💾 Lưu biên bản"}
+                </button>
+                {saveMsg && <span style={{color:"#16a34a",fontSize:12,marginLeft:8}}>{saveMsg}</span>}
               </div>
-              <div className="form-group"><label>Đối chiếu đến ngày</label><input className="form-control" value={toDateStr} onChange={e=>setToDateStr(e.target.value)} /></div>
+              <div className="form-row form-row-2">
+                <div className="form-group"><label>Ngày lập</label><input className="form-control" value={dateStr} onChange={e=>setDateStr(e.target.value)} /></div>
+                <div className="form-group"><label>Đối chiếu đến</label><input className="form-control" value={toDateStr} onChange={e=>setToDateStr(e.target.value)} /></div>
+              </div>
+              <div className="form-group">
+                <label>Ngôn ngữ</label>
+                <select className="form-control" value={debtLang} onChange={e=>setDebtLang(e.target.value)}>
+                  <option value="vi_en">Việt - Anh</option>
+                  <option value="vi_zh">Việt - Trung</option>
+                </select>
+              </div>
             </div>
 
             <div className="hw-form-section">
@@ -1639,24 +1771,7 @@ function DebtReconciliationModal({ onClose }) {
             </div>
 
             <div className="hw-form-section">
-              <h4>Đại diện Bên Bán</h4>
-              <div className="form-row form-row-2">
-                <div className="form-group"><label>Người đại diện</label><input className="form-control" value={sellerRep} onChange={e=>setSellerRep(e.target.value)} /></div>
-                <div className="form-group"><label>Chức vụ</label><input className="form-control" value={sellerTitle} onChange={e=>setSellerTitle(e.target.value)} /></div>
-              </div>
-            </div>
-
-            <div className="hw-form-section">
               <h4>Hóa đơn ({invoices.length})</h4>
-              <input ref={fileRef} type="file" multiple accept=".xml" style={{display:"none"}} onChange={(e) => handleFiles(e.target.files)} />
-              <div className="debt-xml-dropzone" onClick={() => fileRef.current && fileRef.current.click()}>
-                <div style={{fontSize:24, marginBottom:4}}>📥</div>
-                <div style={{fontSize:12, fontWeight:500, color:"#1a2540"}}>Import XML Hóa Đơn</div>
-                <div style={{fontSize:11, color:"#888", marginTop:4}}>Kéo thả nhiều file XML vào đây</div>
-              </div>
-
-              {xmlError && <div style={{fontSize:11, color:"#dc2626", marginTop:8, padding:"6px 8px", background:"#fee2e2", borderRadius:4}}>{xmlError}</div>}
-
               <div style={{marginTop:12}}>
                 {sortedInvoices.map((inv) => (
                   <div key={inv._id} className="debt-invoice-card">
@@ -1675,7 +1790,7 @@ function DebtReconciliationModal({ onClose }) {
                         {inv.items.map((it, iIdx) => (
                           <div key={iIdx} style={{marginBottom:10, paddingBottom:10, borderBottom: iIdx === inv.items.length - 1 ? "none" : "1px dashed #e5e3dc"}}>
                             <div style={{fontSize:12, fontWeight:600, color:"#1a2540", marginBottom:4}}>{it.name}</div>
-                            <input type="text" className="form-control" style={{fontSize:12, padding:"6px 8px", marginBottom:6}} placeholder="Dịch tên hàng (thủ công)..." value={it.nameTrans || ""} onChange={(e) => updateItemTrans(inv._id, iIdx, 'nameTrans', e.target.value)} />
+                            <input type="text" className="form-control" style={{fontSize:12, padding:"6px 8px", marginBottom:6}} placeholder="Dịch tên hàng thủ công..." value={it.nameTrans || ""} onChange={(e) => updateItemTrans(inv._id, iIdx, 'nameTrans', e.target.value)} />
 
                             <div style={{display:"flex", gap:8}}>
                               <div style={{flex:1}}>
@@ -1699,22 +1814,22 @@ function DebtReconciliationModal({ onClose }) {
           </div>
 
           {/* Cột phải: Preview */}
-          <div style={{ flex: 1, overflowY:"auto", background:"#f5f4f0", padding:20, borderRadius:8, border:"1px solid #e5e3dc" }}>
-            {renderPreview()}
+          <div style={{ flex: 1, overflowY:"auto", background:"#f5f4f0", padding:20 }}>
+            <div style={{maxWidth:794, margin:"0 auto", boxShadow:"0 2px 16px rgba(0,0,0,0.1)", borderRadius:4}}>
+              {viewMode === "payment" ? renderPaymentRequest() : renderPreview()}
+            </div>
           </div>
           
         </div>
         
         <div className="modal-footer no-print">
           <button className="btn btn-ghost" onClick={onClose}>Đóng</button>
-          <button className="btn btn-ghost" onClick={handleSaveDebtRec} disabled={saving}>
-            {saving ? "⏳ Đang lưu..." : "💾 Lưu biên bản"}{saveMsg && <span style={{color:"#16a34a",marginLeft:6}}>{saveMsg}</span>}
-          </button>
-          <button className="btn btn-excel" onClick={handleExcel}>📊 Xuất Excel</button>
-          <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading} style={{minWidth:110}}>
+          <div style={{flex:1}} />
+          <button className="btn btn-excel" onClick={handleExcel} disabled={invoices.length === 0}>📊 Xuất Excel</button>
+          <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading || invoices.length === 0} style={{minWidth:120}}>
             {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
           </button>
-          <button className="btn btn-primary" onClick={handlePrint}>🖨️ In</button>
+          <button className="btn btn-primary" onClick={handlePrint} disabled={invoices.length === 0}>🖨️ In</button>
         </div>
       </div>
     </div>
