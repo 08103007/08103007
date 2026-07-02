@@ -587,6 +587,111 @@ function numberToWordsVN(num) { return new Intl.NumberFormat("vi-VN").format(num
 function numberToWordsEN(num) { return new Intl.NumberFormat("en").format(num) + " VND only"; }
 function numberToWordsCN(num) { return new Intl.NumberFormat("zh").format(num) + "越南盾整"; }
 
+const DEBT_ITEM_TRANSLATIONS = {
+  en: {
+    "máy tính": "computer",
+    "máy": "machine",
+    "bàn": "table",
+    "ghế": "chair",
+    "màn hình": "monitor",
+    "chuột": "mouse",
+    "bàn phím": "keyboard",
+    "cài đặt": "installation",
+    "phần mềm": "software",
+    "dịch vụ": "service",
+    "thiết bị": "equipment",
+    "cái": "unit",
+    "hộp": "box",
+    "bộ": "set",
+    "chiếc": "piece",
+    "hệ thống": "system",
+    "laptop": "laptop",
+    "desktop": "desktop",
+    "router": "router",
+    "switch": "switch",
+    "server": "server",
+    "modem": "modem",
+    "wifi": "Wi-Fi",
+    "cáp": "cable",
+    "pin": "battery",
+    "sạc": "charger",
+    "ổ cứng": "hard drive",
+    "ssd": "SSD",
+    "hdd": "HDD",
+    "ram": "RAM",
+    "cpu": "CPU",
+    "card đồ họa": "graphics card",
+    "bảo hành": "warranty",
+    "hỗ trợ": "support",
+    "lắp đặt": "installation",
+    "thi công": "construction",
+    "tủ": "cabinet"
+  },
+  zh: {
+    "máy tính": "计算机",
+    "máy": "机器",
+    "bàn": "桌子",
+    "ghế": "椅子",
+    "màn hình": "显示器",
+    "chuột": "鼠标",
+    "bàn phím": "键盘",
+    "cài đặt": "安装",
+    "phần mềm": "软件",
+    "dịch vụ": "服务",
+    "thiết bị": "设备",
+    "cái": "件",
+    "hộp": "盒",
+    "bộ": "套",
+    "chiếc": "台",
+    "hệ thống": "系统",
+    "laptop": "笔记本电脑",
+    "desktop": "台式机",
+    "router": "路由器",
+    "switch": "交换机",
+    "server": "服务器",
+    "modem": "调制解调器",
+    "wifi": "无线网络",
+    "cáp": "线缆",
+    "pin": "电池",
+    "sạc": "充电器",
+    "ổ cứng": "硬盘",
+    "ssd": "固态硬盘",
+    "hdd": "机械硬盘",
+    "ram": "内存",
+    "cpu": "处理器",
+    "card đồ họa": "显卡",
+    "bảo hành": "保修",
+    "hỗ trợ": "支持",
+    "lắp đặt": "安装",
+    "thi công": "施工",
+    "tủ": "柜子"
+  }
+};
+
+function escapeRegExp(str) {
+  return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getDebtAutoTranslation(text, targetLang) {
+  const source = (text || "").toString().trim();
+  if (!source) return "";
+  const dict = DEBT_ITEM_TRANSLATIONS[targetLang] || {};
+  let result = source;
+  Object.entries(dict).forEach(([src, trans]) => {
+    const regex = new RegExp(`\\b${escapeRegExp(src)}\\b`, "gi");
+    result = result.replace(regex, trans);
+  });
+  return result;
+}
+
+function getDebtBilingualDisplay(text, debtLang) {
+  const viText = (text || "").toString().trim();
+  if (!viText) return { vi: "", other: "" };
+  const targetLang = debtLang === "vi_en" ? "en" : "zh";
+  const translated = getDebtAutoTranslation(viText, targetLang);
+  return { vi: viText, other: translated && translated !== viText ? translated : "" };
+}
+
 // ─── Kết thúc đọc số thành chữ ──────────────────────────────────────────────
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -6794,6 +6899,52 @@ function DebtReconciliationModal({ onClose }) {
   };
  
   const handlePDFClick = async () => { setPdfLoading(true); try { await handlePDF(); } finally { setPdfLoading(false); } };
+
+  const handleExcel = () => {
+    const rows = [];
+    rows.push(["BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ", "", "", "", "", "", "", "", "", ""]);
+    rows.push(["Số biên bản", refNum || ""]);
+    rows.push(["Ngày lập", dateStr]);
+    rows.push(["Đối chiếu đến ngày", toDateStr]);
+    rows.push(["Bên bán", COMPANY.name]);
+    rows.push(["Bên mua", buyerName || ""]);
+    rows.push([]);
+    rows.push(["STT", "Số / Ký hiệu HĐ", "Ngày HĐ", "Hàng hóa / Dịch vụ (VN)", "Hàng hóa / Dịch vụ (EN/CN)", "ĐVT (VN)", "ĐVT (EN/CN)", "SL", "Đơn giá", "Thuế (%)", "Thành tiền"]);
+
+    let stt = 1;
+    sortedInvoices.forEach(inv => {
+      inv.items.forEach(it => {
+        const nameDisplay = getDebtBilingualDisplay(it.name, debtLang);
+        const unitDisplay = getDebtBilingualDisplay(it.unit, debtLang);
+        rows.push([
+          stt++,
+          inv.serial ? `${inv.serial}${inv.invoiceNumber ? ` / ${inv.invoiceNumber}` : ""}` : (inv.invoiceNumber || ""),
+          inv.invoiceDate || "",
+          nameDisplay.vi,
+          nameDisplay.other || "",
+          it.unit || "",
+          unitDisplay.other || "",
+          it.qty || 0,
+          it.price || 0,
+          it.vatRate === -1 ? "KCT" : `${it.vatRate || 0}%`,
+          (it.lineTotal + it.vatAmt) || 0
+        ]);
+      });
+    });
+
+    rows.push([]);
+    rows.push(["Tổng tiền hàng (chưa VAT)", grandSubtotal]);
+    rows.push(["Tổng thuế VAT", grandVat]);
+    rows.push(["Tổng cộng phải thu", grandTotal]);
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 6 }, { wch: 24 }, { wch: 14 }, { wch: 36 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 8 }, { wch: 14 }, { wch: 12 }, { wch: 16 }
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, "Biên bản đối chiếu");
+    XLSX.writeFile(wb, `BBDCCN_${(refNum || "debt").replace(/[^a-zA-Z0-9]+/g, "_")}.xlsx");
+  };
  
   // ── Render preview HTML ───────────────────────────────────────────────────────
   // Đây là nội dung sẽ in / PDF
@@ -6922,15 +7073,25 @@ function DebtReconciliationModal({ onClose }) {
                 rowIdx++;
                 const vatLbl = it.vatRate === -1 ? "KCT" : (it.vatRate || 0) + "%";
                 rows.push(
-                  <tr key={`it-${inv._id}-${iIdx}`}>
+                  <tr key={"it-" + inv._id + "-" + iIdx}>
                     <td className="center" style={{fontSize:11,color:"#888"}}>{rowIdx}</td>
                     <td colSpan={2} style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
                       {inv.serial || ""}{inv.serial && inv.invoiceNumber ? " / " : ""}{inv.invoiceNumber || ""}
                     </td>
                     <td style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
-                      {it.name}
+                      <div>{it.name}</div>
+                      {(() => {
+                        const translatedName = getDebtBilingualDisplay(it.name, debtLang).other;
+                        return translatedName ? <div style={{fontSize:10,color:"#555",marginTop:2}}>{translatedName}</div> : null;
+                      })()}
                     </td>
-                    <td className="center" style={{fontSize:11}}>{it.unit}</td>
+                    <td className="center" style={{fontSize:11}}>
+                      <div>{it.unit || "—"}</div>
+                      {(() => {
+                        const translatedUnit = getDebtBilingualDisplay(it.unit, debtLang).other;
+                        return translatedUnit ? <div style={{fontSize:10,color:"#555",marginTop:2}}>{translatedUnit}</div> : null;
+                      })()}
+                    </td>
                     <td className="center" style={{fontSize:11}}>{it.qty !== 0 ? it.qty : "—"}</td>
                     <td className="right" style={{fontSize:11}}>{it.price ? fmt(it.price) : "—"}</td>
                     <td className="center" style={{fontSize:11,fontWeight:600}}>{vatLbl}</td>
@@ -7426,6 +7587,9 @@ function DebtReconciliationModal({ onClose }) {
           {invoices.length === 0 && (
             <span style={{fontSize:12,color:"#aaa",alignSelf:"center"}}>⚠️ Import ít nhất 1 file XML để xuất</span>
           )}
+          <button className="btn btn-excel" onClick={handleExcel} disabled={invoices.length === 0} style={{minWidth:120}}>
+            📊 Xuất Excel
+          </button>
           <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading || invoices.length === 0} style={{minWidth:120}}>
             {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
           </button>
