@@ -919,6 +919,7 @@ function parseInvoiceXml(xmlText) {
 }
 
 // ─── DebtReconciliationModal (Patched) ─────────────────────────────────────────
+// ─── DebtReconciliationModal ──────────────────────────────────────────────────
 function DebtReconciliationModal({ onClose }) {
   const today = new Date();
   const todayFull = `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
