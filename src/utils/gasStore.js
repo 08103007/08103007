@@ -88,7 +88,8 @@ export function showToast(msg, duration = 3000) {
 }
 
 import { 
-  hasSupabase, fetchSupabaseQuotes, upsertSupabaseQuotes, deleteSupabaseQuote 
+  hasSupabase, fetchSupabaseQuotes, upsertSupabaseQuotes, deleteSupabaseQuote,
+  fetchSupabaseProducts, upsertSupabaseProducts, fetchSupabaseSettings, upsertSupabaseSettings 
 } from './supabaseClient';
 
 // Debounce save timer
@@ -255,6 +256,20 @@ export async function doLoad() {
           upsertSupabaseProducts(_mem.products);
         }
         upsertSupabaseSettings("master_settings", { company: COMPANY, contractDefaults: CONTRACT_DEFAULTS, productCatalog: PRODUCT_CATALOG });
+      }
+
+      const sbProducts = await fetchSupabaseProducts();
+      if (Array.isArray(sbProducts) && sbProducts.length > 0) {
+        _mem.products = sbProducts;
+      }
+
+      const sbSettings = await fetchSupabaseSettings("master_settings");
+      if (sbSettings && typeof sbSettings === "object") {
+        if (sbSettings.company && typeof sbSettings.company === "object") Object.assign(COMPANY, sbSettings.company);
+        if (sbSettings.contractDefaults && typeof sbSettings.contractDefaults === "object") Object.assign(CONTRACT_DEFAULTS, sbSettings.contractDefaults);
+        if (Array.isArray(sbSettings.productCatalog) && sbSettings.productCatalog.length > 0) {
+          PRODUCT_CATALOG.splice(0, PRODUCT_CATALOG.length, ...sbSettings.productCatalog);
+        }
       }
     } catch (e) {
       console.warn("Lỗi tải từ Supabase:", e);

@@ -56,7 +56,13 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     } finally {
       setMigrating(false);
     }
-  };
+  useEffect(() => {
+    if (COMPANY) {
+      setCompany({ ...DEFAULT_COMPANY, ...COMPANY });
+      if (COMPANY.logo) setLogoPreview(COMPANY.logo);
+    }
+  }, []);
+
   const [saveMsg,  setSaveMsg]  = useState("");
   const [logoPreview, setLogoPreview] = useState(COMPANY.logo || "");
   const fileRef = useRef(null);
