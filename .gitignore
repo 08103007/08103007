@@ -1,0 +1,4 @@
+node_modules/
+pdf-server/node_modules/
+.DS_Store
+*.log

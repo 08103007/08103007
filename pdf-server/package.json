@@ -1,0 +1,15 @@
+{
+  "name": "pmc-pdf-server",
+  "version": "1.0.0",
+  "description": "Local Puppeteer PDF generation server for PMC Báo Giá app",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "puppeteer": "^22.15.0",
+    "systray2": "^2.1.4"
+  }
+}
