@@ -236,21 +236,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* Direct PC Local File Banner (Radical Solution) */}
-      {!fileHandle ? (
-        <div style={{ background: "#eff6ff", borderBottom: "1px solid #bfdbfe", padding: "8px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "#1e40af", flexWrap: "wrap", gap: 8 }} className="no-print">
-          <span>💻 <b>GIẢI PHÁP AN TOÀN TRỰC TIẾP:</b> Liên kết 1 file <code>.json</code> trên đĩa cứng PC để không lo bị Chrome xóa đệm khi dọn rác.</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-secondary btn-sm" onClick={async () => { const h = await selectAndBindLocalJsonFile(); if (h) { setFileHandle(h); setQuotes([..._mem.quotes]); } }}>📂 Chọn file JSON có sẵn</button>
-            <button className="btn btn-primary btn-sm" onClick={async () => { const h = await createAndBindLocalJsonFile(); if (h) { setFileHandle(h); setQuotes([..._mem.quotes]); } }}>➕ Tạo file JSON mới trên PC</button>
-          </div>
-        </div>
-      ) : (
-        <div style={{ background: "#f0fdf4", borderBottom: "1px solid #bbf7d0", padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, color: "#166534" }} className="no-print">
-          <span>🟢 <b>Đang ghi trực tiếp ổ cứng PC:</b> <code style={{fontFamily:"monospace"}}>{fileHandle.name}</code> (Không phụ thuộc đệm Chrome)</span>
-          <span style={{fontSize:11, color:"#15803d"}}>Lưu 0ms vĩnh viễn</span>
-        </div>
-      )}
+
 
       <div className="main">
         <div className="sidebar no-print">

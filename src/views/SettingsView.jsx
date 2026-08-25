@@ -14,12 +14,7 @@ import {
   testSupabaseConnection, migrateAllLocalDataToSupabase, SUPABASE_SQL_SCHEMA 
 } from '../utils/supabaseClient';
 
-const DEFAULT_COMPANY = {
-  name:"", nameEn:"", short:"", mst:"", address:"", addressEn:"",
-  phone:"", email:"", representative:"", representativeEn:"",
-  position:"Giám Đốc", positionEn:"Director",
-  bankAccount:"", bankName:"", bankNameEn:"", logo:"",
-};
+import { DEFAULT_COMPANY } from '../utils/gasStore';
 
 export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
   const [company,  setCompany]  = useState({ ...DEFAULT_COMPANY, ...COMPANY });
