@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sparticuz/chromium": "^123.0.0",
+    "puppeteer-core": "^22.6.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
