@@ -246,6 +246,15 @@ export async function doLoad() {
       if (Array.isArray(sbQuotes) && sbQuotes.length > 0) {
         sbQuotes.forEach(addOrMergeQuote);
         console.log(`⚡ Supabase Load & Merge: ${sbQuotes.length} báo giá từ Cloud Database`);
+      } else if (localQuotes.length > 0) {
+        console.log(`🚀 Supabase kết nối nhưng chưa có dữ liệu. Tự động đẩy ${localQuotes.length} báo giá lên Cloud...`);
+        upsertSupabaseQuotes(localQuotes).then(ok => {
+          if (ok) showToast(`🚀 Đã tự động đẩy ${localQuotes.length} báo giá lên Supabase Cloud!`, 4000);
+        });
+        if (Array.isArray(_mem.products) && _mem.products.length > 0) {
+          upsertSupabaseProducts(_mem.products);
+        }
+        upsertSupabaseSettings("master_settings", { company: COMPANY, contractDefaults: CONTRACT_DEFAULTS, productCatalog: PRODUCT_CATALOG });
       }
     } catch (e) {
       console.warn("Lỗi tải từ Supabase:", e);
