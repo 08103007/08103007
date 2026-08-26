@@ -28,12 +28,13 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
   const [testMsg,  setTestMsg]  = useState("");
 
   const handleTestSb = async () => {
-    setSbTestMsg("⏳ Đang kết nối Supabase...");
+    setSbTestMsg("⏳ Đang kết nối Supabase & quét đẩy tự động dữ liệu cũ lên 8 bảng Cloud...");
     try {
       setSupabaseUrl(sbUrl.trim());
       setSupabaseKey(sbKey.trim());
       await testSupabaseConnection();
-      setSbTestMsg("⚡ Kết nối Supabase PostgreSQL thành công! (~30ms)");
+      const res = await migrateAllLocalDataToSupabase(_mem, company, CONTRACT_DEFAULTS, PRODUCT_CATALOG);
+      setSbTestMsg(`⚡ KẾT NỐI SUPABASE THÀNH CÔNG! Đã tự động đẩy ${res.quotesCount || 0} báo giá, ${res.productsCount || 0} sản phẩm, ${res.debtRecsCount || 0} đối chiếu công nợ, ${res.payReqsCount || 0} đề nghị thanh toán lên 8 Bảng Supabase Cloud Database!`);
     } catch(err) {
       setSbTestMsg("❌ Lỗi: " + err.message);
     }

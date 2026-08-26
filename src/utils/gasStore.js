@@ -393,6 +393,11 @@ export async function doLoad() {
 
   _mem.quotes = Array.from(quoteMap.values());
   _flushToLocalStorage();
+  if (hasSupabase()) {
+    setTimeout(() => {
+      _flushToGAS();
+    }, 500);
+  }
   _scheduleSave();
   return _mem.quotes ?? [];
 }
