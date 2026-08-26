@@ -518,28 +518,29 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
   const amountVal = Number(form.amount || 0);
 
   return (
-    <div className="fullpage-screen" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh", maxWidth: "100vw", maxHeight: "100vh", zIndex: 999999, background: "#f8fafc", display: "flex", flexDirection: "column", margin: 0, padding: 0, borderRadius: 0, border: "none", boxShadow: "none" }}>
-      <div className="modal-header no-print" style={{ background: "#1a2540", color: "#fff", padding: "14px 24px", flexShrink: 0, borderBottom: "1px solid #334155" }}>
-        <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>🧾 GIẤY ĐỀ NGHỊ THANH TOÁN (TOÀN MÀN HÌNH)</span>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button 
-            className="btn btn-ghost btn-sm" 
-            onClick={handleAutoTranslate} 
-            disabled={translating || lang === "vi"} 
-            title="Tự động dịch nội dung ĐNTT sang Tiếng Anh / Tiếng Trung"
-            style={{ color: lang === "vi" ? "#94a3b8" : "#60a5fa", fontWeight: 600 }}
-          >
-            {translating ? "⏳ Đang dịch..." : `🌐 Tự động dịch → ${lang === "vi_zh" ? "中文" : "EN"}`}
-          </button>
-          <button className="btn btn-ghost btn-sm" style={{ color: "#e2e8f0" }} onClick={handlePrint}>🖨️ In Đề nghị thanh toán</button>
-          <button className="btn btn-ghost btn-sm" style={{ color: "#e2e8f0" }} onClick={handleSave}>💾 Lưu đề nghị</button>
-          <button className="close-btn" style={{ color: "#fff" }} onClick={onClose}>×</button>
+    <div className="modal-overlay" style={{ zIndex: 99999 }}>
+      <div className="modal" style={{ width: "96vw", maxWidth: 1440, height: "92vh", display: "flex", flexDirection: "column", background: "#ffffff", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" }}>
+        <div className="modal-header no-print" style={{ background: "#ffffff", padding: "12px 20px", flexShrink: 0, borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span className="modal-title" style={{ color: "#0f172a", fontWeight: 700, fontSize: 16 }}>🧾 GIẤY ĐỀ NGHỊ THANH TOÁN</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button 
+              className="btn btn-ghost btn-sm" 
+              onClick={handleAutoTranslate} 
+              disabled={translating || lang === "vi"} 
+              title="Tự động dịch nội dung ĐNTT sang Tiếng Anh / Tiếng Trung"
+              style={{ background: "#eff6ff", color: lang === "vi" ? "#94a3b8" : "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: 600 }}
+            >
+              {translating ? "⏳ Đang dịch..." : `🌐 Tự động dịch → ${lang === "vi_zh" ? "中文" : "EN"}`}
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={handlePrint}>🖨️ In Đề nghị thanh toán</button>
+            <button className="btn btn-ghost btn-sm" onClick={handleSave}>💾 Lưu đề nghị</button>
+            <button className="close-btn" style={{ color: "#64748b" }} onClick={onClose}>×</button>
+          </div>
         </div>
-      </div>
 
-      <div className="modal-body" style={{ display: "flex", gap: 0, padding: 0, overflow: "hidden", flex: 1 }}>
-        {/* Controls Panel */}
-        <div className="no-print" style={{ width: 360, minWidth: 360, borderRight: "1px solid #e5e3dc", overflowY: "auto", padding: "16px 18px", background: "#fafafa" }}>
+        <div className="modal-body" style={{ display: "flex", gap: 0, padding: 0, overflow: "hidden", flex: 1, background: "#f8fafc" }}>
+          {/* Controls Panel */}
+          <div className="no-print" style={{ width: 360, minWidth: 360, borderRight: "1px solid #e2e8f0", overflowY: "auto", padding: "16px 18px", background: "#ffffff" }}>
           
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -959,16 +960,17 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
           </div>
         </div>
 
-        <div className="modal-footer no-print" style={{ background: "#1a2540", padding: "10px 24px", display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid #334155", flexShrink: 0 }}>
-          <button className="btn btn-ghost" style={{ color: "#fff" }} onClick={onClose}>Đóng</button>
-          <button className="btn btn-ghost" style={{ color: "#fff" }} onClick={handleSave}>
-            💾 Lưu đề nghị {saveMsg && <span style={{ color: "#4ade80", marginLeft: 6 }}>{saveMsg}</span>}
+        <div className="modal-footer no-print" style={{ background: "#ffffff", borderTop: "1px solid #e2e8f0", padding: "12px 20px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexShrink: 0 }}>
+          <button className="btn btn-ghost" onClick={onClose}>Đóng</button>
+          <button className="btn btn-secondary" onClick={handleSave}>
+            💾 Lưu đề nghị {saveMsg && <span style={{ color: "#16a34a", marginLeft: 6 }}>{saveMsg}</span>}
           </button>
-          <button className="btn btn-ghost" style={{ color: "#fff" }} onClick={handlePrint}>🖨️ In Đề Nghị Thanh Toán</button>
+          <button className="btn btn-secondary" onClick={handlePrint}>🖨️ In Đề Nghị Thanh Toán</button>
           <button className="btn btn-primary" onClick={handlePDFClick} disabled={pdfLoading} style={{ minWidth: 120 }}>
             {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
           </button>
         </div>
       </div>
+    </div>
   );
 }

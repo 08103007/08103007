@@ -1020,155 +1020,160 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
   };
  
   return (
-    <div className="fullpage-screen" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh", maxWidth: "100vw", maxHeight: "100vh", zIndex: 999999, background: "#f8fafc", display: "flex", flexDirection: "column", margin: 0, padding: 0, borderRadius: 0, border: "none", boxShadow: "none" }}>
-      <div className="modal-header no-print" style={{ background: "#1a2540", color: "#fff", padding: "12px 24px", flexShrink: 0 }}>
-          <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>💰 Biên bản đối chiếu công nợ (Toàn màn hình)</span>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <button className={`btn btn-sm ${viewMode==="form"?"btn-primary":"btn-ghost"}`} style={{ color: viewMode==="form"?"#fff":"#e2e8f0" }}
+    <div className="modal-overlay" style={{ zIndex: 99999 }}>
+      <div className="modal" style={{ width: "96vw", maxWidth: 1440, height: "92vh", display: "flex", flexDirection: "column", background: "#ffffff", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1)" }}>
+        <div className="modal-header no-print" style={{ background: "#ffffff", borderBottom: "1px solid #e2e8f0", padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+          <span className="modal-title" style={{ color: "#0f172a", fontWeight: 700, fontSize: 16 }}>💰 BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ</span>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className={`btn btn-sm ${viewMode === "form" ? "btn-primary" : "btn-ghost"}`}
               onClick={() => setViewMode("form")}>⚙️ Nhập liệu</button>
-            <button className={`btn btn-sm ${viewMode==="preview"?"btn-primary":"btn-ghost"}`} style={{ color: viewMode==="preview"?"#fff":"#e2e8f0" }}
+            <button className={`btn btn-sm ${viewMode === "preview" ? "btn-primary" : "btn-ghost"}`}
               onClick={() => setViewMode("preview")}>👁️ Xem trước</button>
-            <button className="btn btn-sm btn-ghost"
+            <button className="btn btn-sm btn-ghost" style={{ background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: 600 }}
               onClick={() => {
                 if (onOpenPaymentRequest) {
                   onOpenPaymentRequest({
                     requestType: "debt_recon",
-                    buyerName: customerName,
-                    buyerTaxCode: taxCode,
-                    buyerAddress: customerAddress,
+                    buyerName: buyerName,
+                    buyerTaxCode: buyerTax,
+                    buyerAddress: buyerAddr,
                     buyerRep: buyerRep,
                     buyerPosition: buyerTitle,
                     debtReconNo: refNum,
                     debtReconDate: dateStr,
-                    debtPeriod: periodText,
-                    amount: grandClosingBalance,
+                    debtPeriod: `Tính đến ngày ${toDateStr}`,
+                    amount: grandTotal,
                     reason: `Thanh toán số tiền công nợ theo Biên bản đối chiếu công nợ số ${refNum || "..."} ngày ${dateStr || "..."}`
                   });
                 }
               }} 
-              disabled={invoices.length===0}
+              disabled={invoices.length === 0}
               title="Tạo Giấy đề nghị thanh toán dựa trên biên bản này">🧾 Đề nghị thanh toán</button>
-            <button className="close-btn" onClick={onClose}>×</button>
+            <button className="close-btn" style={{ color: "#64748b" }} onClick={onClose}>×</button>
           </div>
         </div>
- 
-        <div className="modal-body" style={{display:"flex",gap:0,padding:0,overflow:"hidden"}}>
+
+        <div className="modal-body" style={{ display: "flex", gap: 0, padding: 0, overflow: "hidden", flex: 1, background: "#f8fafc" }}>
           <div className="no-print" style={{
-            width: viewMode==="preview" ? 0 : 340,
-            minWidth: viewMode==="preview" ? 0 : 340,
-            overflow:"hidden",
-            transition:"width 0.2s, min-width 0.2s",
-            borderRight:"1px solid #e5e3dc",
-            overflowY:"auto",
-            padding: viewMode==="preview" ? 0 : "16px 18px",
+            width: viewMode === "preview" ? 0 : 360,
+            minWidth: viewMode === "preview" ? 0 : 360,
+            overflow: "hidden",
+            transition: "width 0.2s, min-width 0.2s",
+            borderRight: "1px solid #e2e8f0",
+            overflowY: "auto",
+            padding: viewMode === "preview" ? 0 : "16px 18px",
+            background: "#ffffff"
           }}>
             {viewMode === "form" && (
               <>
-                <div style={{marginBottom:16}}>
-                  <div className="section-title" style={{marginBottom:8}}>📂 Import hóa đơn XML</div>
+                <div style={{ marginBottom: 16 }}>
+                  <div className="section-title" style={{ marginBottom: 8 }}>📂 Import hóa đơn XML</div>
                   <div className="debt-xml-dropzone"
                     onClick={() => fileRef.current && fileRef.current.click()}
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}>
-                    <div style={{fontSize:28,marginBottom:6}}>🗂️</div>
-                    <div style={{fontSize:13,color:"#555",fontWeight:500}}>Click hoặc kéo thả file XML</div>
-                    <div style={{fontSize:11,color:"#aaa",marginTop:3}}>Hỗ trợ nhiều file cùng lúc · VNPT, MISA, FAST...</div>
-                    <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" multiple style={{display:"none"}}
-                      onChange={e => { handleFiles(e.target.files); e.target.value=""; }} />
+                    <div style={{ fontSize: 28, marginBottom: 6 }}>🗂️</div>
+                    <div style={{ fontSize: 13, color: "#1e293b", fontWeight: 600 }}>Click hoặc kéo thả file XML</div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>Hỗ trợ nhiều file cùng lúc · VNPT, MISA, FAST...</div>
+                    <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" multiple style={{ display: "none" }}
+                      onChange={e => { handleFiles(e.target.files); e.target.value = ""; }} />
                   </div>
-                  {xmlError && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:6,fontSize:12,marginTop:8}}>{xmlError}</div>}
+                  {xmlError && <div style={{ background: "#fee2e2", color: "#dc2626", padding: "8px 12px", borderRadius: 6, fontSize: 12, marginTop: 8 }}>{xmlError}</div>}
                 </div>
- 
-                <div style={{marginBottom:16}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
-                    <div className="section-title" style={{marginBottom:0}}>🗂️ Danh sách biên bản đã lưu</div>
-                    <div style={{display:"flex",gap:6}}>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={handleReloadSavedRecs}>🔄 Tải lại</button>
-                      <button type="button" className="btn btn-secondary btn-sm" onClick={handleNewDebtRec}>🆕 Tạo mới</button>
+
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <div className="section-title" style={{ marginBottom: 0 }}>🗂️ Danh sách biên bản đã lưu</div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={fetchSavedRecs}>🔄 Tải lại</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+                        setRefNum(generateDebtRecNumber());
+                        setBuyerName(""); setBuyerTax(""); setBuyerAddr(""); setBuyerRep(""); setBuyerTitle("");
+                        setInvoices([]);
+                        showToast("🆕 Đã tạo biên bản mới", 2000);
+                      }}>🆕 Tạo mới</button>
                     </div>
                   </div>
                   {recListLoading ? (
-                    <div style={{fontSize:12,color:"#666"}}>Đang tải danh sách...</div>
+                    <div style={{ fontSize: 12, color: "#666" }}>Đang tải danh sách...</div>
                   ) : savedRecs.length === 0 ? (
-                    <div style={{fontSize:12,color:"#666"}}>Chưa có biên bản nào. Lưu biên bản để nó xuất hiện tại đây.</div>
+                    <div style={{ fontSize: 12, color: "#666" }}>Chưa có biên bản nào. Lưu biên bản để nó xuất hiện tại đây.</div>
                   ) : (
-                    <div style={{display:"grid",gap:10,marginBottom:10}}>
+                    <div style={{ display: "grid", gap: 8, maxHeight: 200, overflowY: "auto", marginBottom: 10 }}>
                       {savedRecs.map(rec => (
-                        <div key={rec.id} className="debt-invoice-card" style={{borderColor:rec.id===refNum?"#1a2540":"#e5e3dc"}}>
-                          <div className="debt-invoice-card-header" style={{cursor:"pointer"}} onClick={() => { setRefNum(rec.id); loadSavedByRefNum(rec.id); }}>
+                        <div key={rec.id} className="debt-invoice-card" style={{ borderColor: rec.id === refNum ? "#2563eb" : "#cbd5e1", background: rec.id === refNum ? "#eff6ff" : "#fff" }}>
+                          <div className="debt-invoice-card-header" style={{ cursor: "pointer" }} onClick={() => { setRefNum(rec.id); loadSavedByRefNum(rec.id); }}>
                             <div>
-                              <div className="inv-num" style={{fontSize:12,fontWeight:600}}>{rec.refNum}</div>
-                              <div className="inv-date" style={{fontSize:11,color:"#888"}}>
+                              <div className="inv-num" style={{ fontSize: 12, fontWeight: 600, color: "#0f172a" }}>{rec.refNum}</div>
+                              <div className="inv-date" style={{ fontSize: 11, color: "#64748b" }}>
                                 {rec.buyerName ? `${rec.buyerName} · ` : ""}{rec.invoices?.length || 0} hóa đơn
                               </div>
                             </div>
-                            <div style={{display:"flex",alignItems:"center",gap:8}}>
-                              <div className="inv-total" style={{fontSize:12,fontWeight:600}}>{fmt((rec.invoices||[]).reduce((s,i)=>s+(i.grand||0),0))} đ</div>
-                              <button type="button" className="btn btn-ghost btn-sm" style={{padding:"4px 8px"}} onClick={e => { e.stopPropagation(); handleDeleteDebtRec(rec.id); }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div className="inv-total" style={{ fontSize: 12, fontWeight: 600, color: "#1e293b" }}>{fmt((rec.invoices || []).reduce((s, i) => s + (i.grand || 0), 0))} đ</div>
+                              <button type="button" className="btn btn-ghost btn-sm" style={{ padding: "4px 8px" }} onClick={e => { e.stopPropagation(); handleDeleteDebtRec(rec.id); }}>
                                 🗑️
                               </button>
                             </div>
                           </div>
-                          <div style={{padding:"6px 10px",fontSize:11,color:"#555"}}>
-                            Cập nhật: {new Date(rec.updatedAt||0).toLocaleString()}
+                          <div style={{ padding: "6px 10px", fontSize: 11, color: "#64748b" }}>
+                            Cập nhật: {new Date(rec.updatedAt || 0).toLocaleString()}
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
- 
+
                 {invoices.length > 0 && (
-                  <div style={{marginBottom:16}}>
-                    <div className="section-title" style={{marginBottom:6}}>
+                  <div style={{ marginBottom: 16 }}>
+                    <div className="section-title" style={{ marginBottom: 6 }}>
                       📋 {invoices.length} hóa đơn đã nhập
-                      <span style={{fontSize:11,fontWeight:400,marginLeft:8,color:"#888"}}>Tổng: {fmt(grandTotal)} đ</span>
+                      <span style={{ fontSize: 11, fontWeight: 400, marginLeft: 8, color: "#64748b" }}>Tổng: {fmt(grandTotal)} đ</span>
                     </div>
                     {invoices.map(inv => (
-                      <div key={inv._id} className="debt-invoice-card">
-                        <div className="debt-invoice-card-header" onClick={() => toggleExpand(inv._id)} style={{cursor:"pointer"}}>
+                      <div key={inv._id} className="debt-invoice-card" style={{ marginBottom: 8 }}>
+                        <div className="debt-invoice-card-header" onClick={() => toggleExpand(inv._id)} style={{ cursor: "pointer" }}>
                           <div>
-                            <div className="inv-num">
-                              {inv.serial && <span style={{fontFamily:"monospace",fontSize:11}}>{inv.serial}</span>}
+                            <div className="inv-num" style={{ color: "#0f172a" }}>
+                              {inv.serial && <span style={{ fontFamily: "monospace", fontSize: 11 }}>{inv.serial}</span>}
                               {inv.serial && inv.invoiceNumber ? " / " : ""}
                               {inv.invoiceNumber && <span>No. {inv.invoiceNumber}</span>}
                             </div>
-                            <div className="inv-date">📅 {inv.invoiceDate || "—"} · {inv.items.length} dòng hàng</div>
+                            <div className="inv-date" style={{ color: "#64748b" }}>📅 {inv.invoiceDate || "—"} · {inv.items.length} dòng hàng</div>
                           </div>
-                          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                            <div className="inv-total">{fmt(inv.grand)} đ</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                            <div className="inv-total" style={{ color: "#0f172a" }}>{fmt(inv.grand)} đ</div>
                             <button onClick={e => { e.stopPropagation(); removeInvoice(inv._id); }}
-                              style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px",opacity:0.5}}
-                              onMouseEnter={e => e.currentTarget.style.opacity="1"}
-                              onMouseLeave={e => e.currentTarget.style.opacity="0.5"}
+                              style={{ background: "none", border: "none", color: "#dc2626", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: "2px 4px", opacity: 0.7 }}
                               title="Xóa hóa đơn này">✕</button>
-                            <span style={{color:"#aaa",fontSize:12}}>{expandedInv.has(inv._id)?"▲":"▼"}</span>
+                            <span style={{ color: "#64748b", fontSize: 12 }}>{expandedInv.has(inv._id) ? "▲" : "▼"}</span>
                           </div>
                         </div>
                         {expandedInv.has(inv._id) && (
-                          <div style={{padding:"8px 10px",fontSize:11,background:"#fff"}}>
+                          <div style={{ padding: "8px 10px", fontSize: 11, background: "#f8fafc", borderTop: "1px solid #e2e8f0" }}>
                             {inv.items.map((it, i) => (
-                              <div key={i} style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"1px solid #f0ede6",alignItems:"flex-start"}}>
-                                <span style={{color:"#aaa",minWidth:16,textAlign:"right",flexShrink:0}}>{i+1}.</span>
-                                <div style={{flex:1}}>
-                                  <div style={{fontWeight:500,wordBreak:"break-word"}}>{it.name}</div>
-                                  <div style={{color:"#888",fontSize:10,marginTop:1}}>
+                              <div key={i} style={{ display: "flex", gap: 6, padding: "4px 0", borderBottom: "1px dashed #cbd5e1", alignItems: "flex-start" }}>
+                                <span style={{ color: "#64748b", minWidth: 16, textAlign: "right", flexShrink: 0 }}>{i + 1}.</span>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontWeight: 600, color: "#1e293b", wordBreak: "break-word" }}>{it.name}</div>
+                                  <div style={{ color: "#64748b", fontSize: 10, marginTop: 1 }}>
                                     {it.unit && `${it.unit} · `}SL: {it.qty} · {fmt(it.price)} đ ·&nbsp;
                                     VAT {it.vatRate === -1 ? "KCT" : it.vatRate + "%"} →&nbsp;
-                                    <strong>{fmt(it.lineTotal + it.vatAmt)} đ</strong>
+                                    <strong style={{ color: "#0f172a" }}>{fmt(it.lineTotal + it.vatAmt)} đ</strong>
                                   </div>
                                   <input
                                     type="text"
                                     value={it.extraNote || ""}
                                     onChange={e => updateItemNote(inv._id, i, e.target.value)}
                                     placeholder="+ Thêm thông tin hiển thị trong biên bản..."
-                                    style={{width:"100%",fontSize:10,padding:"3px 6px",marginTop:4,border:"1px dashed #ccc",borderRadius:4,outline:"none",boxSizing:"border-box"}}
+                                    style={{ width: "100%", fontSize: 10, padding: "3px 6px", marginTop: 4, border: "1px dashed #cbd5e1", borderRadius: 4, outline: "none", boxSizing: "border-box", background: "#fff" }}
                                   />
                                 </div>
                               </div>
                             ))}
-                            <div style={{marginTop:6,textAlign:"right",color:"#555",fontSize:11}}>
-                              Hàng: {fmt(inv.subtotal)} · VAT: {fmt(inv.vatTotal)} · Tổng: <strong>{fmt(inv.grand)} đ</strong>
+                            <div style={{ marginTop: 6, textAlign: "right", color: "#475569", fontSize: 11 }}>
+                              Hàng: {fmt(inv.subtotal)} · VAT: {fmt(inv.vatTotal)} · Tổng: <strong style={{ color: "#0f172a" }}>{fmt(inv.grand)} đ</strong>
                             </div>
                           </div>
                         )}
@@ -1176,8 +1181,8 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                     ))}
                   </div>
                 )}
- 
-                <div className="section-title" style={{marginBottom:8}}>📝 Thông tin biên bản</div>
+
+                <div className="section-title" style={{ marginBottom: 8 }}>📝 Thông tin biên bản</div>
                 <div className="form-group">
                   <label>Ngôn ngữ song ngữ</label>
                   <select className="form-control" value={debtLang} onChange={e => setDebtLang(e.target.value)}>
@@ -1187,17 +1192,17 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                 </div>
                 <div className="form-group">
                   <label>Số biên bản</label>
-                  <div style={{display:"flex",gap:6}}>
+                  <div style={{ display: "flex", gap: 6 }}>
                     <input className="form-control" value={refNum} onChange={e => setRefNum(e.target.value)}
                       onBlur={e => loadSavedByRefNum(e.target.value)} placeholder="VD: BBDCCN-01/2026" />
                     <button type="button" className="btn btn-ghost btn-sm" title="Sinh số mới"
                       onClick={() => setRefNum(generateDebtRecNumber())}>🔄</button>
                   </div>
-                  <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
                     <button type="button" className="btn btn-success btn-sm" onClick={handleSaveDebtRec} disabled={saving}>
                       {saving ? "⏳ Đang lưu..." : "💾 Lưu biên bản"}
                     </button>
-                    {saveMsg && <span style={{color:"#16a34a",fontSize:12}}>{saveMsg}</span>}
+                    {saveMsg && <span style={{ color: "#16a34a", fontSize: 12 }}>{saveMsg}</span>}
                   </div>
                 </div>
                 <div className="form-row form-row-2">
@@ -1210,11 +1215,11 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                     <input className="form-control" value={toDateStr} onChange={e => setToDateStr(e.target.value)} />
                   </div>
                 </div>
- 
-                <div className="section-title" style={{marginBottom:8}}>🏢 Bên bán (Bên A)</div>
-                <div style={{background:"#f5f7fb",borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:12,color:"#555"}}>
-                  <div style={{fontWeight:700,color:"#1a2540"}}>{T.company} / {T.companyB}</div>
-                  <strong style={{color:"#1a2540"}}>{COMPANY.name}</strong><br/>
+
+                <div className="section-title" style={{ marginBottom: 8 }}>🏢 Bên bán (Bên A)</div>
+                <div style={{ background: "#f8fafc", borderRadius: 8, padding: "10px 12px", marginBottom: 12, fontSize: 12, color: "#475569", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight: 700, color: "#1e293b" }}>{T.company} / {T.companyB}</div>
+                  <strong style={{ color: "#0f172a" }}>{COMPANY.name}</strong><br />
                   {T.tax} / {T.taxB}: {COMPANY.mst} · {T.address} / {T.addressB}: {COMPANY.address}
                 </div>
                 <div className="form-row form-row-2">
@@ -1227,12 +1232,13 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                     <input className="form-control" value={sellerTitle} onChange={e => setSellerTitle(e.target.value)} />
                   </div>
                 </div>
- 
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                  <div className="section-title" style={{marginBottom:0}}>🧑‍💼 {T.buyer} / {T.buyerB}</div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <div className="section-title" style={{ marginBottom: 0 }}>🧑‍💼 {T.buyer} / {T.buyerB}</div>
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
+                    style={{ fontSize: 11, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: 600 }}
                     onClick={handleAutoTranslate}
                     disabled={translating}
                     title="🌐 Tự động dịch tên & địa chỉ bên mua"
@@ -1240,7 +1246,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                     🌐 {translating ? "Đang dịch..." : "Tự động dịch"}
                   </button>
                 </div>
-                <div style={{fontSize:11,color:"#888",marginBottom:8}}>
+                <div style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>
                   💡 Tự động điền từ file XML — có thể chỉnh sửa
                 </div>
                 <div className="form-group">
@@ -1270,30 +1276,30 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
               </>
             )}
           </div>
- 
-          <div style={{flex:1,overflowY:"auto",padding:"16px",background:"#f9f8f5"}}>
-            <div style={{maxWidth:794,margin:"0 auto",boxShadow:"0 2px 16px rgba(0,0,0,0.10)",borderRadius:4}}>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "24px", background: "#f1f5f9", display: "flex", justifyContent: "center" }}>
+            <div style={{ width: 794, minHeight: 1000, background: "#ffffff", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", borderRadius: 4, padding: "32px", boxSizing: "border-box" }}>
               {viewMode === "payment" ? renderPaymentRequest() : renderPreview()}
             </div>
           </div>
         </div>
- 
-        <div className="modal-footer no-print">
+
+        <div className="modal-footer no-print" style={{ background: "#ffffff", borderTop: "1px solid #e2e8f0", padding: "12px 20px", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexShrink: 0 }}>
           <button className="btn btn-ghost" onClick={onClose}>Đóng</button>
-          <div style={{flex:1}} />
           {invoices.length === 0 && (
-            <span style={{fontSize:12,color:"#aaa",alignSelf:"center"}}>⚠️ Import ít nhất 1 file XML để xuất</span>
+            <span style={{ fontSize: 12, color: "#94a3b8", alignSelf: "center" }}>⚠️ Import ít nhất 1 file XML để xuất</span>
           )}
-          <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading || invoices.length === 0} style={{minWidth:120}}>
+          <button className="btn btn-secondary" onClick={handlePDFClick} disabled={pdfLoading || invoices.length === 0} style={{ minWidth: 110 }}>
             {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
           </button>
-          <button className="btn btn-ghost" onClick={handleWordClick} disabled={wordLoading || invoices.length === 0} style={{minWidth:120}}>
+          <button className="btn btn-secondary" onClick={handleWordClick} disabled={wordLoading || invoices.length === 0} style={{ minWidth: 110 }}>
             {wordLoading ? "⏳ Đang tạo..." : "📝 Xuất Word"}
           </button>
-          <button className="btn btn-primary" onClick={handlePrint} disabled={invoices.length === 0}>
+          <button className="btn btn-primary" onClick={handlePrint} disabled={invoices.length === 0} style={{ minWidth: 100 }}>
             🖨️ In
           </button>
         </div>
       </div>
+    </div>
   );
 }
