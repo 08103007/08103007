@@ -233,21 +233,22 @@ export async function _flushToGAS() {
 
 export function _flushToLocalStorage() {
   try {
-    setLS(LS_QUOTES,    JSON.stringify(_mem.quotes    ?? []));
-    setLS(LS_PRODUCTS,  JSON.stringify(_mem.products));
-    setLS(LS_CUSTOMERS, JSON.stringify(_mem.customers));
-    setLS(LS_CONTRACTS,  JSON.stringify(_mem.contracts));
-    setLS(LS_HANDOVERS,  JSON.stringify(_mem.handovers));
-    setLS(LS_DELIVERIES, JSON.stringify(_mem.deliveries));
-    setLS(LS_DEBTRECS,   JSON.stringify(_mem.debtRecs));
-    setLS(LS_TASKS,      JSON.stringify(_mem.tasks));
-    setLS(LS_NOTES,      JSON.stringify(_mem.notes));
-
     setLS(LS_COMPANY,      JSON.stringify(COMPANY));
     setLS(LS_CONTRACTS_DF, JSON.stringify(CONTRACT_DEFAULTS));
     setLS(LS_CATALOG,      JSON.stringify(PRODUCT_CATALOG));
+    setLS(LS_PRODUCTS,     JSON.stringify(_mem.products || []));
+    setLS(LS_CUSTOMERS,    JSON.stringify(_mem.customers || []));
 
-    if (Array.isArray(_mem.quotes) && _mem.quotes.length > 0) {
+    // When Supabase Cloud Database is connected, store quotes on Supabase Cloud to avoid QuotaExceededError
+    if (!hasSupabase()) {
+      setLS(LS_QUOTES, JSON.stringify(_mem.quotes ?? []));
+    } else {
+      try { removeLS(LS_QUOTES); } catch {}
+    }
+  } catch (e) {
+    // Silent catch for localStorage quota limits
+  }
+}
       setLS("pmc_quotes_emergency_backup", JSON.stringify(_mem.quotes));
     }
 

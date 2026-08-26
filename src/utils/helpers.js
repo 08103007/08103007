@@ -125,8 +125,10 @@ export function getCustomerColor(name) {
 }
 
 export function calcItems(items, quoteVatRate) {
-  const subtotal = items.reduce((s, it) => s + (it.qty||0)*(it.price||0), 0);
-  const vatTotal = items.reduce((s, it) => {
+  const safeItems = Array.isArray(items) ? items : [];
+  const subtotal = safeItems.reduce((s, it) => s + ((it?.qty||0)*(it?.price||0)), 0);
+  const vatTotal = safeItems.reduce((s, it) => {
+    if (!it) return s;
     const line = (it.qty||0)*(it.price||0);
     const iRate = it.vatRate !== undefined ? it.vatRate : (quoteVatRate !== undefined ? quoteVatRate : 8);
     if (iRate === -1) return s;
