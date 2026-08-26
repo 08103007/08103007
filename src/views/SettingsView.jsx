@@ -45,7 +45,7 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     setMigMsg("⏳ Đang đẩy toàn bộ dữ liệu lên Supabase...");
     try {
       const res = await migrateAllLocalDataToSupabase(_mem, company, CONTRACT_DEFAULTS, PRODUCT_CATALOG);
-      setMigMsg(`✅ Đã đẩy thành công ${res.quotesCount} báo giá và ${res.productsCount} sản phẩm lên Supabase Cloud!`);
+      setMigMsg(`✅ Đã đẩy thành công ${res.quotesCount || 0} báo giá, ${res.productsCount || 0} sản phẩm, ${res.debtRecsCount || 0} đối chiếu công nợ, ${res.payReqsCount || 0} đề nghị thanh toán lên Supabase Cloud!`);
     } catch(err) {
       setMigMsg("❌ Lỗi đẩy dữ liệu: " + err.message);
     } finally {

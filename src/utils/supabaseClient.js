@@ -398,28 +398,19 @@ export async function upsertSupabaseSettings(key, value) {
 }
 
 /**
- * 1-Click Master Data Migration from Local Memory to Supabase Cloud
+ * 1-Click Master Data Migration from Local Memory & GAS to Supabase Cloud (Syncs all 8 tables)
  */
 export async function migrateAllLocalDataToSupabase(_mem, company, contractDefaults, productCatalog) {
   if (!hasSupabase()) throw new Error("Chưa kết nối Supabase URL và Key");
   
   let quotesCount = 0;
   let productsCount = 0;
+  let debtRecsCount = 0;
+  let payReqsCount = 0;
+  let handoversCount = 0;
+  let contractsCount = 0;
+  let deliveriesCount = 0;
 
-  // 1. Upload Quotes
-  if (Array.isArray(_mem.quotes) && _mem.quotes.length > 0) {
-    const ok = await upsertSupabaseQuotes(_mem.quotes);
-    if (!ok) throw new Error("Lỗi đẩy Báo giá lên Supabase");
-    quotesCount = _mem.quotes.length;
-  }
-
-  // 2. Upload Products
-  if (Array.isArray(_mem.products) && _mem.products.length > 0) {
-    await upsertSupabaseProducts(_mem.products);
-    productsCount = _mem.products.length;
-  }
-
-  // 3. Upload App Settings & Master Data
   const settingsData = {
     company: company,
     contractDefaults: contractDefaults,
@@ -429,13 +420,44 @@ export async function migrateAllLocalDataToSupabase(_mem, company, contractDefau
     handovers: _mem.handovers || {},
     deliveries: _mem.deliveries || {},
     debtRecs: _mem.debtRecs || {},
+    paymentRequests: _mem.paymentRequests || {},
     tasks: _mem.tasks || [],
     notes: _mem.notes || []
   };
 
+  // 1. Upload Quotes (quotes table)
+  if (Array.isArray(_mem.quotes) && _mem.quotes.length > 0) {
+    const ok = await upsertSupabaseQuotes(_mem.quotes, settingsData);
+    if (!ok) throw new Error("Lỗi đẩy Báo giá lên Supabase");
+    quotesCount = _mem.quotes.length;
+  }
+
+  // 2. Upload Products (products table - aggregated catalog + quote items)
+  const prodOk = await upsertSupabaseProducts(_mem.products || [], productCatalog, _mem.quotes || []);
+  if (prodOk) productsCount = (_mem.products || []).length || (productCatalog || []).length;
+
+  // 3. Upload Debt Reconciliations (debt_reconciliations table)
+  if (_mem.debtRecs && typeof _mem.debtRecs === "object") {
+    await upsertSupabaseDebtRecs(_mem.debtRecs);
+    debtRecsCount = Object.keys(_mem.debtRecs).length;
+  }
+
+  // 4. Upload Payment Requests (payment_requests table)
+  if (_mem.paymentRequests && typeof _mem.paymentRequests === "object") {
+    await upsertSupabasePaymentRequests(_mem.paymentRequests);
+    payReqsCount = Object.keys(_mem.paymentRequests).length;
+  }
+
+  // 5. Upload Handovers (handovers table)
+  if (_mem.handovers && typeof _mem.handovers === "object") {
+    await upsertSupabaseHandovers(_mem.handovers);
+    handoversCount = Object.keys(_mem.handovers).length;
+  }
+
+  // 6. Upload Master Settings (app_settings table)
   await upsertSupabaseSettings("master_settings", settingsData);
 
-  return { quotesCount, productsCount };
+  return { quotesCount, productsCount, debtRecsCount, payReqsCount, handoversCount, contractsCount, deliveriesCount };
 }
 
 export const SUPABASE_SQL_SCHEMA = `-- CÂU LỆNH MẪU TẠO BẢNG TRÊN SUPABASE (SQL EDITOR):
