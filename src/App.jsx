@@ -216,6 +216,27 @@ export default function App() {
     );
   }
 
+  if (view === "debt_recon") {
+    return (
+      <DebtReconciliationModal 
+        onClose={() => setView("list")} 
+        onOpenPaymentRequest={(initialData) => {
+          setPaymentReqData(initialData);
+          setView("payment_req");
+        }}
+      />
+    );
+  }
+
+  if (view === "payment_req") {
+    return (
+      <PaymentRequestModal
+        initialData={paymentReqData || {}}
+        onClose={() => setView("list")}
+      />
+    );
+  }
+
   return (
     <div className="app">
       <div className="topbar no-print">
@@ -376,23 +397,6 @@ export default function App() {
                 setCompanyVersion(v => v + 1);
               }}
               onQuotesImport={(newQuotes) => setQuotes(newQuotes)}
-            />
-          )}
-
-          {view === "debt_recon" && (
-            <DebtReconciliationModal 
-              onClose={() => setView("list")} 
-              onOpenPaymentRequest={(initialData) => {
-                setPaymentReqData(initialData);
-                setView("payment_req");
-              }}
-            />
-          )}
-
-          {view === "payment_req" && (
-            <PaymentRequestModal
-              initialData={paymentReqData || {}}
-              onClose={() => setView("list")}
             />
           )}
 
