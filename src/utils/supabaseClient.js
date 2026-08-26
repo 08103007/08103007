@@ -6,8 +6,10 @@
 export const LS_SB_URL = "pmc_sb_url_v1";
 export const LS_SB_KEY = "pmc_sb_key_v1";
 
+export const DEFAULT_SB_URL = "https://iwkkkewyjuwnsmmtkdj.supabase.co";
+
 export function getSupabaseUrl() {
-  return (localStorage.getItem(LS_SB_URL) || "").trim();
+  return (localStorage.getItem(LS_SB_URL) || DEFAULT_SB_URL).trim();
 }
 
 export function setSupabaseUrl(url) {
@@ -25,7 +27,8 @@ export function setSupabaseKey(key) {
 export function hasSupabase() {
   const url = getSupabaseUrl();
   const key = getSupabaseKey();
-  return !!(url && key && url.startsWith("http"));
+  // If Supabase URL is present, Supabase Cloud is enabled
+  return !!(url && url.startsWith("http") && (key || url === DEFAULT_SB_URL));
 }
 
 function getHeaders() {

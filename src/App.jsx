@@ -32,7 +32,7 @@ export default function App() {
   const [quotes, setQuotes] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [authed, setAuthed]       = useState(() => isAuthenticated());
-  const [gasReady, setGasReady]   = useState(() => hasGasUrl());
+  const [gasReady, setGasReady]   = useState(() => hasGasUrl() || hasSupabase());
 
   const [view, setView] = useState("list");
   const [showModal, setShowModal] = useState(false);
