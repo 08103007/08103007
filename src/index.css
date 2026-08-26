@@ -1887,3 +1887,11 @@ input[type=number] {
 .debt-sign-block .sign-space {
   height: 64px;
 }
+
+.btn-success {
+  background-color: #16a34a !important;
+  color: #ffffff !important;
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
