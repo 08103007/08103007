@@ -3,23 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🚀 Công Cụ Đồng Bộ & Push Data Lên 8 Bảng Supabase Cloud</title>
+  <title>🚀 Tool Push & Chuyển Đổi Tự Động Data Lên 8 Bảng Supabase Cloud</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     body { background: #0f172a; color: #f8fafc; padding: 30px 20px; display: flex; justify-content: center; }
-    .container { max-width: 800px; width: 100%; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .container { max-width: 850px; width: 100%; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
     h1 { font-size: 20px; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
     p.desc { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.6; }
     .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
     .label { font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; display: block; }
     input[type="text"], input[type="password"], textarea { width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; font-size: 13px; margin-bottom: 12px; outline: none; }
     input:focus, textarea:focus { border-color: #38bdf8; }
-    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 12px 20px; background: #0284c7; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; width: 100%; }
-    .btn:hover { background: #0369a1; }
-    .btn-green { background: #16a34a; }
-    .btn-green:hover { background: #15803d; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 14px 20px; background: #16a34a; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; width: 100%; }
+    .btn:hover { background: #15803d; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .log-box { background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 14px; height: 260px; overflow-y: auto; font-family: monospace; font-size: 12.5px; color: #4ade80; line-height: 1.7; margin-top: 16px; }
+    .log-box { background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 14px; height: 320px; overflow-y: auto; font-family: monospace; font-size: 12.5px; color: #4ade80; line-height: 1.7; margin-top: 16px; }
     .log-err { color: #f87171; }
     .log-info { color: #38bdf8; }
     .log-warn { color: #fbbf24; }
@@ -32,8 +30,8 @@
 <body>
 
 <div class="container">
-  <h1>🚀 Công Cụ Push Dữ Liệu Lên 8 Bảng Supabase Cloud</h1>
-  <p class="desc">Công cụ độc lập giúp bạn quét toàn bộ <b>Báo giá, Sản phẩm, Biên bản công nợ, Giấy đề nghị thanh toán, Hợp đồng, Bàn giao</b> từ trình duyệt/máy tính để đẩy thẳng lên Supabase PostgreSQL.</p>
+  <h1>🚀 Tool Push Data & Tự Động Trích Xuất Biên Bản Lên Supabase Cloud</h1>
+  <p class="desc">Tool sẽ tự động quét file JSON / LocalStorage. Nếu file JSON cũ chưa có Biên bản công nợ, Đề nghị thanh toán, Hợp đồng, Tool sẽ **tự động bóc tách từ danh sách Báo giá** để tạo dữ liệu cho đầy đủ 8 Bảng Supabase Cloud!</p>
 
   <div class="card">
     <label class="label">1. Supabase Project URL</label>
@@ -42,25 +40,24 @@
     <label class="label">2. Supabase Anon Key (Public Key)</label>
     <input type="password" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
 
-    <label class="label">3. Chọn File JSON Backup trên PC (Không bắt buộc - để trống nếu dùng dữ liệu LocalStorage trình duyệt)</label>
+    <label class="label">3. Chọn File JSON Backup trên PC (Ví dụ: baogia_pmc.json)</label>
     <input type="file" id="jsonFile" accept=".json" style="margin-bottom:10px; color:#94a3b8;">
   </div>
 
-  <div class="stat-grid" id="statGrid">
+  <div class="stat-grid">
     <div class="stat-card"><div class="stat-title">Báo giá</div><div class="stat-num" id="stQuotes">0</div></div>
     <div class="stat-card"><div class="stat-title">Sản phẩm</div><div class="stat-num" id="stProducts">0</div></div>
-    <div class="stat-card"><div class="stat-title">Công nợ</div><div class="stat-num" id="stDebt">0</div></div>
-    <div class="stat-card"><div class="stat-title">Đề nghị TT</div><div class="stat-num" id="stPay">0</div></div>
-    <div class="stat-card"><div class="stat-title">Bàn giao</div><div class="stat-num" id="stHand">0</div></div>
+    <div class="stat-card"><div class="stat-title">Công nợ (DCCN)</div><div class="stat-num" id="stDebt">0</div></div>
+    <div class="stat-card"><div class="stat-title">Đề nghị TT (DNTT)</div><div class="stat-num" id="stPay">0</div></div>
+    <div class="stat-card"><div class="stat-title">Hợp đồng & Bàn giao</div><div class="stat-num" id="stContracts">0</div></div>
   </div>
 
-  <button type="button" class="btn btn-green" id="btnPush" onclick="startPush()">🚀 BẮT ĐẦU PUSH TOÀN BỘ DỮ LIỆU LÊN 8 BẢNG SUPABASE</button>
+  <button type="button" class="btn" id="btnPush" onclick="startPush()">🚀 CHUYỂN ĐỔI & PUSH TẤT CẢ LÊN 8 BẢNG SUPABASE CLOUD</button>
 
-  <div class="log-box" id="logBox">⚡ Sẵn sàng. Nhập URL/Key hoặc chọn file JSON rồi bấm [BẮT ĐẦU PUSH] để thực hiện...</div>
+  <div class="log-box" id="logBox">⚡ Sẵn sàng. Nhập Anon Key, chọn file JSON (nếu có) rồi bấm nút trên để thực hiện...</div>
 </div>
 
 <script>
-  // Auto-fill from localStorage if available
   document.getElementById('sbUrl').value = localStorage.getItem('pmc_sb_url_v1') || 'https://iwkkkewyjuwnsmmtkdj.supabase.co';
   document.getElementById('sbKey').value = localStorage.getItem('pmc_sb_key_v1') || '';
 
@@ -83,16 +80,10 @@
     let handovers = {};
     let contracts = {};
     let deliveries = {};
-    let company = {};
 
     try {
       const q = localStorage.getItem('pmc_quotes_v1') || localStorage.getItem('pmc_quotes');
       if (q) quotes = JSON.parse(q);
-    } catch {}
-
-    try {
-      const p = localStorage.getItem('pmc_products_v1');
-      if (p) products = JSON.parse(p);
     } catch {}
 
     try {
@@ -110,7 +101,12 @@
       if (hw) handovers = JSON.parse(hw);
     } catch {}
 
-    return { quotes, products, debtRecs, payReqs, handovers, contracts, deliveries, company };
+    try {
+      const ct = localStorage.getItem('pmc_contracts_v1');
+      if (ct) contracts = JSON.parse(ct);
+    } catch {}
+
+    return { quotes, products, debtRecs, payReqs, handovers, contracts, deliveries };
   }
 
   async function startPush() {
@@ -127,8 +123,8 @@
     localStorage.setItem('pmc_sb_key_v1', key);
 
     btn.disabled = true;
-    btn.textContent = '⏳ ĐANG XỬ LÝ PUSH DATA...';
-    log('Bắt đầu quá trình đồng bộ lên 8 bảng Supabase...', 'info');
+    btn.textContent = '⏳ ĐANG XỬ LÝ CHUYỂN ĐỔI & PUSH DATA...';
+    log('Bắt đầu quá trình đồng bộ & tự động trích xuất biên bản...', 'info');
 
     let data = parseLocalData();
 
@@ -140,21 +136,104 @@
         const text = await fileInput.files[0].text();
         const json = JSON.parse(text);
         if (Array.isArray(json.quotes)) data.quotes = json.quotes;
-        if (Array.isArray(json)) data.quotes = json;
-        if (json.debtRecs) data.debtRecs = json.debtRecs;
-        if (json.paymentRequests) data.payReqs = json.paymentRequests;
-        if (json.handovers) data.handovers = json.handovers;
+        else if (Array.isArray(json)) data.quotes = json;
+        if (json.debtRecs && typeof json.debtRecs === 'object') data.debtRecs = { ...data.debtRecs, ...json.debtRecs };
+        if (json.paymentRequests && typeof json.paymentRequests === 'object') data.payReqs = { ...data.payReqs, ...json.paymentRequests };
+        if (json.handovers && typeof json.handovers === 'object') data.handovers = { ...data.handovers, ...json.handovers };
+        if (json.contracts && typeof json.contracts === 'object') data.contracts = { ...data.contracts, ...json.contracts };
         log(`Đã nạp file JSON: ${data.quotes.length} báo giá`, 'info');
       } catch (e) {
         log(`Lỗi đọc file JSON: ${e.message}`, 'err');
       }
     }
 
+    // AUTO-EXTRACT & FALLBACK GENERATION FOR MISSING DEBT RECS, PAY REQS, CONTRACTS, HANDOVERS
+    log('🔍 Đang kiểm tra và tự động trích xuất Biên bản công nợ, Đề nghị TT từ báo giá...', 'info');
+    data.quotes.forEach(q => {
+      if (!q) return;
+      const qNum = q.quoteNumber || q.id || `Q_${Date.now()}`;
+      const cust = q.customer || "Khách hàng PMC";
+      const totalAmt = Number(q.total || 0);
+
+      // Check if embedded in quote
+      if (q.debtRec && typeof q.debtRec === 'object') {
+        data.debtRecs[q.debtRec.refNum || qNum] = q.debtRec;
+      }
+      if (q.paymentRequest && typeof q.paymentRequest === 'object') {
+        data.payReqs[q.paymentRequest.reqNumber || qNum] = q.paymentRequest;
+      }
+      if (q.contract && typeof q.contract === 'object') {
+        data.contracts[q.contract.contractNumber || qNum] = q.contract;
+      }
+      if (q.handover && typeof q.handover === 'object') {
+        data.handovers[q.handover.id || qNum] = q.handover;
+      }
+
+      // Fallback DCCN generation if not existing for this quote
+      const drKey = `DCCN-${qNum}`;
+      if (!data.debtRecs[drKey] && !data.debtRecs[qNum]) {
+        data.debtRecs[drKey] = {
+          id: drKey,
+          refNum: drKey,
+          dateStr: q.date || new Date().toLocaleDateString("vi-VN"),
+          toDateStr: q.date || new Date().toLocaleDateString("vi-VN"),
+          buyerName: cust,
+          buyerTax: q.taxCode || "",
+          buyerAddr: q.address || "",
+          debtLang: "vi_en",
+          invoices: [{
+            invNo: `HD-${qNum}`,
+            invDate: q.date || new Date().toLocaleDateString("vi-VN"),
+            subtotal: totalAmt,
+            vat: Math.round(totalAmt * (q.vatRate || 8) / 100),
+            grand: Math.round(totalAmt * (1 + (q.vatRate || 8) / 100)),
+            items: Array.isArray(q.items) ? q.items : []
+          }]
+        };
+      }
+
+      // Fallback DNTT generation if not existing for this quote
+      const prKey = `DNTT-${qNum}`;
+      if (!data.payReqs[prKey] && !data.payReqs[qNum]) {
+        data.payReqs[prKey] = {
+          id: prKey,
+          reqNumber: prKey,
+          buyerName: cust,
+          amount: Math.round(totalAmt * (1 + (q.vatRate || 8) / 100)),
+          quoteNumber: qNum,
+          date: q.date || new Date().toLocaleDateString("vi-VN")
+        };
+      }
+
+      // Fallback Contract generation
+      const ctKey = `HD-${qNum}`;
+      if (!data.contracts[ctKey] && !data.contracts[qNum]) {
+        data.contracts[ctKey] = {
+          id: ctKey,
+          contractNumber: ctKey,
+          customer: cust,
+          quoteId: q.id,
+          total: totalAmt
+        };
+      }
+
+      // Fallback Handover generation
+      const hwKey = `BG-${qNum}`;
+      if (!data.handovers[hwKey] && !data.handovers[qNum]) {
+        data.handovers[hwKey] = {
+          id: hwKey,
+          quoteId: q.id,
+          customer: cust,
+          date: q.date || new Date().toLocaleDateString("vi-VN")
+        };
+      }
+    });
+
     document.getElementById('stQuotes').textContent = data.quotes.length;
-    document.getElementById('stProducts').textContent = data.products.length;
+    document.getElementById('stProducts').textContent = (data.products || []).length;
     document.getElementById('stDebt').textContent = Object.keys(data.debtRecs).length;
     document.getElementById('stPay').textContent = Object.keys(data.payReqs).length;
-    document.getElementById('stHand').textContent = Object.keys(data.handovers).length;
+    document.getElementById('stContracts').textContent = Object.keys(data.contracts).length;
 
     const headers = {
       'apikey': key,
@@ -164,7 +243,7 @@
     };
 
     // 1. Push Quotes
-    log(`[1/8] 📤 Đang đẩy ${data.quotes.length} báo giá vào bảng 'quotes'...`, 'info');
+    log(`[1/6] 📤 Đang đẩy ${data.quotes.length} Báo giá vào bảng 'quotes'...`, 'info');
     try {
       const qRows = data.quotes.map(q => ({
         id: q.id || q.quoteNumber || `q_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
@@ -177,7 +256,6 @@
         updated_at: new Date().toISOString()
       }));
 
-      // Add sys_master_payload row
       qRows.push({
         id: "sys_master_payload",
         quote_number: "SYS_MASTER_PAYLOAD",
@@ -185,7 +263,7 @@
         customer: "HỆ THỐNG MASTER DATA",
         status: "system",
         total: 0,
-        payload: { debtRecs: data.debtRecs, paymentRequests: data.payReqs, handovers: data.handovers },
+        payload: { debtRecs: data.debtRecs, paymentRequests: data.payReqs, handovers: data.handovers, contracts: data.contracts },
         updated_at: new Date().toISOString()
       });
 
@@ -193,15 +271,15 @@
       for (let i = 0; i < qRows.length; i += chunkSize) {
         const chunk = qRows.slice(i, i + chunkSize);
         const resp = await fetch(`${url}/rest/v1/quotes`, { method: 'POST', headers, body: JSON.stringify(chunk) });
-        if (!resp.ok) log(`Cảnh báo push quotes chunk ${i}: ${await resp.text()}`, 'warn');
+        if (!resp.ok) log(`Cảnh báo quotes chunk ${i}: ${await resp.text()}`, 'warn');
       }
-      log(`[1/8] ✅ Đã lưu thành công ${qRows.length} báo giá & Master Payload vào bảng 'quotes'!`);
+      log(`[1/6] ✅ Đã đẩy ${qRows.length} báo giá & Master Payload vào bảng 'quotes'!`);
     } catch (e) {
-      log(`[1/8] ❌ Lỗi bảng quotes: ${e.message}`, 'err');
+      log(`[1/6] ❌ Lỗi bảng quotes: ${e.message}`, 'err');
     }
 
     // 2. Push Products
-    log(`[2/8] 📤 Đang tổng hợp và đẩy sản phẩm vào bảng 'products'...`, 'info');
+    log(`[2/6] 📤 Đang tổng hợp và đẩy sản phẩm vào bảng 'products'...`, 'info');
     try {
       const prodMap = new Map();
       (data.products || []).forEach(p => { if (p && p.name) prodMap.set(p.name.trim().toLowerCase(), p); });
@@ -228,17 +306,15 @@
         updated_at: new Date().toISOString()
       }));
       if (pRows.length > 0) {
-        const resp = await fetch(`${url}/rest/v1/products`, { method: 'POST', headers, body: JSON.stringify(pRows) });
-        log(`[2/8] ✅ Đã lưu thành công ${pRows.length} sản phẩm vào bảng 'products'!`);
-      } else {
-        log(`[2/8] ℹ️ Không có sản phẩm nào cần nạp vào bảng 'products'.`, 'info');
+        await fetch(`${url}/rest/v1/products`, { method: 'POST', headers, body: JSON.stringify(pRows) });
+        log(`[2/6] ✅ Đã đẩy ${pRows.length} sản phẩm vào bảng 'products'!`);
       }
     } catch (e) {
-      log(`[2/8] ⚠️ Lỗi bảng products: ${e.message}`, 'warn');
+      log(`[2/6] ⚠️ Lỗi bảng products: ${e.message}`, 'warn');
     }
 
     // 3. Push Debt Reconciliations
-    log(`[3/8] 📤 Đang đẩy Biên bản công nợ vào bảng 'debt_reconciliations'...`, 'info');
+    log(`[3/6] 📤 Đang đẩy ${Object.keys(data.debtRecs).length} Biên bản công nợ vào bảng 'debt_reconciliations'...`, 'info');
     try {
       const drList = Object.values(data.debtRecs || {});
       if (drList.length > 0) {
@@ -251,17 +327,15 @@
           payload: d,
           updated_at: new Date().toISOString()
         }));
-        const resp = await fetch(`${url}/rest/v1/debt_reconciliations`, { method: 'POST', headers, body: JSON.stringify(drRows) });
-        log(`[3/8] ✅ Đã lưu thành công ${drRows.length} biên bản đối chiếu vào bảng 'debt_reconciliations'!`);
-      } else {
-        log(`[3/8] ℹ️ Chưa có Biên bản đối chiếu công nợ nào trong bộ nhớ.`, 'info');
+        await fetch(`${url}/rest/v1/debt_reconciliations`, { method: 'POST', headers, body: JSON.stringify(drRows) });
+        log(`[3/6] ✅ Đã đẩy ${drRows.length} biên bản công nợ vào bảng 'debt_reconciliations'!`);
       }
     } catch (e) {
-      log(`[3/8] ⚠️ Lỗi bảng debt_reconciliations: ${e.message}`, 'warn');
+      log(`[3/6] ⚠️ Lỗi bảng debt_reconciliations: ${e.message}`, 'warn');
     }
 
     // 4. Push Payment Requests
-    log(`[4/8] 📤 Đang đẩy Giấy đề nghị thanh toán vào bảng 'payment_requests'...`, 'info');
+    log(`[4/6] 📤 Đang đẩy ${Object.keys(data.payReqs).length} Giấy đề nghị thanh toán vào bảng 'payment_requests'...`, 'info');
     try {
       const prList = Object.values(data.payReqs || {});
       if (prList.length > 0) {
@@ -273,27 +347,58 @@
           payload: r,
           updated_at: new Date().toISOString()
         }));
-        const resp = await fetch(`${url}/rest/v1/payment_requests`, { method: 'POST', headers, body: JSON.stringify(prRows) });
-        log(`[4/8] ✅ Đã lưu thành công ${prRows.length} giấy đề nghị thanh toán vào bảng 'payment_requests'!`);
-      } else {
-        log(`[4/8] ℹ️ Chưa có Giấy đề nghị thanh toán nào trong bộ nhớ.`, 'info');
+        await fetch(`${url}/rest/v1/payment_requests`, { method: 'POST', headers, body: JSON.stringify(prRows) });
+        log(`[4/6] ✅ Đã đẩy ${prRows.length} đề nghị thanh toán vào bảng 'payment_requests'!`);
       }
     } catch (e) {
-      log(`[4/8] ⚠️ Lỗi bảng payment_requests: ${e.message}`, 'warn');
+      log(`[4/6] ⚠️ Lỗi bảng payment_requests: ${e.message}`, 'warn');
     }
 
-    // 5. Push Settings
-    log(`[5/8] 📤 Đang lưu cài đặt hệ thống vào bảng 'app_settings'...`, 'info');
+    // 5. Push Contracts & Handovers
+    log(`[5/6] 📤 Đang đẩy Hợp đồng & Bàn giao vào bảng 'contracts' và 'handovers'...`, 'info');
+    try {
+      const ctList = Object.values(data.contracts || {});
+      if (ctList.length > 0) {
+        const ctRows = ctList.map(c => ({
+          id: c.id || c.contractNumber || `ct_${Date.now()}`,
+          contract_number: c.contractNumber || "",
+          quote_id: c.quoteId || "",
+          customer: c.customer || "",
+          payload: c,
+          updated_at: new Date().toISOString()
+        }));
+        await fetch(`${url}/rest/v1/contracts`, { method: 'POST', headers, body: JSON.stringify(ctRows) });
+      }
+
+      const hwList = Object.values(data.handovers || {});
+      if (hwList.length > 0) {
+        const hwRows = hwList.map(h => ({
+          id: h.id || `hw_${Date.now()}`,
+          quote_id: h.quoteId || "",
+          customer: h.customer || "",
+          date: h.date || "",
+          payload: h,
+          updated_at: new Date().toISOString()
+        }));
+        await fetch(`${url}/rest/v1/handovers`, { method: 'POST', headers, body: JSON.stringify(hwRows) });
+      }
+      log(`[5/6] ✅ Đã đẩy ${ctList.length} hợp đồng và ${hwList.length} biên bản bàn giao!`);
+    } catch (e) {
+      log(`[5/6] ⚠️ Lỗi bảng contracts/handovers: ${e.message}`, 'warn');
+    }
+
+    // 6. Push Settings
+    log(`[6/6] 📤 Đang lưu Cài đặt & Master Payload vào 'app_settings'...`, 'info');
     try {
       const sRow = [{ key: "master_settings", value: data, updated_at: new Date().toISOString() }];
       await fetch(`${url}/rest/v1/app_settings`, { method: 'POST', headers, body: JSON.stringify(sRow) });
-      log(`[5/8] ✅ Đã lưu cài đặt hệ thống vào bảng 'app_settings'!`);
+      log(`[6/6] ✅ Đã lưu Cài đặt hệ thống vào bảng 'app_settings'!`);
     } catch (e) {
-      log(`[5/8] ⚠️ Lỗi bảng app_settings: ${e.message}`, 'warn');
+      log(`[6/6] ⚠️ Lỗi bảng app_settings: ${e.message}`, 'warn');
     }
 
     log('================================================', 'info');
-    log('🎉 THÀNH CÔNG! DỮ LIỆU ĐÃ ĐƯỢC PUSH LÊN CLOUD SUPABASE!', 'success');
+    log('🎉 THÀNH CÔNG RỰC RỠ! DỮ LIỆU CÔNG NỢ & ĐỀ NGHỊ THANH TOÁN ĐÃ NẰM TRÊN SUPABASE CLOUD!', 'success');
     btn.disabled = false;
     btn.textContent = '🚀 PUSH LẠI DỮ LIỆU LÊN SUPABASE';
   }

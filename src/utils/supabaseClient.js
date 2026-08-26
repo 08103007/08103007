@@ -411,6 +411,56 @@ export async function migrateAllLocalDataToSupabase(_mem, company, contractDefau
   let contractsCount = 0;
   let deliveriesCount = 0;
 
+  // Auto-extract and fallback generate missing DebtRecs, PayReqs, Contracts, Handovers from all quotes
+  const quotesList = Array.isArray(_mem.quotes) ? _mem.quotes : [];
+  const debtRecsObj = { ...(_mem.debtRecs || {}) };
+  const payReqsObj = { ...(_mem.paymentRequests || {}) };
+  const contractsObj = { ...(_mem.contracts || {}) };
+  const handoversObj = { ...(_mem.handovers || {}) };
+
+  quotesList.forEach(q => {
+    if (!q) return;
+    const qNum = q.quoteNumber || q.id || `Q_${Date.now()}`;
+    const cust = q.customer || "Khách hàng PMC";
+    const totalAmt = Number(q.total || 0);
+
+    if (q.debtRec && typeof q.debtRec === 'object') debtRecsObj[q.debtRec.refNum || qNum] = q.debtRec;
+    if (q.paymentRequest && typeof q.paymentRequest === 'object') payReqsObj[q.paymentRequest.reqNumber || qNum] = q.paymentRequest;
+    if (q.contract && typeof q.contract === 'object') contractsObj[q.contract.contractNumber || qNum] = q.contract;
+    if (q.handover && typeof q.handover === 'object') handoversObj[q.handover.id || qNum] = q.handover;
+
+    const drKey = `DCCN-${qNum}`;
+    if (!debtRecsObj[drKey] && !debtRecsObj[qNum]) {
+      debtRecsObj[drKey] = {
+        id: drKey, refNum: drKey,
+        dateStr: q.date || new Date().toLocaleDateString("vi-VN"),
+        toDateStr: q.date || new Date().toLocaleDateString("vi-VN"),
+        buyerName: cust, buyerTax: q.taxCode || "", buyerAddr: q.address || "", debtLang: "vi_en",
+        invoices: [{ invNo: `HD-${qNum}`, invDate: q.date || new Date().toLocaleDateString("vi-VN"), subtotal: totalAmt, vat: Math.round(totalAmt * (q.vatRate || 8) / 100), grand: Math.round(totalAmt * (1 + (q.vatRate || 8) / 100)), items: Array.isArray(q.items) ? q.items : [] }]
+      };
+    }
+
+    const prKey = `DNTT-${qNum}`;
+    if (!payReqsObj[prKey] && !payReqsObj[qNum]) {
+      payReqsObj[prKey] = { id: prKey, reqNumber: prKey, buyerName: cust, amount: Math.round(totalAmt * (1 + (q.vatRate || 8) / 100)), quoteNumber: qNum, date: q.date || new Date().toLocaleDateString("vi-VN") };
+    }
+
+    const ctKey = `HD-${qNum}`;
+    if (!contractsObj[ctKey] && !contractsObj[qNum]) {
+      contractsObj[ctKey] = { id: ctKey, contractNumber: ctKey, customer: cust, quoteId: q.id, total: totalAmt };
+    }
+
+    const hwKey = `BG-${qNum}`;
+    if (!handoversObj[hwKey] && !handoversObj[qNum]) {
+      handoversObj[hwKey] = { id: hwKey, quoteId: q.id, customer: cust, date: q.date || new Date().toLocaleDateString("vi-VN") };
+    }
+  });
+
+  _mem.debtRecs = debtRecsObj;
+  _mem.paymentRequests = payReqsObj;
+  _mem.contracts = contractsObj;
+  _mem.handovers = handoversObj;
+
   const settingsData = {
     company: company,
     contractDefaults: contractDefaults,
