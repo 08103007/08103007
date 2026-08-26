@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { COMPANY, getLogoUrl, savePaymentRequest, generatePaymentRequestNumber } from '../utils/gasStore';
+import { COMPANY, getLogoUrl, savePaymentRequest, generatePaymentRequestNumber, listPaymentRequests, listDebtRecs, showToast } from '../utils/gasStore';
 import { fmt, numberToWordsVN, numberToWordsEN, numberToWordsCN, parseInvoiceXml } from '../utils/helpers';
 import { exportViaPuppeteer } from '../utils/pdfExporter';
 import { 
@@ -140,6 +140,54 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
   const fileRef = useRef(null);
   const [xmlMsg, setXmlMsg] = useState("");
   const [xmlInvoices, setXmlInvoices] = useState([]);
+  const [savedReqs, setSavedReqs] = useState([]);
+  const [reqListLoading, setReqListLoading] = useState(false);
+
+  const fetchSavedPaymentRequests = async () => {
+    setReqListLoading(true);
+    try {
+      const list = await listPaymentRequests();
+      const combined = [...(list || [])];
+      try {
+        const { _mem } = await import('../utils/gasStore');
+        if (_mem && _mem.debtRecs) {
+          Object.values(_mem.debtRecs).forEach(d => {
+            if (d && d.id && !combined.some(r => r.id === d.id)) {
+              combined.push({
+                id: d.id,
+                reqNumber: d.refNum || d.id,
+                buyerName: d.buyerName || "",
+                amount: (d.invoices || []).reduce((s, inv) => s + (inv.grand || 0), 0),
+                type: "debt_recon",
+                dateStr: d.dateStr || ""
+              });
+            }
+          });
+        }
+        if (_mem && Array.isArray(_mem.quotes)) {
+          _mem.quotes.forEach(q => {
+            if (q && q.id && !combined.some(r => r.id === q.id)) {
+              combined.push({
+                id: q.id,
+                reqNumber: q.quoteNumber || q.id,
+                buyerName: q.customer || "",
+                amount: (q.items || []).reduce((s, i) => s + ((i.price||0)*(i.qty||1)), 0),
+                type: "quote",
+                dateStr: q.date || ""
+              });
+            }
+          });
+        }
+      } catch(e) {}
+      setSavedReqs(combined.sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0)));
+    } finally {
+      setReqListLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSavedPaymentRequests();
+  }, []);
 
   const handleAutoTranslate = async () => {
     if (lang === "vi") {
@@ -470,31 +518,64 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
   const amountVal = Number(form.amount || 0);
 
   return (
-    <div className="fullscreen-page-overlay" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#f8fafc", display: "flex", flexDirection: "column", width: "100vw", height: "100vh", overflow: "hidden" }}>
-      <div className="fullscreen-page-container" style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", borderRadius: 0, margin: 0, border: "none" }}>
-        <div className="modal-header" style={{ background: "#1a2540", color: "#fff", padding: "12px 24px", flexShrink: 0 }}>
-          <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>🧾 Giấy đề nghị thanh toán (Toàn màn hình)</span>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button 
-              className="btn btn-ghost btn-sm" 
-              onClick={handleAutoTranslate} 
-              disabled={translating || lang === "vi"} 
-              title="Tự động dịch nội dung ĐNTT sang Tiếng Anh / Tiếng Trung"
-              style={{ color: lang === "vi" ? "#94a3b8" : "#2563eb", fontWeight: 600 }}
-            >
-              {translating ? "⏳ Đang dịch..." : `🌐 Tự động dịch → ${lang === "vi_zh" ? "中文" : "EN"}`}
-            </button>
-            <button className="btn btn-ghost btn-sm" onClick={handlePrint}>🖨️ In Đề nghị thanh toán</button>
-            <button className="btn btn-ghost btn-sm" onClick={handleSave}>💾 Lưu đề nghị</button>
-            <button className="close-btn" onClick={onClose}>×</button>
-          </div>
+    <div className="fullpage-screen">
+      <div className="modal-header no-print" style={{ background: "#1a2540", color: "#fff", padding: "14px 24px", flexShrink: 0, borderBottom: "1px solid #334155" }}>
+        <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>🧾 GIẤY ĐỀ NGHỊ THANH TOÁN (TOÀN MÀN HÌNH)</span>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button 
+            className="btn btn-ghost btn-sm" 
+            onClick={handleAutoTranslate} 
+            disabled={translating || lang === "vi"} 
+            title="Tự động dịch nội dung ĐNTT sang Tiếng Anh / Tiếng Trung"
+            style={{ color: lang === "vi" ? "#94a3b8" : "#60a5fa", fontWeight: 600 }}
+          >
+            {translating ? "⏳ Đang dịch..." : `🌐 Tự động dịch → ${lang === "vi_zh" ? "中文" : "EN"}`}
+          </button>
+          <button className="btn btn-ghost btn-sm" style={{ color: "#e2e8f0" }} onClick={handlePrint}>🖨️ In Đề nghị thanh toán</button>
+          <button className="btn btn-ghost btn-sm" style={{ color: "#e2e8f0" }} onClick={handleSave}>💾 Lưu đề nghị</button>
+          <button className="close-btn" style={{ color: "#fff" }} onClick={onClose}>×</button>
         </div>
+      </div>
 
-        <div className="modal-body" style={{ display: "flex", gap: 0, padding: 0, overflow: "hidden" }}>
-          {/* Controls Panel */}
-          <div className="no-print" style={{ width: 360, minWidth: 360, borderRight: "1px solid #e5e3dc", overflowY: "auto", padding: "16px 18px", background: "#fafafa" }}>
-            
-            <div className="section-title">📌 Loại đề nghị thanh toán</div>
+      <div className="modal-body" style={{ display: "flex", gap: 0, padding: 0, overflow: "hidden", flex: 1 }}>
+        {/* Controls Panel */}
+        <div className="no-print" style={{ width: 360, minWidth: 360, borderRight: "1px solid #e5e3dc", overflowY: "auto", padding: "16px 18px", background: "#fafafa" }}>
+          
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div className="section-title" style={{ marginBottom: 0 }}>🗂️ Danh sách đã lưu & Biên bản ({savedReqs.length})</div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={fetchSavedPaymentRequests} style={{ fontSize: 11 }}>🔄 Tải lại</button>
+            </div>
+            {reqListLoading ? (
+              <div style={{ fontSize: 12, color: "#666" }}>Đang tải danh sách...</div>
+            ) : savedReqs.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#666" }}>Chưa có bản ghi nào.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 6, maxHeight: 220, overflowY: "auto", marginBottom: 10 }}>
+                {savedReqs.map(rec => (
+                  <div key={rec.id} style={{ padding: "8px 10px", background: rec.reqNumber === form.reqNumber ? "#eff6ff" : "#fff", border: "1px solid #cbd5e1", borderRadius: 6, cursor: "pointer" }} onClick={() => {
+                    if (rec.reqNumber) setField("reqNumber", rec.reqNumber);
+                    if (rec.buyerName) setField("buyerName", rec.buyerName);
+                    if (rec.buyerAddress) setField("buyerAddress", rec.buyerAddress);
+                    if (rec.amount) setField("amount", rec.amount);
+                    if (rec.reason) setField("reason", rec.reason);
+                    if (rec.debtReconNo) setField("debtReconNo", rec.debtReconNo);
+                    showToast("📂 Đã nạp dữ liệu: " + (rec.reqNumber || rec.id), 1500);
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#0f172a" }}>{rec.reqNumber || rec.id}</div>
+                      <span style={{ fontSize: 10, background: "#dcfce7", color: "#166534", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>{rec.type || "ĐNTT"}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>
+                      {rec.buyerName || "Khách hàng"} {rec.amount ? `· ${fmt(rec.amount)} đ` : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="section-title">📌 Loại đề nghị thanh toán</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               <button 
                 type="button" 
@@ -886,9 +967,6 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
           <button className="btn btn-ghost" onClick={handlePrint}>🖨️ In Đề Nghị Thanh Toán</button>
           <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading} style={{ minWidth: 120 }}>
             {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
-          </button>
-          <button className="btn btn-primary" onClick={handleWordClick} disabled={wordLoading} style={{ minWidth: 120 }}>
-            {wordLoading ? "⏳ Đang tạo..." : "📝 Xuất Word"}
           </button>
         </div>
       </div>
