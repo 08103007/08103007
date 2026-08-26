@@ -119,7 +119,8 @@ export const CONTRACT_DEFAULTS = { ...DEFAULT_COMPANY.contractDefaults };
 export const PRODUCT_CATALOG = [ ...DEFAULT_COMPANY.productCatalog ];
 
 export function getLogoUrl() {
-  return (COMPANY.logo && COMPANY.logo.length > 10) ? COMPANY.logo : "";
+  if (!COMPANY.logo || COMPANY.logo.length < 10) return "";
+  return COMPANY.logo.replace(/[\r\n\s]+/g, "");
 }
 
 // In-memory store
@@ -819,6 +820,7 @@ export async function writeToLocalJsonFile() {
     if (typeof _currentFileHandle.queryPermission === "function") {
       const status = await _currentFileHandle.queryPermission({ mode: "readwrite" });
       if (status !== "granted") {
+        if (!navigator.userActivation || !navigator.userActivation.isActive) return false;
         const req = await _currentFileHandle.requestPermission({ mode: "readwrite" });
         if (req !== "granted") return false;
       }
@@ -833,7 +835,6 @@ export async function writeToLocalJsonFile() {
     await writable.close();
     return true;
   } catch (e) {
-    console.warn("Lỗi ghi file local JSON:", e);
     return false;
   }
 }
@@ -844,6 +845,7 @@ export async function readFromLocalJsonFile() {
     if (typeof _currentFileHandle.queryPermission === "function") {
       const status = await _currentFileHandle.queryPermission({ mode: "read" });
       if (status !== "granted") {
+        if (!navigator.userActivation || !navigator.userActivation.isActive) return false;
         const req = await _currentFileHandle.requestPermission({ mode: "read" });
         if (req !== "granted") return false;
       }
@@ -859,16 +861,14 @@ export async function readFromLocalJsonFile() {
     if (data.handovers && typeof data.handovers === "object") _mem.handovers = data.handovers;
     if (data.deliveries && typeof data.deliveries === "object") _mem.deliveries = data.deliveries;
     if (data.debtRecs && typeof data.debtRecs === "object") _mem.debtRecs = data.debtRecs;
+    if (data.paymentRequests && typeof data.paymentRequests === "object") _mem.paymentRequests = data.paymentRequests;
     if (data.tasks && Array.isArray(data.tasks)) _mem.tasks = data.tasks;
     if (data.notes && Array.isArray(data.notes)) _mem.notes = data.notes;
     if (data.company && typeof data.company === "object") Object.assign(COMPANY, data.company);
     if (data.contractDefaults && typeof data.contractDefaults === "object") Object.assign(CONTRACT_DEFAULTS, data.contractDefaults);
     if (Array.isArray(data.productCatalog)) PRODUCT_CATALOG.splice(0, PRODUCT_CATALOG.length, ...data.productCatalog);
-
-    _flushToLocalStorage();
     return true;
   } catch (e) {
-    console.warn("Lỗi đọc file local JSON:", e);
     return false;
   }
 }
