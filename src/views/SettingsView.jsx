@@ -332,16 +332,13 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
             <input className="form-control" type="password" value={sbKey} onChange={e => { setSbKeyS(e.target.value); setSupabaseKey(e.target.value); setSbTestMsg(""); }}
               placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
           </div>
-          <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap"}}>
-            <button className="btn btn-primary btn-sm" onClick={handleTestSb}>🔌 Kiểm tra kết nối Supabase</button>
-            {sbTestMsg && <span style={{fontSize:12, color: sbTestMsg.startsWith("⚡") ? "#16a34a" : sbTestMsg.startsWith("⏳") ? "#888" : "#dc2626"}}>{sbTestMsg}</span>}
-          </div>
-
-          <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap", marginTop:14, paddingTop:12, borderTop:"1px dashed #a7f3d0"}}>
-            <button className="btn btn-success btn-sm" onClick={handleMigrateToSupabase} disabled={migrating} style={{fontWeight:600}}>
-              {migrating ? "⏳ Đang đẩy dữ liệu..." : `🚀 Đẩy toàn bộ ${_mem.quotes?.length || 0} báo giá cũ lên Supabase Cloud (1-Click)`}
+          <div style={{display:"flex", gap:10, alignItems:"center", flexWrap:"wrap", marginTop:10}}>
+            <button type="button" className="btn btn-primary" onClick={handleTestSb} style={{fontWeight:600}}>🔌 Kiểm tra kết nối Supabase</button>
+            <button type="button" className="btn btn-success" onClick={handleMigrateToSupabase} disabled={migrating} style={{fontWeight:700, background:"#16a34a", color:"#ffffff"}}>
+              {migrating ? "⏳ Đang đồng bộ..." : "🚀 Đẩy tất cả dữ liệu cũ lên Supabase Cloud"}
             </button>
-            {migMsg && <span style={{fontSize:12, color: migMsg.startsWith("✅") ? "#16a34a" : migMsg.startsWith("⏳") ? "#888" : "#dc2626"}}>{migMsg}</span>}
+            {sbTestMsg && <div style={{width:"100%", fontSize:12, marginTop:4, color: sbTestMsg.startsWith("⚡") ? "#16a34a" : sbTestMsg.startsWith("⏳") ? "#888" : "#dc2626"}}>{sbTestMsg}</div>}
+            {migMsg && <div style={{width:"100%", fontSize:12, marginTop:4, fontWeight:600, color: migMsg.startsWith("✅") ? "#16a34a" : migMsg.startsWith("⏳") ? "#888" : "#dc2626"}}>{migMsg}</div>}
           </div>
         </div>
       </div>
