@@ -180,10 +180,11 @@ export async function _flushToGAS() {
   _flushToLocalStorage();
 
   // 1. Primary Cloud Sync: Supabase PostgreSQL (~30ms)
-  if (hasSupabase() && Array.isArray(_mem.quotes) && _mem.quotes.length > 0) {
-    upsertSupabaseQuotes(_mem.quotes).then(ok => {
-      if (ok) console.log("⚡ Đã đồng bộ Supabase Cloud Database thành công");
+  if (hasSupabase()) {
+    upsertSupabaseQuotes(_mem.quotes || [], payload).then(ok => {
+      if (ok) console.log("⚡ Đã đồng bộ Supabase Cloud Database & Master Payload thành công");
     });
+    upsertSupabaseSettings("master_settings", payload);
   }
 
   // 2. Secondary Cloud Backup: GAS Google Drive
@@ -281,17 +282,32 @@ export async function doLoad() {
     try {
       const sbQuotes = await fetchSupabaseQuotes();
       if (Array.isArray(sbQuotes) && sbQuotes.length > 0) {
-        sbQuotes.forEach(addOrMergeQuote);
+        sbQuotes.forEach(q => {
+          if (q.id === "sys_master_payload" || q.quoteNumber === "SYS_MASTER_PAYLOAD") {
+            const data = q.payload || {};
+            if (data.debtRecs && typeof data.debtRecs === "object") _mem.debtRecs = { ..._mem.debtRecs, ...data.debtRecs };
+            if (data.paymentRequests && typeof data.paymentRequests === "object") _mem.paymentRequests = { ..._mem.paymentRequests, ...data.paymentRequests };
+            if (data.handovers && typeof data.handovers === "object") _mem.handovers = { ..._mem.handovers, ...data.handovers };
+            if (data.contracts && typeof data.contracts === "object") _mem.contracts = { ..._mem.contracts, ...data.contracts };
+            if (data.deliveries && typeof data.deliveries === "object") _mem.deliveries = { ..._mem.deliveries, ...data.deliveries };
+            if (Array.isArray(data.customers) && data.customers.length) _mem.customers = data.customers;
+            if (Array.isArray(data.tasks) && data.tasks.length) _mem.tasks = data.tasks;
+            if (Array.isArray(data.notes) && data.notes.length) _mem.notes = data.notes;
+            if (data.company && typeof data.company === "object") Object.assign(COMPANY, data.company);
+          } else {
+            addOrMergeQuote(q);
+          }
+        });
         console.log(`⚡ Supabase Load & Merge: ${sbQuotes.length} báo giá từ Cloud Database`);
       } else if (localQuotes.length > 0) {
         console.log(`🚀 Supabase kết nối nhưng chưa có dữ liệu. Tự động đẩy ${localQuotes.length} báo giá lên Cloud...`);
-        upsertSupabaseQuotes(localQuotes).then(ok => {
-          if (ok) showToast(`🚀 Đã tự động đẩy ${localQuotes.length} báo giá lên Supabase Cloud!`, 4000);
+        upsertSupabaseQuotes(localQuotes, _buildSyncPayload()).then(ok => {
+          if (ok) showToast(`🚀 Đã tự động đẩy ${localQuotes.length} báo giá & dữ liệu lên Supabase Cloud!`, 4000);
         });
         if (Array.isArray(_mem.products) && _mem.products.length > 0) {
           upsertSupabaseProducts(_mem.products);
         }
-        upsertSupabaseSettings("master_settings", { company: COMPANY, contractDefaults: CONTRACT_DEFAULTS, productCatalog: PRODUCT_CATALOG });
+        upsertSupabaseSettings("master_settings", _buildSyncPayload());
       }
 
       const sbProducts = await fetchSupabaseProducts();
@@ -306,6 +322,14 @@ export async function doLoad() {
         if (Array.isArray(sbSettings.productCatalog) && sbSettings.productCatalog.length > 0) {
           PRODUCT_CATALOG.splice(0, PRODUCT_CATALOG.length, ...sbSettings.productCatalog);
         }
+        if (sbSettings.debtRecs && typeof sbSettings.debtRecs === "object") _mem.debtRecs = { ..._mem.debtRecs, ...sbSettings.debtRecs };
+        if (sbSettings.paymentRequests && typeof sbSettings.paymentRequests === "object") _mem.paymentRequests = { ..._mem.paymentRequests, ...sbSettings.paymentRequests };
+        if (sbSettings.handovers && typeof sbSettings.handovers === "object") _mem.handovers = { ..._mem.handovers, ...sbSettings.handovers };
+        if (sbSettings.contracts && typeof sbSettings.contracts === "object") _mem.contracts = { ..._mem.contracts, ...sbSettings.contracts };
+        if (sbSettings.deliveries && typeof sbSettings.deliveries === "object") _mem.deliveries = { ..._mem.deliveries, ...sbSettings.deliveries };
+        if (Array.isArray(sbSettings.customers) && sbSettings.customers.length) _mem.customers = sbSettings.customers;
+        if (Array.isArray(sbSettings.tasks) && sbSettings.tasks.length) _mem.tasks = sbSettings.tasks;
+        if (Array.isArray(sbSettings.notes) && sbSettings.notes.length) _mem.notes = sbSettings.notes;
       }
     } catch (e) {
       console.warn("Lỗi tải từ Supabase:", e);

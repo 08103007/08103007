@@ -87,8 +87,8 @@ export async function fetchSupabaseQuotes() {
 /**
  * Upsert quotes array to Supabase in chunks (to handle 300+ quotes safely)
  */
-export async function upsertSupabaseQuotes(quotes) {
-  if (!hasSupabase() || !Array.isArray(quotes) || quotes.length === 0) return false;
+export async function upsertSupabaseQuotes(quotes, masterData = null) {
+  if (!hasSupabase() || !Array.isArray(quotes)) return false;
   try {
     const chunkSize = 50;
     for (let i = 0; i < quotes.length; i += chunkSize) {
@@ -115,6 +115,27 @@ export async function upsertSupabaseQuotes(quotes) {
         console.warn("Lỗi upsert chunk quotes Supabase:", errText);
       }
     }
+
+    // Always persist master_payload row into quotes table (guarantees survival even with only quotes & products tables)
+    if (masterData && typeof masterData === "object") {
+      const sysRow = [{
+        id: "sys_master_payload",
+        quote_number: "SYS_MASTER_PAYLOAD",
+        date: new Date().toLocaleDateString("vi-VN"),
+        customer: "HỆ THỐNG CÀI ĐẶT & BIÊN BẢN",
+        status: "system",
+        total: 0,
+        payload: masterData,
+        updated_at: new Date().toISOString()
+      }];
+      const sysUrl = `${getSupabaseUrl()}/rest/v1/quotes`;
+      await fetch(sysUrl, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(sysRow)
+      });
+    }
+
     return true;
   } catch (err) {
     console.warn("Supabase quotes upsert error:", err);
