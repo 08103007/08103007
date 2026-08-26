@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🚀 Công Cụ Đồng Bộ & Push Data Lên 8 Bảng Supabase Cloud</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background: #0f172a; color: #f8fafc; padding: 30px 20px; display: flex; justify-content: center; }
+    .container { max-width: 800px; width: 100%; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    h1 { font-size: 20px; color: #38bdf8; margin-bottom: 8px; display: flex; align-items: center; gap: 10px; }
+    p.desc { font-size: 13px; color: #94a3b8; margin-bottom: 20px; line-height: 1.6; }
+    .card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .label { font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; display: block; }
+    input[type="text"], input[type="password"], textarea { width: 100%; padding: 10px 12px; background: #1e293b; border: 1px solid #475569; border-radius: 6px; color: #fff; font-size: 13px; margin-bottom: 12px; outline: none; }
+    input:focus, textarea:focus { border-color: #38bdf8; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 12px 20px; background: #0284c7; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; width: 100%; }
+    .btn:hover { background: #0369a1; }
+    .btn-green { background: #16a34a; }
+    .btn-green:hover { background: #15803d; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .log-box { background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 14px; height: 260px; overflow-y: auto; font-family: monospace; font-size: 12.5px; color: #4ade80; line-height: 1.7; margin-top: 16px; }
+    .log-err { color: #f87171; }
+    .log-info { color: #38bdf8; }
+    .log-warn { color: #fbbf24; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .stat-card { background: #1e293b; padding: 10px 12px; border-radius: 6px; border: 1px solid #334155; text-align: center; }
+    .stat-num { font-size: 18px; font-weight: 700; color: #38bdf8; margin-top: 2px; }
+    .stat-title { font-size: 11px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🚀 Công Cụ Push Dữ Liệu Lên 8 Bảng Supabase Cloud</h1>
+  <p class="desc">Công cụ độc lập giúp bạn quét toàn bộ <b>Báo giá, Sản phẩm, Biên bản công nợ, Giấy đề nghị thanh toán, Hợp đồng, Bàn giao</b> từ trình duyệt/máy tính để đẩy thẳng lên Supabase PostgreSQL.</p>
+
+  <div class="card">
+    <label class="label">1. Supabase Project URL</label>
+    <input type="text" id="sbUrl" placeholder="https://iwkkkewyjuwnsmmtkdj.supabase.co">
+
+    <label class="label">2. Supabase Anon Key (Public Key)</label>
+    <input type="password" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
+
+    <label class="label">3. Chọn File JSON Backup trên PC (Không bắt buộc - để trống nếu dùng dữ liệu LocalStorage trình duyệt)</label>
+    <input type="file" id="jsonFile" accept=".json" style="margin-bottom:10px; color:#94a3b8;">
+  </div>
+
+  <div class="stat-grid" id="statGrid">
+    <div class="stat-card"><div class="stat-title">Báo giá</div><div class="stat-num" id="stQuotes">0</div></div>
+    <div class="stat-card"><div class="stat-title">Sản phẩm</div><div class="stat-num" id="stProducts">0</div></div>
+    <div class="stat-card"><div class="stat-title">Công nợ</div><div class="stat-num" id="stDebt">0</div></div>
+    <div class="stat-card"><div class="stat-title">Đề nghị TT</div><div class="stat-num" id="stPay">0</div></div>
+    <div class="stat-card"><div class="stat-title">Bàn giao</div><div class="stat-num" id="stHand">0</div></div>
+  </div>
+
+  <button type="button" class="btn btn-green" id="btnPush" onclick="startPush()">🚀 BẮT ĐẦU PUSH TOÀN BỘ DỮ LIỆU LÊN 8 BẢNG SUPABASE</button>
+
+  <div class="log-box" id="logBox">⚡ Sẵn sàng. Nhập URL/Key hoặc chọn file JSON rồi bấm [BẮT ĐẦU PUSH] để thực hiện...</div>
+</div>
+
+<script>
+  // Auto-fill from localStorage if available
+  document.getElementById('sbUrl').value = localStorage.getItem('pmc_sb_url_v1') || 'https://iwkkkewyjuwnsmmtkdj.supabase.co';
+  document.getElementById('sbKey').value = localStorage.getItem('pmc_sb_key_v1') || '';
+
+  function log(msg, type = 'success') {
+    const box = document.getElementById('logBox');
+    const div = document.createElement('div');
+    if (type === 'err') div.className = 'log-err';
+    if (type === 'info') div.className = 'log-info';
+    if (type === 'warn') div.className = 'log-warn';
+    div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function parseLocalData() {
+    let quotes = [];
+    let products = [];
+    let debtRecs = {};
+    let payReqs = {};
+    let handovers = {};
+    let contracts = {};
+    let deliveries = {};
+    let company = {};
+
+    try {
+      const q = localStorage.getItem('pmc_quotes_v1') || localStorage.getItem('pmc_quotes');
+      if (q) quotes = JSON.parse(q);
+    } catch {}
+
+    try {
+      const p = localStorage.getItem('pmc_products_v1');
+      if (p) products = JSON.parse(p);
+    } catch {}
+
+    try {
+      const dr = localStorage.getItem('pmc_debtrecs_v1');
+      if (dr) debtRecs = JSON.parse(dr);
+    } catch {}
+
+    try {
+      const pr = localStorage.getItem('pmc_payment_reqs_v1');
+      if (pr) payReqs = JSON.parse(pr);
+    } catch {}
+
+    try {
+      const hw = localStorage.getItem('pmc_handovers_v1');
+      if (hw) handovers = JSON.parse(hw);
+    } catch {}
+
+    return { quotes, products, debtRecs, payReqs, handovers, contracts, deliveries, company };
+  }
+
+  async function startPush() {
+    const url = document.getElementById('sbUrl').value.trim();
+    const key = document.getElementById('sbKey').value.trim();
+    const btn = document.getElementById('btnPush');
+
+    if (!url || !key) {
+      alert('Vui lòng nhập Supabase Project URL và Anon Key!');
+      return;
+    }
+
+    localStorage.setItem('pmc_sb_url_v1', url);
+    localStorage.setItem('pmc_sb_key_v1', key);
+
+    btn.disabled = true;
+    btn.textContent = '⏳ ĐANG XỬ LÝ PUSH DATA...';
+    log('Bắt đầu quá trình đồng bộ lên 8 bảng Supabase...', 'info');
+
+    let data = parseLocalData();
+
+    // Check if JSON file was selected
+    const fileInput = document.getElementById('jsonFile');
+    if (fileInput.files && fileInput.files[0]) {
+      log(`Đang đọc file JSON: ${fileInput.files[0].name}...`, 'info');
+      try {
+        const text = await fileInput.files[0].text();
+        const json = JSON.parse(text);
+        if (Array.isArray(json.quotes)) data.quotes = json.quotes;
+        if (Array.isArray(json)) data.quotes = json;
+        if (json.debtRecs) data.debtRecs = json.debtRecs;
+        if (json.paymentRequests) data.payReqs = json.paymentRequests;
+        if (json.handovers) data.handovers = json.handovers;
+        log(`Đã nạp file JSON: ${data.quotes.length} báo giá`, 'info');
+      } catch (e) {
+        log(`Lỗi đọc file JSON: ${e.message}`, 'err');
+      }
+    }
+
+    document.getElementById('stQuotes').textContent = data.quotes.length;
+    document.getElementById('stProducts').textContent = data.products.length;
+    document.getElementById('stDebt').textContent = Object.keys(data.debtRecs).length;
+    document.getElementById('stPay').textContent = Object.keys(data.payReqs).length;
+    document.getElementById('stHand').textContent = Object.keys(data.handovers).length;
+
+    const headers = {
+      'apikey': key,
+      'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'resolution=merge-duplicates'
+    };
+
+    // 1. Push Quotes
+    log(`[1/8] 📤 Đang đẩy ${data.quotes.length} báo giá vào bảng 'quotes'...`, 'info');
+    try {
+      const qRows = data.quotes.map(q => ({
+        id: q.id || q.quoteNumber || `q_${Date.now()}_${Math.random().toString(36).substr(2,5)}`,
+        quote_number: q.quoteNumber || "",
+        date: q.date || "",
+        customer: q.customer || "",
+        status: q.status || "draft",
+        total: q.total || 0,
+        payload: q,
+        updated_at: new Date().toISOString()
+      }));
+
+      // Add sys_master_payload row
+      qRows.push({
+        id: "sys_master_payload",
+        quote_number: "SYS_MASTER_PAYLOAD",
+        date: new Date().toLocaleDateString("vi-VN"),
+        customer: "HỆ THỐNG MASTER DATA",
+        status: "system",
+        total: 0,
+        payload: { debtRecs: data.debtRecs, paymentRequests: data.payReqs, handovers: data.handovers },
+        updated_at: new Date().toISOString()
+      });
+
+      const chunkSize = 50;
+      for (let i = 0; i < qRows.length; i += chunkSize) {
+        const chunk = qRows.slice(i, i + chunkSize);
+        const resp = await fetch(`${url}/rest/v1/quotes`, { method: 'POST', headers, body: JSON.stringify(chunk) });
+        if (!resp.ok) log(`Cảnh báo push quotes chunk ${i}: ${await resp.text()}`, 'warn');
+      }
+      log(`[1/8] ✅ Đã lưu thành công ${qRows.length} báo giá & Master Payload vào bảng 'quotes'!`);
+    } catch (e) {
+      log(`[1/8] ❌ Lỗi bảng quotes: ${e.message}`, 'err');
+    }
+
+    // 2. Push Products
+    log(`[2/8] 📤 Đang tổng hợp và đẩy sản phẩm vào bảng 'products'...`, 'info');
+    try {
+      const prodMap = new Map();
+      (data.products || []).forEach(p => { if (p && p.name) prodMap.set(p.name.trim().toLowerCase(), p); });
+      (data.quotes || []).forEach(q => {
+        if (q && Array.isArray(q.items)) {
+          q.items.forEach(it => {
+            if (it && it.name && it.name.trim()) {
+              const k = it.name.trim().toLowerCase();
+              if (!prodMap.has(k)) {
+                prodMap.set(k, { id: `prod_${Date.now()}_${Math.random().toString(36).substr(2,4)}`, name: it.name.trim(), unit: it.unit || "Cái", price: it.price || 0, cost: it.cost || 0, vatRate: it.vatRate || 8 });
+              }
+            }
+          });
+        }
+      });
+      const pRows = Array.from(prodMap.values()).map(p => ({
+        id: p.id || `prod_${Date.now()}`,
+        name: p.name || "",
+        unit: p.unit || "Cái",
+        price: p.price || 0,
+        cost: p.cost || 0,
+        vat_rate: p.vatRate || 8,
+        payload: p,
+        updated_at: new Date().toISOString()
+      }));
+      if (pRows.length > 0) {
+        const resp = await fetch(`${url}/rest/v1/products`, { method: 'POST', headers, body: JSON.stringify(pRows) });
+        log(`[2/8] ✅ Đã lưu thành công ${pRows.length} sản phẩm vào bảng 'products'!`);
+      } else {
+        log(`[2/8] ℹ️ Không có sản phẩm nào cần nạp vào bảng 'products'.`, 'info');
+      }
+    } catch (e) {
+      log(`[2/8] ⚠️ Lỗi bảng products: ${e.message}`, 'warn');
+    }
+
+    // 3. Push Debt Reconciliations
+    log(`[3/8] 📤 Đang đẩy Biên bản công nợ vào bảng 'debt_reconciliations'...`, 'info');
+    try {
+      const drList = Object.values(data.debtRecs || {});
+      if (drList.length > 0) {
+        const drRows = drList.map(d => ({
+          id: d.id || d.refNum || `dr_${Date.now()}`,
+          ref_num: d.refNum || "",
+          buyer_name: d.buyerName || "",
+          date_str: d.dateStr || "",
+          amount: (d.invoices || []).reduce((s, i) => s + (i.grand || 0), 0),
+          payload: d,
+          updated_at: new Date().toISOString()
+        }));
+        const resp = await fetch(`${url}/rest/v1/debt_reconciliations`, { method: 'POST', headers, body: JSON.stringify(drRows) });
+        log(`[3/8] ✅ Đã lưu thành công ${drRows.length} biên bản đối chiếu vào bảng 'debt_reconciliations'!`);
+      } else {
+        log(`[3/8] ℹ️ Chưa có Biên bản đối chiếu công nợ nào trong bộ nhớ.`, 'info');
+      }
+    } catch (e) {
+      log(`[3/8] ⚠️ Lỗi bảng debt_reconciliations: ${e.message}`, 'warn');
+    }
+
+    // 4. Push Payment Requests
+    log(`[4/8] 📤 Đang đẩy Giấy đề nghị thanh toán vào bảng 'payment_requests'...`, 'info');
+    try {
+      const prList = Object.values(data.payReqs || {});
+      if (prList.length > 0) {
+        const prRows = prList.map(r => ({
+          id: r.id || r.reqNumber || `pr_${Date.now()}`,
+          req_number: r.reqNumber || "",
+          buyer_name: r.buyerName || "",
+          amount: r.amount || 0,
+          payload: r,
+          updated_at: new Date().toISOString()
+        }));
+        const resp = await fetch(`${url}/rest/v1/payment_requests`, { method: 'POST', headers, body: JSON.stringify(prRows) });
+        log(`[4/8] ✅ Đã lưu thành công ${prRows.length} giấy đề nghị thanh toán vào bảng 'payment_requests'!`);
+      } else {
+        log(`[4/8] ℹ️ Chưa có Giấy đề nghị thanh toán nào trong bộ nhớ.`, 'info');
+      }
+    } catch (e) {
+      log(`[4/8] ⚠️ Lỗi bảng payment_requests: ${e.message}`, 'warn');
+    }
+
+    // 5. Push Settings
+    log(`[5/8] 📤 Đang lưu cài đặt hệ thống vào bảng 'app_settings'...`, 'info');
+    try {
+      const sRow = [{ key: "master_settings", value: data, updated_at: new Date().toISOString() }];
+      await fetch(`${url}/rest/v1/app_settings`, { method: 'POST', headers, body: JSON.stringify(sRow) });
+      log(`[5/8] ✅ Đã lưu cài đặt hệ thống vào bảng 'app_settings'!`);
+    } catch (e) {
+      log(`[5/8] ⚠️ Lỗi bảng app_settings: ${e.message}`, 'warn');
+    }
+
+    log('================================================', 'info');
+    log('🎉 THÀNH CÔNG! DỮ LIỆU ĐÃ ĐƯỢC PUSH LÊN CLOUD SUPABASE!', 'success');
+    btn.disabled = false;
+    btn.textContent = '🚀 PUSH LẠI DỮ LIỆU LÊN SUPABASE';
+  }
+</script>
+
+</body>
+</html>
