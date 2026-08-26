@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { COMPANY, _mem } from '../utils/gasStore';
+import React, { useState, useRef } from 'react';
+import { COMPANY, _mem, getLogoUrl } from '../utils/gasStore';
 import { fmt, todayStr } from '../utils/helpers';
 import { upsertSupabaseDebtRecs } from '../utils/supabaseClient';
 
 export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest }) {
   const [selectedQuoteId, setSelectedQuoteId] = useState("");
   const [buyerName, setBuyerName] = useState("");
+  const [buyerNameEn, setBuyerNameEn] = useState("");
   const [buyerTax, setBuyerTax] = useState("");
   const [buyerAddr, setBuyerAddr] = useState("");
+  const [buyerAddrEn, setBuyerAddrEn] = useState("");
   const [refNum, setRefNum] = useState(`DCCN-${Date.now().toString().slice(-6)}`);
   const [dateStr, setDateStr] = useState(todayStr());
   const [items, setItems] = useState([]);
@@ -15,10 +17,13 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
   const [lang, setLang] = useState("vi");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [translating, setTranslating] = useState(false);
+  const [xmlError, setXmlError] = useState("");
+  const fileInputRef = useRef(null);
 
   const quotesList = Array.isArray(_mem.quotes) ? _mem.quotes : [];
 
-  // When a quote is selected, populate items and customer info
+  // 1. Select Quote from System
   const handleSelectQuote = (qId) => {
     setSelectedQuoteId(qId);
     const q = quotesList.find(item => item.id === qId);
@@ -31,11 +36,132 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
       const qItems = Array.isArray(q.items) ? q.items : [];
       setItems(qItems.map(it => ({
         name: it.name || "",
+        nameEn: it.nameEn || "",
         unit: it.unit || "Cái",
         qty: Number(it.qty || 1),
         price: Number(it.price || 0),
         amount: Number(it.qty || 1) * Number(it.price || 0)
       })));
+    }
+  };
+
+  // 2. XML Invoice Parser
+  const handleXmlUpload = (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setXmlError("");
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(event.target.result, "application/xml");
+          
+          const parseErr = xmlDoc.querySelector("parsererror");
+          if (parseErr) throw new Error("File XML không đúng định dạng hóa đơn điện tử");
+
+          const getVal = (...tags) => {
+            for (const t of tags) {
+              const el = xmlDoc.querySelector(t);
+              if (el && el.textContent.trim()) return el.textContent.trim();
+            }
+            return "";
+          };
+
+          const buyer = getVal("TenNguoiMua", "TenDonVi", "NMua", "buyerName", "NMuaTen");
+          const tax = getVal("MSTNguoiMua", "MST", "MaSoThue", "buyerTaxCode", "NMuaMST");
+          const addr = getVal("DiaChiNguoiMua", "DChi", "DiaChi", "buyerAddress", "NMuaDChi");
+          const invoiceNo = getVal("SoHoaDon", "SHDon", "invoiceNumber", "No");
+
+          if (buyer) setBuyerName(buyer);
+          if (tax) setBuyerTax(tax);
+          if (addr) setBuyerAddr(addr);
+          if (invoiceNo) setRefNum(`DCCN-HD${invoiceNo}`);
+
+          const nodes = xmlDoc.querySelectorAll("HHDVu, ChiTiet, Item, InvoiceItem, HangHoa");
+          if (nodes.length > 0) {
+            const parsedItems = [];
+            nodes.forEach(node => {
+              const getItemVal = (...tags) => {
+                for (const t of tags) {
+                  const el = node.querySelector(t);
+                  if (el && el.textContent.trim()) return el.textContent.trim();
+                }
+                return "";
+              };
+              const name = getItemVal("THHDVu", "TenHH", "tenHangHoa", "itemName", "Ten");
+              const unit = getItemVal("DVTinh", "DonViTinh", "unit", "DVT") || "Cái";
+              const qty = parseFloat((getItemVal("SLuong", "soLuong", "quantity", "SL") || "1").replace(/,/g, "")) || 1;
+              const price = parseFloat((getItemVal("DGia", "donGia", "unitPrice", "Gia") || "0").replace(/,/g, "")) || 0;
+
+              if (name) {
+                parsedItems.push({
+                  name,
+                  unit,
+                  qty,
+                  price,
+                  amount: qty * price
+                });
+              }
+            });
+
+            if (parsedItems.length > 0) {
+              setItems(parsedItems);
+            }
+          }
+
+          setSaveMsg("⚡ Đã import thành công dữ liệu từ file XML!");
+          setTimeout(() => setSaveMsg(""), 3000);
+        } catch (err) {
+          setXmlError("Lỗi đọc XML: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+  };
+
+  // 3. Auto Translation via Google Translate API
+  const handleAutoTranslate = async () => {
+    if (lang === "vi") {
+      alert("Vui lòng chọn ngôn ngữ Song ngữ (Tiếng Anh hoặc Tiếng Trung) trước khi dịch.");
+      return;
+    }
+    const targetLang = lang === "vi_zh" ? "zh-CN" : "en";
+    setTranslating(true);
+
+    const translateText = async (text) => {
+      if (!text || !text.trim()) return "";
+      try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=${targetLang}&dt=t&q=${encodeURIComponent(text.trim())}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        return (data && data[0]) ? data[0].map(x => x[0]).join("") : text;
+      } catch {
+        return text;
+      }
+    };
+
+    try {
+      const [tBuyer, tAddr] = await Promise.all([
+        translateText(buyerName),
+        translateText(buyerAddr)
+      ]);
+      setBuyerNameEn(tBuyer);
+      setBuyerAddrEn(tAddr);
+
+      const translatedItems = await Promise.all(items.map(async (it) => ({
+        ...it,
+        nameEn: await translateText(it.name)
+      })));
+      setItems(translatedItems);
+
+      setSaveMsg(`✓ Đã tự động dịch sang ${lang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"} thành công!`);
+      setTimeout(() => setSaveMsg(""), 4000);
+    } catch (err) {
+      alert("Lỗi dịch tự động: " + err.message);
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -49,16 +175,16 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
     try {
       const record = {
         id: refNum,
-        refNum: refNum,
-        buyerName: buyerName,
-        buyerTax: buyerTax,
-        buyerAddr: buyerAddr,
-        dateStr: dateStr,
-        vatRate: vatRate,
-        subtotal: subtotal,
-        vatAmount: vatAmount,
-        grandTotal: grandTotal,
-        items: items,
+        refNum,
+        buyerName,
+        buyerTax,
+        buyerAddr,
+        dateStr,
+        vatRate,
+        subtotal,
+        vatAmount,
+        grandTotal,
+        items,
         updatedAt: new Date().toISOString()
       };
       _mem.debtRecs = _mem.debtRecs || {};
@@ -73,10 +199,6 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   return (
     <div style={{
       position: "fixed",
@@ -89,7 +211,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
       display: "flex",
       flexDirection: "column",
       color: "#f8fafc",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+      fontFamily: "var(--font), 'Plus Jakarta Sans', -apple-system, sans-serif"
     }}>
       {/* Top Action Bar */}
       <div className="no-print" style={{
@@ -101,7 +223,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
         justifyContent: "space-between"
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#38bdf8", margin: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#38bdf8", margin: 0, fontFamily: "var(--font-display)" }}>
             📋 BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ
           </h2>
           <span style={{ fontSize: 12, background: "#0369a1", padding: "3px 8px", borderRadius: 4 }}>
@@ -111,6 +233,17 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
 
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {saveMsg && <span style={{ fontSize: 13, color: "#4ade80", fontWeight: 600 }}>{saveMsg}</span>}
+          
+          <button
+            onClick={handleAutoTranslate}
+            disabled={translating}
+            style={{
+              background: "#6366f1", color: "#fff", border: "none", padding: "8px 14px", borderRadius: 6, fontWeight: 600, cursor: "pointer"
+            }}
+          >
+            {translating ? "⏳ Đang dịch..." : `🌐 Tự động dịch (${lang === "vi_zh" ? "Trung" : "Anh"})`}
+          </button>
+
           <button
             onClick={handleSaveToCloud}
             disabled={saving}
@@ -131,7 +264,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
           </button>
 
           <button
-            onClick={handlePrint}
+            onClick={() => window.print()}
             style={{
               background: "#475569", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer"
             }}
@@ -150,9 +283,9 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
         </div>
       </div>
 
-      {/* Main Body */}
+      {/* Main Content Area */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Left Form Controls Panel */}
+        {/* Left Control Panel */}
         <div className="no-print" style={{
           width: 340,
           background: "#1e293b",
@@ -160,7 +293,46 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
           padding: 20,
           overflowY: "auto"
         }}>
-          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 14 }}>1. Chọn Báo giá mẫu</h3>
+          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>🌐 Ngôn ngữ hiển thị</h3>
+          <select
+            value={lang}
+            onChange={e => setLang(e.target.value)}
+            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 16 }}
+          >
+            <option value="vi">🇻🇳 Chỉ Tiếng Việt</option>
+            <option value="vi_en">🇻🇳 🇬🇧 Song ngữ Việt - Anh</option>
+            <option value="vi_zh">🇻🇳 🇨🇳 Song ngữ Việt - Trung</option>
+          </select>
+
+          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>📂 Import từ Hóa đơn XML</h3>
+          <input
+            type="file"
+            accept=".xml"
+            ref={fileInputRef}
+            onChange={handleXmlUpload}
+            style={{ display: "none" }}
+            multiple
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current && fileInputRef.current.click()}
+            style={{
+              width: "100%",
+              padding: "10px",
+              background: "#334155",
+              border: "1px dashed #64748b",
+              color: "#38bdf8",
+              borderRadius: 6,
+              fontWeight: 600,
+              cursor: "pointer",
+              marginBottom: 16
+            }}
+          >
+            📂 Chọn file XML hóa đơn (VNPT, MISA, FAST...)
+          </button>
+          {xmlError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{xmlError}</div>}
+
+          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>1. Chọn Báo giá từ hệ thống</h3>
           <select
             value={selectedQuoteId}
             onChange={(e) => handleSelectQuote(e.target.value)}
@@ -168,7 +340,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
               width: "100%", padding: "8px 12px", background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 16
             }}
           >
-            <option value="">-- Chọn Báo giá từ Hệ thống --</option>
+            <option value="">-- Chọn Báo giá mẫu --</option>
             {quotesList.map(q => (
               <option key={q.id} value={q.id}>
                 {q.quoteNumber || q.id} - {q.customer} ({fmt(q.total)}đ)
@@ -176,12 +348,19 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
             ))}
           </select>
 
-          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 14 }}>2. Thông tin bên mua (Khách hàng)</h3>
+          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>2. Thông tin Khách hàng</h3>
           <label style={{ fontSize: 12, color: "#cbd5e1" }}>Tên Đơn Vị / Khách Hàng</label>
           <input
             type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
+            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 8 }}
           />
+          {lang !== "vi" && (
+            <input
+              type="text" value={buyerNameEn} onChange={e => setBuyerNameEn(e.target.value)}
+              placeholder={`Tên tiếng ${lang === "vi_zh" ? "Trung" : "Anh"}...`}
+              style={{ width: "100%", padding: 6, background: "#1e1b4b", border: "1px solid #6366f1", color: "#c7d2fe", borderRadius: 6, marginBottom: 12, fontSize: 12 }}
+            />
+          )}
 
           <label style={{ fontSize: 12, color: "#cbd5e1" }}>Mã Số Thuế</label>
           <input
@@ -192,8 +371,15 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
           <label style={{ fontSize: 12, color: "#cbd5e1" }}>Địa Chỉ</label>
           <input
             type="text" value={buyerAddr} onChange={e => setBuyerAddr(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
+            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 8 }}
           />
+          {lang !== "vi" && (
+            <input
+              type="text" value={buyerAddrEn} onChange={e => setBuyerAddrEn(e.target.value)}
+              placeholder={`Địa chỉ tiếng ${lang === "vi_zh" ? "Trung" : "Anh"}...`}
+              style={{ width: "100%", padding: 6, background: "#1e1b4b", border: "1px solid #6366f1", color: "#c7d2fe", borderRadius: 6, marginBottom: 12, fontSize: 12 }}
+            />
+          )}
 
           <label style={{ fontSize: 12, color: "#cbd5e1" }}>Thuế VAT (%)</label>
           <input
@@ -212,14 +398,20 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
             padding: "20mm",
             boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
             fontSize: 13,
-            lineHeight: 1.5
+            lineHeight: 1.5,
+            fontFamily: "var(--font), 'Plus Jakarta Sans', -apple-system, sans-serif"
           }}>
-            {/* Header Company Info */}
+            {/* Header Company Info with LOGO */}
             <div style={{ display: "flex", justifyContent: "space-between", borderBottom: "2px solid #000", paddingBottom: 12, marginBottom: 16 }}>
-              <div>
-                <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{COMPANY.name}</h2>
-                <div style={{ fontSize: 11, color: "#333" }}>{COMPANY.address}</div>
-                <div style={{ fontSize: 11, color: "#333" }}>MST: {COMPANY.mst} | ĐT: {COMPANY.phone}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                {getLogoUrl() && (
+                  <img src={getLogoUrl()} style={{ width: 54, height: 54, objectFit: "contain" }} alt="Logo" />
+                )}
+                <div>
+                  <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, fontFamily: "var(--font-display)" }}>{COMPANY.name}</h2>
+                  <div style={{ fontSize: 11, color: "#333" }}>{COMPANY.address}</div>
+                  <div style={{ fontSize: 11, color: "#333" }}>MST: {COMPANY.mst} | ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
+                </div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div style={{ fontWeight: 700 }}>Số: {refNum}</div>
@@ -229,15 +421,19 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
 
             {/* Document Title */}
             <div style={{ textAlign: "center", margin: "20px 0" }}>
-              <h1 style={{ fontSize: 18, fontWeight: 800, textTransform: "uppercase", margin: 0 }}>
+              <h1 style={{ fontSize: 18, fontWeight: 800, textTransform: "uppercase", margin: 0, fontFamily: "var(--font-display)" }}>
                 BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ
               </h1>
-              <div style={{ fontSize: 11, fontStyle: "italic" }}>DEBT RECONCILIATION STATEMENT</div>
+              <div style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>
+                {lang === "vi_zh" ? "对账单 STATEMENT OF DEBT" : "DEBT RECONCILIATION STATEMENT"}
+              </div>
             </div>
 
             {/* Parties Info */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 700, textDecoration: "underline", marginBottom: 4 }}>BÊN A (BÊN BÁN):</div>
+              <div style={{ fontWeight: 700, textDecoration: "underline", marginBottom: 4 }}>
+                BÊN A (BÊN BÁN / SELLER):
+              </div>
               <div><b>{COMPANY.name}</b></div>
               <div>Địa chỉ: {COMPANY.address}</div>
               <div>Mã số thuế: {COMPANY.mst}</div>
@@ -245,9 +441,13 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
             </div>
 
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, textDecoration: "underline", marginBottom: 4 }}>BÊN B (BÊN MUA):</div>
+              <div style={{ fontWeight: 700, textDecoration: "underline", marginBottom: 4 }}>
+                BÊN B (BÊN MUA / BUYER):
+              </div>
               <div><b>{buyerName || "......................................................................................."}</b></div>
+              {buyerNameEn && <div style={{ fontStyle: "italic", color: "#475569" }}>{buyerNameEn}</div>}
               <div>Địa chỉ: {buyerAddr || "......................................................................................."}</div>
+              {buyerAddrEn && <div style={{ fontStyle: "italic", color: "#475569" }}>{buyerAddrEn}</div>}
               <div>Mã số thuế: {buyerTax || "......................................................................................."}</div>
             </div>
 
@@ -267,14 +467,17 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                 {items.length === 0 ? (
                   <tr>
                     <td colSpan="6" style={{ border: "1px solid #000", padding: 12, textAlign: "center", color: "#666" }}>
-                      Chưa có hàng hóa nào — chọn Báo giá ở ô bên trái để tải dữ liệu
+                      Chưa có hàng hóa nào — chọn Báo giá hoặc import file XML ở cột trái để tải dữ liệu
                     </td>
                   </tr>
                 ) : (
                   items.map((it, idx) => (
                     <tr key={idx}>
                       <td style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "center" }}>{idx + 1}</td>
-                      <td style={{ border: "1px solid #000", padding: "6px 8px" }}>{it.name}</td>
+                      <td style={{ border: "1px solid #000", padding: "6px 8px" }}>
+                        <div>{it.name}</div>
+                        {it.nameEn && <div style={{ fontSize: 11, fontStyle: "italic", color: "#475569" }}>{it.nameEn}</div>}
+                      </td>
                       <td style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "center" }}>{it.unit}</td>
                       <td style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "center" }}>{it.qty}</td>
                       <td style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "right" }}>{fmt(it.price)}</td>
