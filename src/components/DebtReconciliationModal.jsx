@@ -1,771 +1,1297 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { COMPANY, _mem, getLogoUrl } from '../utils/gasStore';
-import { fmt, todayStr, parseInvoiceXml, numberToWordsVN, numberToWordsEN, numberToWordsCN } from '../utils/helpers';
-import { upsertSupabaseDebtRecs, fetchSupabaseDebtRecs } from '../utils/supabaseClient';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  loadDebtRec, listDebtRecs, saveDebtRec, generateDebtRecNumber, 
+  COMPANY, getLogoUrl, showToast 
+} from '../utils/gasStore';
+import { fmt, numberToWordsVN, numberToWordsEN, numberToWordsCN } from '../utils/helpers';
+import { printElementViaIframe, exportElementToPdf } from '../utils/pdfExporter';
+import { ensureHtmlDocx } from '../utils/docxBuilder';
+
+function parseInvoiceXml(xmlText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("File XML không hợp lệ");
+ 
+  const get = (...tags) => {
+    for (const t of tags) {
+      const el = doc.querySelector(t);
+      if (el && el.textContent.trim()) return el.textContent.trim();
+    }
+    return "";
+  };
+ 
+  const invoiceNumber = get("SHDon","so","invoiceNumber","SoHD","KHMSo","KHSo");
+  const serial        = get("KHHDon","KHieu","serial","KyHieu","KHMHDon");
+  const invoiceDate   = get("NLap","ngayLap","invoiceDate","NgayHD","TDLap");
+  const sellerName    = get("NMSThue","tenNguoiBan","sellerName","TenNBan","NBan > Ten","Ten");
+  const sellerTax     = get("MSThue","maSoThueNguoiBan","sellerTaxCode","MSTNBan","NBan > MST","MST");
+  const sellerAddr    = get("DChi","diaChiNguoiBan","sellerAddress","DCNBan","NBan > DChi");
+  const buyerName     = get("TNMHang","tenNguoiMua","buyerName","TenNMua","NMua > Ten","TenKH");
+  const buyerTax      = get("MSTNMHang","maSoThueNguoiMua","buyerTaxCode","MSTNMua","NMua > MST","MSTKH");
+  const buyerAddr     = get("DCNMHang","diaChiNguoiMua","buyerAddress","DCNMua","NMua > DChi","DCKH");
+ 
+  const itemNodes = doc.querySelectorAll("HHDVu,ChiTiet,Item,InvoiceItem,HangHoa");
+  const items = [];
+  itemNodes.forEach(node => {
+    const gname  = node.querySelector("THHDVu,TenHH,tenHangHoa,itemName,TenHangHoa,Ten")?.textContent?.trim() || "";
+    const unit   = node.querySelector("DVTinh,DonViTinh,donViTinh,unit,DVT")?.textContent?.trim() || "";
+    const qty    = parseFloat(node.querySelector("SLuong,soLuong,quantity,SoLuong,SL")?.textContent?.trim() || "0") || 0;
+    const price  = parseFloat((node.querySelector("DGia,donGia,unitPrice,DonGia,Gia")?.textContent?.trim() || "0").replace(/,/g,"")) || 0;
+    const vatRateRaw = node.querySelector("TSuat,thueVAT,vatRate,ThueVAT,TS,TSuatVAT")?.textContent?.trim() || "";
+    const vatAmt = parseFloat((node.querySelector("TThue,tienThueVAT,vatAmount,TienThue,ThueGTGT")?.textContent?.trim() || "0").replace(/,/g,"")) || 0;
+    const lineTotal = parseFloat((node.querySelector("ThTien,tienHangHoa,lineAmount,ThanhTien,TienHang")?.textContent?.trim() || "0").replace(/,/g,"")) || 0;
+ 
+    if (!gname) return;
+ 
+    let vatRate = 10;
+    const vr = vatRateRaw.replace("%","").trim().toUpperCase();
+    if (vr === "KCT" || vr === "KK" || vr === "KCTUE" || vr === "") vatRate = -1;
+    else { const n = parseFloat(vr); if (!isNaN(n)) vatRate = n; }
+ 
+    const computedLine = lineTotal || (qty * price);
+    const computedVat  = vatAmt || (vatRate > 0 ? Math.round(computedLine * vatRate / 100) : 0);
+ 
+    items.push({ name: gname, unit, qty, price, vatRate, vatAmt: computedVat, lineTotal: computedLine });
+  });
+ 
+  const subtotalRaw = get("TTCThue","tienHangTruocThue","totalBeforeTax","TongTienHang","TTHang");
+  const vatTotalRaw = get("TgTThue","tienThueGTGT","totalVat","TongTienThue","TThueGTGT");
+  const grandRaw    = get("TgTTTBSo","tongTienThanhToan","grandTotal","TongTienThanhToan","TTToan");
+ 
+  const subtotal = parseFloat(subtotalRaw.replace(/,/g,"")) || items.reduce((s,it)=>s+it.lineTotal,0);
+  const vatTotal = parseFloat(vatTotalRaw.replace(/,/g,"")) || items.reduce((s,it)=>s+it.vatAmt,0);
+  const grand    = parseFloat(grandRaw.replace(/,/g,"")) || subtotal + vatTotal;
+ 
+  return {
+    invoiceNumber, serial, invoiceDate,
+    sellerName, sellerTax, sellerAddr,
+    buyerName, buyerTax, buyerAddr,
+    items, subtotal, vatTotal, grand,
+  };
+}
+
+const DEBT_TEXT = {
+  vi_en: {
+    title: "Biên bản đối chiếu công nợ",
+    titleB: "Debt Reconciliation Statement",
+    partyIntro: "Hôm nay, chúng tôi gồm có:",
+    partyIntroB: "Today, the parties are as follows:",
+    seller: "ĐẠI DIỆN BÊN BÁN (Bên A)",
+    sellerB: "SELLER REPRESENTATIVE (Party A)",
+    buyer: "ĐẠI DIỆN BÊN MUA (Bên B)",
+    buyerB: "BUYER REPRESENTATIVE (Party B)",
+    company: "Công ty",
+    companyB: "Company",
+    tax: "MST",
+    taxB: "Tax ID",
+    person: "Ông/Bà",
+    personB: "Name",
+    rep: "Người đại diện",
+    repB: "Representative",
+    position: "Chức vụ",
+    positionB: "Position",
+    address: "Địa chỉ",
+    addressB: "Address",
+    reconcileSentence: "Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày",
+    reconcileSentenceB: "Both parties have reconciled the receivables as of",
+    invoiceHeaders: [
+      ["STT", "No."],
+      ["Số / Ký hiệu HĐ", "Invoice No. / Series"],
+      ["Hàng hóa / Dịch vụ", "Goods / Services"],
+      ["ĐVT", "Unit"],
+      ["SL", "Qty"],
+      ["Đơn giá", "Unit Price"],
+      ["Thuế (%)", "Tax (%)"],
+      ["Thành tiền", "Amount"],
+    ],
+    invoiceGroup: "HĐ:",
+    invoiceGroupB: "Inv:",
+    invoiceDateLabel: "Ngày:",
+    invoiceDateLabelB: "Date:",
+    invoiceTotalLabel: "Tổng HĐ:",
+    invoiceTotalLabelB: "Invoice total:",
+    invoiceSubtotalLabel: "Tiền hàng:",
+    invoiceSubtotalLabelB: "Goods:",
+    invoiceVatLabel: "VAT:",
+    invoiceVatLabelB: "VAT:",
+    invoiceGrandLabel: "Tổng:",
+    invoiceGrandLabelB: "Total:",
+    noInvoices: "Chưa có hóa đơn nào — vui lòng import file XML",
+    noInvoicesB: "No invoices yet — please import XML files",
+    totalGoods: "Tổng tiền hàng (chưa VAT):",
+    totalGoodsB: "Total goods (excl. VAT):",
+    totalVat: "Tổng thuế VAT:",
+    totalVatB: "Total VAT:",
+    grandTotal: "TỔNG CỘNG PHẢI THU:",
+    grandTotalB: "TOTAL RECEIVABLE:",
+    totalDue: "Như vậy, tính đến ngày",
+    totalDueB: "Therefore, as of",
+    oweAmount: "còn phải thu của",
+    oweAmountB: "the amount receivable from",
+    amountIs: "số tiền là:",
+    amountIsB: "is:",
+    inWords: "Viết bằng chữ:",
+    inWordsB: "In words:",
+    copiesNote: "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị như nhau.",
+    copiesNoteB: "This statement is made in two copies, each party keeps one with equal validity.",
+    buyerSign: "ĐẠI DIỆN BÊN MUA (BÊN B)",
+    buyerSignB: "BUYER REPRESENTATIVE (PARTY B)",
+    sellerSign: "ĐẠI DIỆN BÊN BÁN (BÊN A)",
+    sellerSignB: "SELLER REPRESENTATIVE (PARTY A)",
+    signSubNote: "(Ký, ghi rõ họ tên)",
+    signSubNoteB: "(Sign and print full name)",
+    paymentTitle: "Đề nghị thanh toán",
+    paymentTitleB: "Payment Request",
+    paymentBasedOn: "Căn cứ Biên bản đối chiếu công nợ",
+    paymentBasedOnB: "Based on the Debt Reconciliation Statement",
+    paymentTo: "Kính gửi",
+    paymentToB: "To",
+    paymentAmountText: "Số tiền bằng chữ:",
+    paymentAmountTextB: "Amount in words:",
+    paymentInfo1: "Căn cứ kết quả đối chiếu công nợ giữa hai bên,",
+    paymentInfo1B: "Based on the debt reconciliation result between the two parties,",
+    paymentInfo2: "trân trọng đề nghị quý công ty thanh toán số tiền còn nợ như sau:",
+    paymentInfo2B: "we respectfully request your company to pay the outstanding amount as follows:",
+    paymentContent: "Nội dung",
+    paymentContentB: "Description",
+    paymentAmountHeader: "Số tiền (đ)",
+    paymentAmountHeaderB: "Amount (VND)",
+    paymentGoods: "Tổng tiền hàng (chưa VAT)",
+    paymentGoodsB: "Total goods (excl. VAT)",
+    paymentVat: "Tổng thuế VAT",
+    paymentVatB: "Total VAT",
+    paymentTotal: "TỔNG SỐ TIỀN ĐỀ NGHỊ THANH TOÁN",
+    paymentTotalB: "PAYMENT REQUEST TOTAL",
+    paymentRequestNote: "Kính đề nghị quý công ty thanh toán số tiền trên cho",
+    paymentRequestNoteB: "We kindly request your company to pay the above amount to",
+    paymentReferNote: "Mọi thông tin chi tiết về các hóa đơn liên quan, đề nghị tham khảo Biên bản đối chiếu công nợ",
+    paymentReferNoteB: "For details of the related invoices, please refer to the Debt Reconciliation Statement",
+    paymentBankInfo: "Thông tin chuyển khoản:",
+    paymentBankInfoB: "Bank transfer information:",
+    paymentBankHolderLabel: "Chủ TK",
+    paymentBankHolderLabelB: "Account holder",
+    paymentCooperate: "Rất mong nhận được sự hợp tác và thanh toán đúng hạn từ Quý công ty. Trân trọng cảm ơn!",
+    paymentCooperateB: "We appreciate your cooperation and timely payment. Thank you!",
+    paymentBuyerSign: "NGƯỜI ĐẠI DIỆN BÊN MUA",
+    paymentBuyerSignB: "BUYER REPRESENTATIVE",
+    paymentSellerSign: "ĐẠI DIỆN BÊN ĐỀ NGHỊ (BÊN A)",
+    paymentSellerSignB: "REQUESTING REPRESENTATIVE (PARTY A)",
+  },
+  vi_zh: {
+    title: "Biên bản đối chiếu công nợ",
+    titleB: "应收账款对账单",
+    partyIntro: "Hôm nay, chúng tôi gồm có:",
+    partyIntroB: "今天，双方组成如下：",
+    seller: "ĐẠI DIỆN BÊN BÁN (Bên A)",
+    sellerB: "销售方代表（甲方）",
+    buyer: "ĐẠI DIỆN BÊN MUA (Bên B)",
+    buyerB: "采购方代表（乙方）",
+    company: "Công ty",
+    companyB: "公司",
+    tax: "MST",
+    taxB: "税号",
+    person: "Ông/Bà",
+    personB: "姓名",
+    rep: "Người đại diện",
+    repB: "代表人",
+    position: "Chức vụ",
+    positionB: "职位",
+    address: "Địa chỉ",
+    addressB: "地址",
+    reconcileSentence: "Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày",
+    reconcileSentenceB: "双方已就截至该日的应收账款进行核对，具体如下：",
+    invoiceHeaders: [
+      ["STT", "序号"],
+      ["Số / Ký hiệu HĐ", "发票号/系列"],
+      ["Hàng hóa / Dịch vụ", "货物/服务"],
+      ["ĐVT", "单位"],
+      ["SL", "数量"],
+      ["Đơn giá", "单价"],
+      ["Thuế (%)", "税率"],
+      ["Thành tiền", "金额"],
+    ],
+    invoiceGroup: "HĐ:",
+    invoiceGroupB: "发票:",
+    invoiceDateLabel: "Ngày:",
+    invoiceDateLabelB: "日期:",
+    invoiceTotalLabel: "Tổng HĐ:",
+    invoiceTotalLabelB: "发票总额:",
+    invoiceSubtotalLabel: "Tiền hàng:",
+    invoiceSubtotalLabelB: "货物总额:",
+    invoiceVatLabel: "VAT:",
+    invoiceVatLabelB: "增值税:",
+    invoiceGrandLabel: "Tổng:",
+    invoiceGrandLabelB: "总计:",
+    noInvoices: "Chưa có hóa đơn nào — vui lòng import file XML",
+    noInvoicesB: "暂无发票 - 请导入 XML 文件",
+    totalGoods: "Tổng tiền hàng (chưa VAT):",
+    totalGoodsB: "货物总额（不含增值税）：",
+    totalVat: "Tổng thuế VAT:",
+    totalVatB: "增值税总额：",
+    grandTotal: "TỔNG CỘNG PHẢI THU:",
+    grandTotalB: "应收总额：",
+    totalDue: "Như vậy, tính đến ngày",
+    totalDueB: "因此，截至",
+    oweAmount: "còn phải thu của",
+    oweAmountB: "需向",
+    amountIs: "số tiền là:",
+    amountIsB: "金额为：",
+    inWords: "Viết bằng chữ:",
+    inWordsB: "大写金额：",
+    copiesNote: "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị như nhau.",
+    copiesNoteB: "本对账单一式两份，双方各执一份，效力相同。",
+    buyerSign: "ĐẠI DIỆN BÊN MUA (BÊN B)",
+    buyerSignB: "采购方代表（乙方）",
+    sellerSign: "ĐẠI DIỆN BÊN BÁN (BÊN A)",
+    sellerSignB: "销售方代表（甲方）",
+    signSubNote: "(Ký, ghi rõ họ tên)",
+    signSubNoteB: "(签名并填写姓名)",
+    paymentTitle: "Đề nghị thanh toán",
+    paymentTitleB: "付款申请书",
+    paymentBasedOn: "Căn cứ Biên bản đối chiếu công nợ",
+    paymentBasedOnB: "依据应收账款对账单",
+    paymentTo: "Kính gửi",
+    paymentToB: "致：",
+    paymentAmountText: "Số tiền bằng chữ:",
+    paymentAmountTextB: "大写金额：",
+    paymentInfo1: "Căn cứ kết quả đối chiếu công nợ giữa hai bên,",
+    paymentInfo1B: "根据双方对账结果，",
+    paymentInfo2: "trân trọng đề nghị quý công ty thanh toán số tiền còn nợ như sau:",
+    paymentInfo2B: "特此敬请贵公司支付如下欠款：",
+    paymentContent: "Nội dung",
+    paymentContentB: "内容",
+    paymentAmountHeader: "Số tiền (đ)",
+    paymentAmountHeaderB: "金额（VND）",
+    paymentGoods: "Tổng tiền hàng (chưa VAT)",
+    paymentGoodsB: "货物总额（不含增值税）",
+    paymentVat: "Tổng thuế VAT",
+    paymentVatB: "增值税总额",
+    paymentTotal: "TỔNG SỐ TIỀN ĐỀ NGHỊ THANH TOÁN",
+    paymentTotalB: "付款申请总额",
+    paymentRequestNote: "Kính đề nghị quý công ty thanh toán số tiền trên cho",
+    paymentRequestNoteB: "敬请贵公司向以下账户支付上述金额：",
+    paymentReferNote: "Mọi thông tin chi tiết về các hóa đơn liên quan, đề nghị tham khảo Biên bản đối chiếu công nợ",
+    paymentReferNoteB: "有关相关发票的详细信息，请参阅应收账款对账单",
+    paymentBankInfo: "Thông tin chuyển khoản:",
+    paymentBankInfoB: "银行转账信息：",
+    paymentBankHolderLabel: "Chủ TK",
+    paymentBankHolderLabelB: "账户持有人",
+    paymentCooperate: "Rất mong nhận được sự hợp tác và thanh toán đúng hạn từ Quý công ty. Trân trọng cảm ơn!",
+    paymentCooperateB: "感谢贵公司的配合与及时付款。谢谢！",
+    paymentBuyerSign: "NGƯỜI ĐẠI DIỆN BÊN MUA",
+    paymentBuyerSignB: "采购方代表",
+    paymentSellerSign: "ĐẠI DIỆN BÊN ĐỀ NGHỊ (BÊN A)",
+    paymentSellerSignB: "申请方代表（甲方）",
+  }
+};
 
 export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest }) {
-  const [lang, setLang] = useState("vi_en");
-  const [refNum, setRefNum] = useState(`BBDCCN-01/${new Date().getFullYear()}`);
-  const [dateStr, setDateStr] = useState(todayStr());
-  const [reconcileDate, setReconcileDate] = useState(todayStr());
-  
-  // Party A (Seller)
-  const [sellerRep, setSellerRep] = useState(COMPANY.representative || "TRẦN VĂN THỊNH");
-  const [sellerPos, setSellerPos] = useState(COMPANY.position || "Giám Đốc");
+  const today = new Date();
+  const todayFull = `${String(today.getDate()).padStart(2,"0")} tháng ${String(today.getMonth()+1).padStart(2,"0")} năm ${today.getFullYear()}`;
+  const endOfMonth = `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
+ 
+  const [refNum,           setRefNum]           = useState("");
+  const [dateStr,          setDateStr]          = useState(todayFull);
+  const [toDateStr,        setToDateStr]        = useState(endOfMonth);
+  const [sellerRep,        setSellerRep]        = useState(COMPANY.representative || "");
+  const [sellerTitle,      setSellerTitle]      = useState(COMPANY.position || "");
+  const [buyerName,        setBuyerName]        = useState("");
+  const [buyerTax,         setBuyerTax]         = useState("");
+  const [buyerAddr,        setBuyerAddr]        = useState("");
+  const [buyerRep,         setBuyerRep]         = useState("");
+  const [buyerTitle,       setBuyerTitle]       = useState("");
+  const [debtLang,         setDebtLang]         = useState("vi_en");
+ 
+  const T = DEBT_TEXT[debtLang] || DEBT_TEXT.vi_en;
+ 
+  const [invoices,         setInvoices]         = useState([]);
+  const [expandedInv,      setExpandedInv]      = useState(new Set());
+  const [xmlError,         setXmlError]         = useState("");
+  const [viewMode,         setViewMode]         = useState("form"); 
+  const [pdfLoading,       setPdfLoading]       = useState(false);
+  const [saving,           setSaving]           = useState(false);
+  const [saveMsg,          setSaveMsg]          = useState("");
+  const [savedRecs,        setSavedRecs]        = useState([]);
+  const [recListLoading,   setRecListLoading]   = useState(false);
+  const fileRef = useRef(null);
 
-  // Party B (Buyer)
-  const [buyerName, setBuyerName] = useState("");
-  const [buyerNameEn, setBuyerNameEn] = useState("");
-  const [buyerTax, setBuyerTax] = useState("");
-  const [buyerAddr, setBuyerAddr] = useState("");
-  const [buyerAddrEn, setBuyerAddrEn] = useState("");
-  const [buyerRep, setBuyerRep] = useState("");
-  const [buyerPos, setBuyerPos] = useState("");
-
-  // Invoices & Items List
-  const [invoices, setInvoices] = useState([]);
-  const [savedList, setSavedList] = useState([]);
-  const [loadingList, setLoadingList] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState("");
-  const [translating, setTranslating] = useState(false);
-  const [xmlError, setXmlError] = useState("");
-
-  const fileInputRef = useRef(null);
-
-  // Load saved debt reconciliation statements from Supabase / Memory
-  useEffect(() => {
-    (async () => {
-      setLoadingList(true);
+  const fetchSavedRecs = async () => {
+    setRecListLoading(true);
+    try {
+      const recs = await listDebtRecs();
+      const combined = [...(recs || [])];
       try {
-        const cloudData = await fetchSupabaseDebtRecs();
-        if (cloudData && Object.keys(cloudData).length > 0) {
-          _mem.debtRecs = cloudData;
-          setSavedList(Object.values(cloudData));
-        } else if (_mem.debtRecs) {
-          setSavedList(Object.values(_mem.debtRecs));
+        const { _mem } = await import('../utils/gasStore');
+        if (_mem && Array.isArray(_mem.handovers)) {
+          _mem.handovers.forEach(h => {
+            if (h && h.id && !combined.some(r => r.id === h.id || r.refNum === h.handoverNum)) {
+              combined.push({
+                id: h.id,
+                refNum: h.handoverNum || `BBBG-${h.id.slice(0,6)}`,
+                buyerName: h.customer || h.buyerName || "",
+                dateStr: h.date || h.dateStr || "",
+                type: "handover",
+                invoices: (h.items || []).length ? [{
+                  _id: h.id,
+                  invoiceNumber: h.handoverNum || "",
+                  serial: "",
+                  invoiceDate: h.date || "",
+                  subtotal: (h.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  vatTotal: 0,
+                  grand: (h.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  items: (h.items || []).map(i => ({
+                    name: i.name || "",
+                    unit: i.unit || "Cái",
+                    qty: i.qty || 1,
+                    price: i.price || 0,
+                    vatRate: 0,
+                    vatAmt: 0,
+                    lineTotal: ((i.price||0) * (i.qty||1))
+                  }))
+                }] : []
+              });
+            }
+          });
         }
-      } catch (e) {
-        if (_mem.debtRecs) setSavedList(Object.values(_mem.debtRecs));
-      } finally {
-        setLoadingList(false);
-      }
-    })();
-  }, []);
+        if (_mem && Array.isArray(_mem.quotes)) {
+          _mem.quotes.forEach(q => {
+            if (q && q.id && !combined.some(r => r.id === q.id || r.refNum === q.quoteNumber)) {
+              combined.push({
+                id: q.id,
+                refNum: q.quoteNumber || `BG-${q.id.slice(0,6)}`,
+                buyerName: q.customer || "",
+                dateStr: q.date || "",
+                type: "quote",
+                invoices: (q.items || []).length ? [{
+                  _id: q.id,
+                  invoiceNumber: q.quoteNumber || "",
+                  serial: "",
+                  invoiceDate: q.date || "",
+                  subtotal: (q.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  vatTotal: 0,
+                  grand: (q.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  items: (q.items || []).map(i => ({
+                    name: i.name || "",
+                    unit: i.unit || "Cái",
+                    qty: i.qty || 1,
+                    price: i.price || 0,
+                    vatRate: q.vatRate || 8,
+                    vatAmt: 0,
+                    lineTotal: ((i.price||0) * (i.qty||1))
+                  }))
+                }] : []
+              });
+            }
+          });
+        }
+      } catch(err) {}
 
-  // 1. XML Invoice Import (VNPT, MISA, FAST, Viettel)
-  const handleXmlUpload = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    setXmlError("");
-
-    const newInvoices = [];
-    for (const file of Array.from(files)) {
-      try {
-        const text = await file.text();
-        const parsed = parseInvoiceXml(text);
-        parsed._id = Math.random().toString(36).substring(2, 9);
-        parsed._fileName = file.name;
-        newInvoices.push(parsed);
-      } catch (err) {
-        setXmlError("Lỗi đọc XML file " + file.name + ": " + err.message);
-      }
-    }
-
-    if (newInvoices.length > 0) {
-      setInvoices(prev => [...prev, ...newInvoices]);
-      const last = newInvoices[newInvoices.length - 1];
-      if (last.buyerName && !buyerName) setBuyerName(last.buyerName);
-      if (last.buyerTax && !buyerTax) setBuyerTax(last.buyerTax);
-      if (last.buyerAddr && !buyerAddr) setBuyerAddr(last.buyerAddr);
-      setSaveMsg(`⚡ Đã import ${newInvoices.length} file XML hóa đơn thành công!`);
-      setTimeout(() => setSaveMsg(""), 4000);
-    }
-  };
-
-  // 2. Select saved statement to edit
-  const handleSelectSaved = (recId) => {
-    const found = savedList.find(s => s.id === recId || s.refNum === recId);
-    if (found) {
-      setRefNum(found.refNum || found.id);
-      setBuyerName(found.buyerName || "");
-      setBuyerNameEn(found.buyerNameEn || "");
-      setBuyerTax(found.buyerTax || "");
-      setBuyerAddr(found.buyerAddr || "");
-      setBuyerAddrEn(found.buyerAddrEn || "");
-      setBuyerRep(found.buyerRep || "");
-      setBuyerPos(found.buyerPos || "");
-      setDateStr(found.dateStr || todayStr());
-      setReconcileDate(found.reconcileDate || todayStr());
-      if (Array.isArray(found.invoices)) setInvoices(found.invoices);
+      setSavedRecs(combined.sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0)));
+    } finally {
+      setRecListLoading(false);
     }
   };
 
-  // 3. Auto Translate
   const handleAutoTranslate = async () => {
-    if (lang === "vi") {
-      alert("Vui lòng chọn ngôn ngữ Song ngữ trước khi dịch.");
-      return;
-    }
-    const targetLang = lang === "vi_zh" ? "zh-CN" : "en";
+    const targetLang = debtLang === "vi_zh" ? "zh-CN" : "en";
     setTranslating(true);
 
-    const translate = async (txt) => {
-      if (!txt || !txt.trim()) return "";
+    const translateText = async (text) => {
+      if (!text || !text.trim()) return "";
       try {
-        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=${targetLang}&dt=t&q=${encodeURIComponent(txt.trim())}`);
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=vi&tl=${targetLang}&dt=t&q=${encodeURIComponent(text.trim())}`;
+        const res = await fetch(url);
         const data = await res.json();
-        return data && data[0] ? data[0].map(x => x[0]).join("") : txt;
-      } catch {
-        return txt;
+        if (data && data[0]) {
+          return data[0].map(s => s[0]).join("");
+        }
+        return text;
+      } catch (e) {
+        return text;
       }
     };
 
     try {
-      const [tName, tAddr] = await Promise.all([
-        translate(buyerName),
-        translate(buyerAddr)
+      const [tBuyerName, tBuyerAddr] = await Promise.all([
+        translateText(buyerName),
+        translateText(buyerAddr)
       ]);
-      setBuyerNameEn(tName);
-      setBuyerAddrEn(tAddr);
 
-      const updatedInvoices = await Promise.all(invoices.map(async inv => ({
-        ...inv,
-        items: await Promise.all(inv.items.map(async it => ({
-          ...it,
-          nameEn: await translate(it.name)
-        })))
-      })));
+      if (tBuyerName) setBuyerName(tBuyerName);
+      if (tBuyerAddr) setBuyerAddr(tBuyerAddr);
+
+      // Translate all item names in invoices
+      const updatedInvoices = await Promise.all(invoices.map(async (inv) => {
+        const updatedItems = await Promise.all(inv.items.map(async (it) => {
+          const tName = await translateText(it.name);
+          return { ...it, nameB: tName !== it.name ? tName : (it.nameB || "") };
+        }));
+        return { ...inv, items: updatedItems };
+      }));
+
       setInvoices(updatedInvoices);
 
-      setSaveMsg(`✓ Đã tự động dịch sang ${lang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"} thành công!`);
-      setTimeout(() => setSaveMsg(""), 4000);
-    } catch (err) {
-      alert("Lỗi dịch tự động: " + err.message);
+      showToast(`✓ Đã tự động dịch thông tin & hàng hóa trong bảng sang ${debtLang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"}!`, 3000);
+    } catch (e) {
+      showToast("⚠️ Lỗi dịch tự động: " + e.message, 3000);
     } finally {
       setTranslating(false);
     }
   };
 
-  // Totals calculations
-  const totalGoods = invoices.reduce((s, inv) => s + (inv.subtotal || 0), 0);
-  const totalVat = invoices.reduce((s, inv) => s + (inv.vatTotal || 0), 0);
-  const grandTotal = invoices.reduce((s, inv) => s + (inv.grandTotal || 0), 0);
+  useEffect(() => {
+    if (!refNum) setRefNum(generateDebtRecNumber());
+    fetchSavedRecs();
+  }, []);
 
-  // Save to Cloud
-  const handleSaveToCloud = async () => {
-    setSaving(true);
-    setSaveMsg("");
+  const loadSavedByRefNum = async (num) => {
+    if (!num || !num.trim()) return;
     try {
-      const record = {
-        id: refNum,
-        refNum,
-        buyerName,
-        buyerNameEn,
-        buyerTax,
-        buyerAddr,
-        buyerAddrEn,
-        buyerRep,
-        buyerPos,
-        sellerRep,
-        sellerPos,
-        dateStr,
-        reconcileDate,
-        invoices,
-        subtotal: totalGoods,
-        vatAmount: totalVat,
-        grandTotal,
-        updatedAt: new Date().toISOString()
-      };
+      const saved = await loadDebtRec(num.trim());
+      if (!saved) return;
+      setDateStr(saved.dateStr || dateStr);
+      setToDateStr(saved.toDateStr || toDateStr);
+      setSellerRep(saved.sellerRep || sellerRep);
+      setSellerTitle(saved.sellerTitle || sellerTitle);
+      setBuyerName(saved.buyerName || "");
+      setBuyerTax(saved.buyerTax || "");
+      setBuyerAddr(saved.buyerAddr || "");
+      setBuyerRep(saved.buyerRep || "");
+      setBuyerTitle(saved.buyerTitle || "");
+      setDebtLang(saved.debtLang || "vi_en");
+      if (Array.isArray(saved.invoices) && saved.invoices.length) setInvoices(saved.invoices);
+      showToast("📂 Đã tải biên bản đã lưu: " + num, 2000);
+    } catch(e) { }
+  };
 
-      _mem.debtRecs = _mem.debtRecs || {};
-      _mem.debtRecs[refNum] = record;
-      await upsertSupabaseDebtRecs({ [refNum]: record });
-
-      setSaveMsg("✅ Đã lưu Biên bản đối chiếu công nợ lên Supabase Cloud!");
-      setTimeout(() => setSaveMsg(""), 4000);
+  const handleDeleteDebtRec = async (id) => {
+    if (!window.confirm("Xóa biên bản này? Hành động không thể hoàn tác.")) return;
+    try {
+      const { deleteDebtRec } = await import('../utils/gasStore');
+      await deleteDebtRec(id);
+      setSavedRecs(prev => prev.filter(r => r.id !== id));
+      if (refNum === id) setRefNum(generateDebtRecNumber());
+      showToast("🗑️ Đã xóa biên bản đối chiếu công nợ", 2000);
     } catch (e) {
-      setSaveMsg("⚠️ Lỗi lưu Cloud: " + e.message);
+      showToast("⚠️ Lỗi xóa biên bản: " + e.message, 3000);
+    }
+  };
+
+  const handleSaveDebtRec = async () => {
+    const num = refNum.trim() || generateDebtRecNumber();
+    if (!refNum.trim()) setRefNum(num);
+    setSaving(true); setSaveMsg("");
+    try {
+      await saveDebtRec(num, {
+        refNum: num, dateStr, toDateStr,
+        sellerRep, sellerTitle,
+        buyerName, buyerTax, buyerAddr, buyerRep, buyerTitle,
+        debtLang,
+        invoices,
+      });
+      setSaveMsg("✓ Đã lưu");
+      await fetchSavedRecs();
+      showToast("💾 Đã lưu biên bản đối chiếu công nợ", 2000);
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch(e) {
+      showToast("⚠️ Lỗi lưu biên bản: " + e.message, 3000);
     } finally {
       setSaving(false);
     }
   };
-
-  // Translations Map
-  const tMap = {
-    vi_en: {
-      title: "BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ",
-      titleSub: "DEBT RECONCILIATION STATEMENT",
-      intro: `Hôm nay, ngày ${dateStr}, Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày ${reconcileDate}:`,
-      introSub: `Today, on ${dateStr}, Both parties hereby reconcile receivables up to ${reconcileDate}:`,
-      partyA: "ĐẠI DIỆN BÊN BÁN (Bên A) / SELLER REPRESENTATIVE (Party A)",
-      partyB: "ĐẠI DIỆN BÊN MUA (Bên B) / BUYER REPRESENTATIVE (Party B)",
-      company: "Công ty / Company",
-      tax: "MST / Tax ID",
-      address: "Địa chỉ / Address",
-      rep: "Người đại diện / Representative",
-      position: "Chức vụ / Position",
-      summary: `Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày ${reconcileDate}, còn phải thu của ${buyerName || "Quý công ty"} số tiền là: ${fmt(grandTotal)} đồng.`,
-      summarySub: `Both parties have reconciled receivables up to ${reconcileDate}, the amount due from ${buyerNameEn || buyerName || "Your company"} is: ${fmt(grandTotal)} VND.`,
-      wordsPrefix: "Viết bằng chữ / In words: ",
-      wordsText: numberToWordsVN(grandTotal),
-      wordsTextSub: numberToWordsEN(grandTotal),
-      copyNote: "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị như nhau.",
-      copyNoteSub: "This statement is made in 02 copies of equal legal validity, each party keeps 01 copy.",
-      buyerSign: "ĐẠI DIỆN BÊN MUA (BÊN B)",
-      buyerSignSub: "(Ký, ghi rõ họ tên & đóng dấu / Sign & Stamp)",
-      sellerSign: "ĐẠI DIỆN BÊN BÁN (BÊN A)",
-      sellerSignSub: "(Ký, ghi rõ họ tên & đóng dấu / Sign & Stamp)"
-    },
-    vi_zh: {
-      title: "BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ",
-      titleSub: "应收账款对账单",
-      intro: `Hôm nay, ngày ${dateStr}, Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày ${reconcileDate}:`,
-      introSub: `今天，双方组成如下: ${dateStr}, 双方已就截至该日的应收账款进行核对，具体如下: ${reconcileDate}.`,
-      partyA: "ĐẠI DIỆN BÊN BÁN (Bên A) / 销售方代表 (甲方)",
-      partyB: "ĐẠI DIỆN BÊN MUA (Bên B) / 采购方代表 (乙方)",
-      company: "Công ty / 公司",
-      tax: "MST / 税号",
-      address: "Địa chỉ / 地址",
-      rep: "Người đại diện / 代表人",
-      position: "Chức vụ / 职位",
-      summary: `Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày ${reconcileDate}, còn phải thu của ${buyerName || "Quý công ty"} số tiền là: ${fmt(grandTotal)} đồng.`,
-      summarySub: `双方已就截至该日的应收账款进行核对，具体如下: ${reconcileDate}, 需向 ${buyerNameEn || buyerName || "贵公司"} 金额为: ${fmt(grandTotal)} VND.`,
-      wordsPrefix: "Viết bằng chữ / 大写金额: ",
-      wordsText: numberToWordsVN(grandTotal),
-      wordsTextSub: numberToWordsCN(grandTotal),
-      copyNote: "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị như nhau.",
-      copyNoteSub: "本对账单一式两份，双方各执一份，效力相同。",
-      buyerSign: "ĐẠI DIỆN BÊN MUA (BÊN B)",
-      buyerSignSub: "(Ký, ghi rõ họ tên / 采购方代表)",
-      sellerSign: "ĐẠI DIỆN BÊN BÁN (BÊN A)",
-      sellerSignSub: "(Ký, ghi rõ họ tên / 销售方代表)"
-    },
-    vi: {
-      title: "BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ",
-      titleSub: "",
-      intro: `Hôm nay, ngày ${dateStr}, Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày ${reconcileDate}:`,
-      introSub: "",
-      partyA: "ĐẠI DIỆN BÊN BÁN (Bên A)",
-      partyB: "ĐẠI DIỆN BÊN MUA (Bên B)",
-      company: "Công ty",
-      tax: "MST",
-      address: "Địa chỉ",
-      rep: "Người đại diện",
-      position: "Chức vụ",
-      summary: `Hai bên cùng nhau đối chiếu công nợ phải thu tính đến hết ngày ${reconcileDate}, còn phải thu của ${buyerName || "Quý công ty"} số tiền là: ${fmt(grandTotal)} đồng.`,
-      summarySub: "",
-      wordsPrefix: "Viết bằng chữ: ",
-      wordsText: numberToWordsVN(grandTotal),
-      wordsTextSub: "",
-      copyNote: "Biên bản này được lập thành 02 bản, mỗi bên giữ 01 bản có giá trị như nhau.",
-      copyNoteSub: "",
-      buyerSign: "ĐẠI DIỆN BÊN MUA (BÊN B)",
-      buyerSignSub: "(Ký, ghi rõ họ tên & đóng dấu)",
-      sellerSign: "ĐẠI DIỆN BÊN BÁN (BÊN A)",
-      sellerSignSub: "(Ký, ghi rõ họ tên & đóng dấu)"
-    }
+ 
+  const grandSubtotal = invoices.reduce((s, inv) => s + inv.subtotal, 0);
+  const grandVat      = invoices.reduce((s, inv) => s + inv.vatTotal, 0);
+  const grandTotal    = invoices.reduce((s, inv) => s + inv.grand, 0);
+ 
+  const handleFiles = (files) => {
+    setXmlError("");
+    const readers = [...files].filter(f => f.name.toLowerCase().endsWith(".xml")).map(file =>
+      new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          try {
+            const inv = parseInvoiceXml(ev.target.result);
+            inv._id = Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+            inv._fileName = file.name;
+            resolve({ ok: true, inv });
+          } catch(e) {
+            resolve({ ok: false, name: file.name, err: e.message });
+          }
+        };
+        reader.readAsText(file, "utf-8");
+      })
+    );
+ 
+    Promise.all(readers).then(results => {
+      const good = results.filter(r => r.ok).map(r => r.inv);
+      const bad  = results.filter(r => !r.ok);
+ 
+      if (good.length > 0) {
+        setInvoices(prev => {
+          const existing = new Set(prev.map(i => i.serial + "_" + i.invoiceNumber));
+          const newOnes  = good.filter(i => !existing.has(i.serial + "_" + i.invoiceNumber));
+          const merged   = [...prev, ...newOnes];
+          const firstWithBuyer = merged.find(i => i.buyerName);
+          if (firstWithBuyer && !buyerName) {
+            setBuyerName(firstWithBuyer.buyerName);
+            setBuyerTax(firstWithBuyer.buyerTax);
+            setBuyerAddr(firstWithBuyer.buyerAddr);
+          }
+          return merged;
+        });
+        setExpandedInv(prev => {
+          const next = new Set(prev);
+          good.forEach(i => next.add(i._id));
+          return next;
+        });
+      }
+      if (bad.length > 0) {
+        setXmlError(`⚠️ ${bad.length} file lỗi: ${bad.map(b => b.name).join(", ")}`);
+      }
+    });
+  };
+ 
+  const removeInvoice = (id) => setInvoices(prev => prev.filter(i => i._id !== id));
+  
+  const updateItemNote = (invId, itemIdx, value) => {
+    setInvoices(prev => prev.map(inv => {
+      if (inv._id !== invId) return inv;
+      const items = inv.items.map((it, i) => i === itemIdx ? { ...it, extraNote: value } : it);
+      return { ...inv, items };
+    }));
   };
 
-  const currentT = tMap[lang] || tMap.vi_en;
+  const toggleExpand = (id) => {
+    setExpandedInv(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+ 
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    const parseDate = d => {
+      if (!d) return 0;
+      const m = d.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      if (m) return new Date(m[3], m[2]-1, m[1]).getTime();
+      return new Date(d).getTime() || 0;
+    };
+    return parseDate(a.invoiceDate) - parseDate(b.invoiceDate);
+  });
+ 
+  const handlePrint = () => {
+    printElementViaIframe("debtPreviewContent", `
+      .debt-preview * { color:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .debt-items-table { border:1px solid #000 !important; border-collapse: collapse !important; width: 100% !important; }
+      .debt-items-table th, .debt-items-table td { border-right:1px solid #000 !important; border-bottom:1px solid #000 !important; white-space: normal !important; word-break: break-word !important; }
+      .debt-items-table th:last-child, .debt-items-table td:last-child { border-right:none !important; }
+      .debt-items-table tr:last-child td { border-bottom:none !important; }
+      .debt-items-table th { background:#fff !important; white-space: normal !important; vertical-align: middle !important; }
+      .debt-grand-row td { background:#eef0f8 !important; }
+      .debt-header-table { width:100% !important; table-layout:fixed !important; border-collapse:collapse !important; margin-bottom:14px !important; }
+      .debt-header-table td { border:none !important; }
+      .debt-header-left { width:52% !important; border-right:2px solid #000 !important; vertical-align:top !important; padding-right:10px !important; }
+      .debt-header-right { width:48% !important; text-align:center !important; vertical-align:top !important; padding-left:10px !important; }
+      .debt-header-right div { white-space:nowrap !important; }
+    `);
+  };
+ 
+  const handlePDF = async () => {
+    const prefix = viewMode === "payment" ? "DNTT_" : "BBDCCN_";
+    await exportElementToPdf("debtPreviewContent", {
+      filename: prefix + (refNum || todayFull.replace(/ /g,"_")) + ".pdf",
+      pad: 32,
+      respectNoCut: true,
+    });
+  };
+ 
+  const handlePDFClick = async () => { setPdfLoading(true); try { await handlePDF(); } finally { setPdfLoading(false); } };
+  
+  const [wordLoading, setWordLoading] = useState(false);
 
-  return (
-    <div style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      width: "100vw",
-      height: "100vh",
-      background: "#0f172a",
-      zIndex: 999999,
-      display: "flex",
-      flexDirection: "column",
-      color: "#f8fafc",
-      fontFamily: "var(--font), 'Plus Jakarta Sans', -apple-system, sans-serif"
-    }}>
-      {/* Top Header Action Bar */}
-      <div className="no-print" style={{
-        background: "#1e293b",
-        borderBottom: "1px solid #334155",
-        padding: "12px 24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between"
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#38bdf8", margin: 0, fontFamily: "var(--font-display)" }}>
-            📋 BIÊN BẢN ĐỐI CHIẾU CÔNG NỢ
-          </h2>
-          <span style={{ fontSize: 12, background: "#0369a1", padding: "3px 8px", borderRadius: 4 }}>
-            Supabase Cloud Mode
-          </span>
-        </div>
+  const handleExportWord = async () => {
+    const el = document.getElementById("debtPreviewContent");
+    if (!el) return;
+    await ensureHtmlDocx();
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {saveMsg && <span style={{ fontSize: 13, color: "#4ade80", fontWeight: 600 }}>{saveMsg}</span>}
+    const htmlString = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <title>${refNum || "BienBan"}</title>
+  <style>
+    @page { size: 21cm 29.7cm; margin: 1.5cm; }
+    body { font-family: "Times New Roman", serif; font-size: 13px; color:#1a1a1a; }
+    table { border-collapse: collapse; width: 100%; }
+    .debt-items-table td, .debt-items-table th { border: 1px solid #999; padding: 4px 6px; }
+    .debt-header-table td, .debt-header-table th { border: none; }
+    h1 { text-align:center; font-size:18px; margin-bottom:2px; }
+    .debt-title { text-align:center; margin-bottom:14px; }
+    .debt-sign { width:100%; }
+    .debt-sign-block { display:inline-block; width:48%; text-align:center; vertical-align:top; }
+    .sign-space { height:60px; }
+  </style>
+</head>
+<body>${el.outerHTML}</body>
+</html>`;
 
-          <button
-            onClick={handleAutoTranslate}
-            disabled={translating}
-            style={{
-              background: "#6366f1", color: "#fff", border: "none", padding: "8px 14px", borderRadius: 6, fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            {translating ? "⏳ Đang dịch..." : `🌐 Tự động dịch (${lang === "vi_zh" ? "Trung" : "Anh"})`}
-          </button>
+    const blob = window.htmlDocx.asBlob(htmlString);
+    const prefix = viewMode === "payment" ? "DNTT_" : "BBDCCN_";
+    const filename = prefix + (refNum || todayFull.replace(/ /g, "_")) + ".docx";
 
-          <button
-            onClick={handleSaveToCloud}
-            disabled={saving}
-            style={{
-              background: "#16a34a", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            💾 {saving ? "Đang lưu..." : "Lưu Cloud"}
-          </button>
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
 
-          <button
-            onClick={() => onOpenPaymentRequest && onOpenPaymentRequest({
-              requestType: "debt_recon",
-              buyerName,
-              buyerTaxCode: buyerTax,
-              buyerAddress: buyerAddr,
-              buyerRep,
-              buyerPosition: buyerPos,
-              debtReconNo: refNum,
-              debtReconDate: dateStr,
-              amount: grandTotal,
-              reason: `Thanh toán số tiền công nợ theo Biên bản đối chiếu công nợ số ${refNum} ngày ${dateStr}`
-            })}
-            disabled={invoices.length === 0}
-            style={{
-              background: "#0284c7", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            📑 Tạo Đề Nghị Thanh Toán
-          </button>
-
-          <button
-            onClick={() => window.print()}
-            style={{
-              background: "#475569", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            🖨️ In (A4)
-          </button>
-
-          <button
-            onClick={onClose}
-            style={{
-              background: "#dc2626", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 6, fontWeight: 600, cursor: "pointer"
-            }}
-          >
-            ❌ Đóng
-          </button>
-        </div>
-      </div>
-
-      {/* Main Container */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-        {/* Left Form Controls Sidebar */}
-        <div className="no-print" style={{
-          width: 350,
-          background: "#1e293b",
-          borderRight: "1px solid #334155",
-          padding: 20,
-          overflowY: "auto"
-        }}>
-          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>🌐 Ngôn ngữ hiển thị</h3>
-          <select
-            value={lang}
-            onChange={e => setLang(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 16 }}
-          >
-            <option value="vi">🇻🇳 Chỉ Tiếng Việt</option>
-            <option value="vi_en">🇻🇳 🇬🇧 Song ngữ Việt - Anh</option>
-            <option value="vi_zh">🇻🇳 🇨🇳 Song ngữ Việt - Trung (giản thể)</option>
-          </select>
-
-          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>📂 Import hóa đơn XML</h3>
-          <input
-            type="file"
-            accept=".xml"
-            ref={fileInputRef}
-            onChange={handleXmlUpload}
-            style={{ display: "none" }}
-            multiple
-          />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            style={{
-              width: "100%",
-              padding: "10px",
-              background: "#334155",
-              border: "1px dashed #64748b",
-              color: "#38bdf8",
-              borderRadius: 6,
-              fontWeight: 600,
-              cursor: "pointer",
-              marginBottom: 16
-            }}
-          >
-            🗂️ Click chọn file XML (VNPT, MISA, FAST...)
-          </button>
-          {xmlError && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 12 }}>{xmlError}</div>}
-
-          {savedList.length > 0 && (
-            <>
-              <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>🗂️ Biên bản đã lưu</h3>
-              <select
-                onChange={e => handleSelectSaved(e.target.value)}
-                style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 16 }}
-              >
-                <option value="">-- Select Saved Statement --</option>
-                {savedList.map(s => (
-                  <option key={s.id || s.refNum} value={s.id || s.refNum}>
-                    {s.refNum || s.id} - {s.buyerName} ({fmt(s.grandTotal)}đ)
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-
-          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>📝 Thông tin Biên bản</h3>
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Số Biên Bản</label>
-          <input
-            type="text" value={refNum} onChange={e => setRefNum(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
-          />
-
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Ngày Lập</label>
-          <input
-            type="text" value={dateStr} onChange={e => setDateStr(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
-          />
-
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Đối Chiếu Đến Ngày</label>
-          <input
-            type="text" value={reconcileDate} onChange={e => setReconcileDate(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
-          />
-
-          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>🏢 Bên Bán (Party A)</h3>
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Người Đại Diện</label>
-          <input
-            type="text" value={sellerRep} onChange={e => setSellerRep(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 8 }}
-          />
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Chức Vụ</label>
-          <input
-            type="text" value={sellerPos} onChange={e => setSellerPos(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
-          />
-
-          <h3 style={{ fontSize: 14, color: "#94a3b8", marginBottom: 10 }}>🧑‍💼 Bên Mua (Party B)</h3>
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Tên Công Ty / Đơn Vị</label>
-          <input
-            type="text" value={buyerName} onChange={e => setBuyerName(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 8 }}
-          />
-          {lang !== "vi" && (
-            <input
-              type="text" value={buyerNameEn} onChange={e => setBuyerNameEn(e.target.value)}
-              placeholder={`Tên tiếng ${lang === "vi_zh" ? "Trung" : "Anh"}...`}
-              style={{ width: "100%", padding: 6, background: "#1e1b4b", border: "1px solid #6366f1", color: "#c7d2fe", borderRadius: 6, marginBottom: 12, fontSize: 12 }}
-            />
-          )}
-
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Mã Số Thuế</label>
-          <input
-            type="text" value={buyerTax} onChange={e => setBuyerTax(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
-          />
-
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Địa Chỉ</label>
-          <input
-            type="text" value={buyerAddr} onChange={e => setBuyerAddr(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 8 }}
-          />
-          {lang !== "vi" && (
-            <input
-              type="text" value={buyerAddrEn} onChange={e => setBuyerAddrEn(e.target.value)}
-              placeholder={`Địa chỉ tiếng ${lang === "vi_zh" ? "Trung" : "Anh"}...`}
-              style={{ width: "100%", padding: 6, background: "#1e1b4b", border: "1px solid #6366f1", color: "#c7d2fe", borderRadius: 6, marginBottom: 12, fontSize: 12 }}
-            />
-          )}
-
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Người Đại Diện</label>
-          <input
-            type="text" value={buyerRep} onChange={e => setBuyerRep(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 8 }}
-          />
-          <label style={{ fontSize: 12, color: "#cbd5e1" }}>Chức Vụ</label>
-          <input
-            type="text" value={buyerPos} onChange={e => setBuyerPos(e.target.value)}
-            style={{ width: "100%", padding: 8, background: "#0f172a", border: "1px solid #475569", color: "#fff", borderRadius: 6, marginBottom: 12 }}
-          />
-        </div>
-
-        {/* Right Printable A4 Document Preview */}
-        <div style={{ flex: 1, padding: 30, overflowY: "auto", background: "#334155", display: "flex", justifyContent: "center" }}>
-          <div className="print-page" style={{
-            width: "210mm",
-            minHeight: "297mm",
-            background: "#fff",
-            color: "#000",
-            padding: "20mm",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
-            fontSize: 13,
-            lineHeight: 1.5,
-            fontFamily: "var(--font), 'Plus Jakarta Sans', -apple-system, sans-serif"
-          }}>
-            {/* Header Table */}
-            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 16 }}>
-              <tbody>
-                <tr>
-                  <td style={{ width: "52%", verticalAlign: "top", borderRight: "2px solid #000", paddingRight: 12 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                      {getLogoUrl() && (
-                        <img src={getLogoUrl()} style={{ width: 48, height: 48, objectFit: "contain" }} alt="Logo" />
-                      )}
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#000" }}>{COMPANY.name}</div>
-                        <div style={{ fontSize: 10, color: "#555" }}>MST: {COMPANY.mst}</div>
-                        <div style={{ fontSize: 10, color: "#555" }}>ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
-                        <div style={{ fontSize: 10, color: "#555" }}>{COMPANY.address}</div>
-                      </div>
-                    </div>
+  const handleWordClick = async () => {
+    setWordLoading(true);
+    try { await handleExportWord(); showToast("📝 Đã xuất file Word", 2000); }
+    catch(e) { showToast("⚠️ Lỗi xuất Word: " + e.message, 3000); }
+    finally { setWordLoading(false); }
+  };
+ 
+  const renderPreview = () => {
+    const T = DEBT_TEXT[debtLang];
+    let rowIdx = 0;
+    return (
+      <div className="debt-preview" id="debtPreviewContent">
+        <table className="debt-header-table" style={{ width:"100%", tableLayout:"fixed", borderCollapse:"collapse", marginBottom:14 }}>
+          <tbody>
+            <tr>
+              <td className="debt-header-left" style={{ width:"52%", verticalAlign:"top", borderRight:"2px solid #000", paddingRight:10 }}>
+                <table style={{width:"100%", borderCollapse:"collapse"}}><tbody><tr>
+                  <td style={{verticalAlign:"top",paddingRight:10,width:48}}>
+                    <img src={getLogoUrl()} style={{width:48,height:48,objectFit:"contain"}} alt="Logo" />
                   </td>
-                  <td style={{ width: "48%", verticalAlign: "top", textAlign: "center", paddingLeft: 12 }}>
-                    <div style={{ fontWeight: 700, fontSize: 12, whiteSpace: "nowrap" }}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
-                    <div style={{ fontWeight: 600, fontSize: 12, whiteSpace: "nowrap", marginTop: 2 }}>Độc lập – Tự do – Hạnh phúc</div>
-                    <div style={{ fontSize: 11, marginTop: 4, letterSpacing: "-1px" }}>⸻⸻⸻</div>
+                  <td style={{verticalAlign:"top"}}>
+                    <div style={{fontWeight:700,fontSize:13,color:"#1a2540"}}>{COMPANY.name}</div>
+                    <div style={{fontSize:10,color:"#555"}}>MST: {COMPANY.mst}</div>
+                    <div style={{fontSize:10,color:"#555"}}>ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
+                    <div style={{fontSize:10,color:"#555"}}>{COMPANY.address}</div>
+                  </td>
+                </tr></tbody></table>
+              </td>
+              <td className="debt-header-right" style={{ width:"48%", verticalAlign:"top", textAlign:"center", paddingLeft:10 }}>
+                <div style={{fontWeight:700,fontSize:12,whiteSpace:"nowrap"}}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                <div style={{fontWeight:600,fontSize:12,whiteSpace:"nowrap",marginTop:2}}>Độc lập – Tự do – Hạnh phúc</div>
+                <div style={{fontSize:11,marginTop:2,letterSpacing:"-1px"}}>⸻⸻⸻</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+ 
+        <div className="debt-title">
+          <h1>{T.title}</h1>
+          <div style={{fontSize:12,color:"#555",marginTop:4}}>{T.titleB}</div>
+          {refNum && <div className="ref">Số: {refNum}</div>}
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            Ngày lập: {dateStr} — Đối chiếu đến ngày: <strong>{toDateStr}</strong>
+          </div>
+        </div>
+ 
+        <div className="debt-party-block">
+          <p>{T.partyIntro} <strong>{dateStr}</strong>, {T.reconcileSentence} <strong>{toDateStr}</strong>:</p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.partyIntroB} <strong>{dateStr}</strong>, {T.reconcileSentenceB} <strong>{toDateStr}</strong>。</p>
+ 
+          <p style={{marginTop:8}}><strong>{T.seller}</strong></p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.sellerB}</p>
+          <table style={{width:"100%",fontSize:12,borderCollapse:"collapse",paddingLeft:16}}>
+            <tbody>
+              <tr>
+                <td style={{width:"50%",paddingLeft:20,paddingBottom:2}}>{T.company} / {T.companyB}: <strong>{COMPANY.name}</strong></td>
+                <td style={{paddingBottom:2}}>{T.tax} / {T.taxB}: {COMPANY.mst}</td>
+              </tr>
+              <tr>
+                <td style={{paddingLeft:20,paddingBottom:2}}>{T.rep} / {T.repB}: <strong>{sellerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.position} / {T.positionB}: {sellerTitle || "……………………"}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p style={{marginTop:8}}><strong>{T.buyer}</strong></p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.buyerB}</p>
+          <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+            <tbody>
+              <tr>
+                <td style={{width:"60%",paddingLeft:20,paddingBottom:2}}>{T.company} / {T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.tax} / {T.taxB}: {buyerTax || "………………………"}</td>
+              </tr>
+              {buyerAddr && <tr><td colSpan={2} style={{paddingLeft:20,paddingBottom:2}}>{T.address} / {T.addressB}: {buyerAddr}</td></tr>}
+              <tr>
+                <td style={{paddingLeft:20,paddingBottom:2}}>{T.rep} / {T.repB}: <strong>{buyerRep || "……………………………"}</strong></td>
+                <td style={{paddingBottom:2}}>{T.position} / {T.positionB}: {buyerTitle || "……………………"}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p style={{marginTop:10}}>{T.reconcileSentence} <strong>{toDateStr}</strong>, {T.oweAmount} <strong>{buyerName || "Quý công ty"}</strong> {T.amountIs} <strong>{fmt(grandTotal)} đồng</strong>.</p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>{T.reconcileSentenceB} <strong>{toDateStr}</strong>, {T.oweAmountB} <strong>{buyerName || (debtLang === "vi_en" ? "Your company" : "贵公司")}</strong> {T.amountIsB} <strong>{fmt(grandTotal)} VND</strong>.</p>
+        </div>
+
+        <table className="debt-items-table">
+          <thead>
+            <tr>
+              {T.invoiceHeaders.map(([vi, other], idx) => (
+                <th key={idx} style={{
+                  width: idx === 0 ? 36 : idx === 1 ? 120 : idx === 3 ? 45 : idx === 4 ? 40 : idx === 5 ? 85 : idx === 6 ? 65 : idx === 7 ? 95 : undefined,
+                  textAlign: idx === 0 || idx === 3 || idx === 4 || idx === 6 ? "center" : idx === 5 || idx === 7 ? "right" : "left",
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
+                  verticalAlign: "middle",
+                  padding: "6px 5px"
+                }}>
+                  <div style={{lineHeight:1.2}}>{vi}</div>
+                  <div style={{fontSize:10,color:"#555",marginTop:2,fontWeight:400,lineHeight:1.2}}>{other}</div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedInvoices.length === 0 ? (
+              <tr>
+                <td colSpan={8} style={{textAlign:"center",color:"#aaa",padding:"20px",fontStyle:"italic"}}>
+                  <div>{T.noInvoices}</div>
+                  <div style={{marginTop:4,fontSize:11,color:"#555"}}>{T.noInvoicesB}</div>
+                </td>
+              </tr>
+            ) : sortedInvoices.map((inv) => {
+              const rows = [];
+              rows.push(
+                <tr key={"inv-" + inv._id} style={{background:"#f0f4ff"}}>
+                  <td colSpan={2} style={{fontWeight:700,fontSize:11,color:"#1a2540",padding:"6px 8px"}}>
+                    {T.invoiceGroup} {inv.serial && <span style={{fontFamily:"monospace"}}>{inv.serial}</span>}
+                    {inv.serial && inv.invoiceNumber ? " / " : ""}
+                    {inv.invoiceNumber && <span style={{fontFamily:"monospace",marginLeft:2}}>{T.invoiceGroupB} {inv.invoiceNumber}</span>}
+                  </td>
+                  <td colSpan={2} style={{fontSize:11,color:"#555",padding:"6px 8px"}}>
+                    {T.invoiceDateLabel} <strong>{inv.invoiceDate || "…"}</strong>
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceDateLabelB}</div>
+                  </td>
+                  <td colSpan={4} style={{textAlign:"right",fontSize:11,fontWeight:600,color:"#1a2540",padding:"6px 8px"}}>
+                    {T.invoiceTotalLabel} {fmt(inv.grand)} đ
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceTotalLabelB}</div>
                   </td>
                 </tr>
-              </tbody>
-            </table>
-
-            {/* Document Title */}
-            <div style={{ textAlign: "center", margin: "16px 0 14px" }}>
-              <h1 style={{ fontSize: 18, fontWeight: 800, textTransform: "uppercase", margin: 0, fontFamily: "var(--font-display)" }}>
-                {currentT.title}
-              </h1>
-              {currentT.titleSub && (
-                <div style={{ fontSize: 12, fontStyle: "italic", color: "#555", marginTop: 2 }}>{currentT.titleSub}</div>
-              )}
-              <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>Số: {refNum}</div>
-              <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>
-                Ngày lập: <b>{dateStr}</b> — Đối chiếu đến ngày: <b>{reconcileDate}</b>
-              </div>
-            </div>
-
-            {/* Opening Intro */}
-            <div style={{ fontSize: 12.5, marginBottom: 12, lineHeight: 1.6 }}>
-              <div>{currentT.intro}</div>
-              {currentT.introSub && <div style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{currentT.introSub}</div>}
-            </div>
-
-            {/* Party A */}
-            <div style={{ marginBottom: 12, fontSize: 12, lineHeight: 1.6 }}>
-              <div style={{ fontWeight: 700 }}>{currentT.partyA}</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", marginLeft: 10 }}>
-                <tbody>
-                  <tr>
-                    <td style={{ width: "55%" }}>{currentT.company}: <b>{COMPANY.name}</b></td>
-                    <td>{currentT.tax}: {COMPANY.mst}</td>
-                  </tr>
-                  <tr>
-                    <td>{currentT.rep}: <b>{sellerRep}</b></td>
-                    <td>{currentT.position}: {sellerPos}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Party B */}
-            <div style={{ marginBottom: 14, fontSize: 12, lineHeight: 1.6 }}>
-              <div style={{ fontWeight: 700 }}>{currentT.partyB}</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", marginLeft: 10 }}>
-                <tbody>
-                  <tr>
-                    <td style={{ width: "55%" }}>
-                      {currentT.company}: <b>{buyerName || "……………………………………………………"}</b>
-                      {buyerNameEn && <div style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{buyerNameEn}</div>}
+              );
+              inv.items.forEach((it, iIdx) => {
+                rowIdx++;
+                const vatLbl = it.vatRate === -1 ? "KCT" : (it.vatRate || 0) + "%";
+                rows.push(
+                  <tr key={`it-${inv._id}-${iIdx}`}>
+                    <td className="center" style={{fontSize:11,color:"#888"}}>{rowIdx}</td>
+                    <td style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
+                      {inv.serial || ""}{inv.serial && inv.invoiceNumber ? " / " : ""}{inv.invoiceNumber || ""}
                     </td>
-                    <td style={{ verticalAlign: "top" }}>{currentT.tax}: {buyerTax || "………………………"}</td>
+                    <td style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
+                      <div>{it.name}</div>
+                      {it.nameB && <div style={{fontSize:10,color:"#475569",marginTop:2,fontStyle:"italic"}}>{it.nameB}</div>}
+                    </td>
+                    <td className="center" style={{fontSize:11}}>{it.unit}</td>
+                    <td className="center" style={{fontSize:11}}>{it.qty !== 0 ? it.qty : "—"}</td>
+                    <td className="right" style={{fontSize:11}}>{it.price ? fmt(it.price) : "—"}</td>
+                    <td className="center" style={{fontSize:11,fontWeight:600}}>{vatLbl}</td>
+                    <td className="right" style={{fontSize:11,fontWeight:500}}>{fmt(it.lineTotal + it.vatAmt)}</td>
                   </tr>
-                  {buyerAddr && (
-                    <tr>
-                      <td colSpan="2">
-                        {currentT.address}: {buyerAddr}
-                        {buyerAddrEn && <div style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{buyerAddrEn}</div>}
+                );
+                if (it.extraNote) {
+                  rows.push(
+                    <tr key={`note-${inv._id}-${iIdx}`}>
+                      <td colSpan={2}></td>
+                      <td colSpan={2} style={{padding:"0 7px 6px",borderTop:"none"}}>
+                        <div style={{fontSize:10,color:"#000",fontStyle:"italic",background:"#fafbfd",border:"1px dashed #000",borderRadius:3,padding:"2px 6px"}}>
+                          {it.extraNote}
+                        </div>
                       </td>
+                      <td colSpan={4}></td>
                     </tr>
-                  )}
-                  <tr>
-                    <td>{currentT.rep}: <b>{buyerRep || "…………………………………………"}</b></td>
-                    <td>{currentT.position}: {buyerPos || "……………………"}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Summary Line */}
-            <div style={{ fontSize: 12.5, marginBottom: 14, lineHeight: 1.6 }}>
-              <div>{currentT.summary}</div>
-              {currentT.summarySub && <div style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{currentT.summarySub}</div>}
-            </div>
-
-            {/* Invoices & Items Table */}
-            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14, fontSize: 11.5 }}>
-              <thead>
-                <tr style={{ background: "#f8fafc" }}>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", width: 36, textAlign: "center" }}>STT / 序号</th>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", width: 120 }}>Số / Ký hiệu HĐ / 发票号/系列</th>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", textAlign: "left" }}>Hàng hóa / Dịch vụ / 货物/服务</th>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", width: 45, textAlign: "center" }}>ĐVT / 单位</th>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", width: 40, textAlign: "center" }}>SL / 数量</th>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", width: 85, textAlign: "right" }}>Đơn giá / 单价</th>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", width: 65, textAlign: "center" }}>Thuế (%) / 税率</th>
-                  <th style={{ border: "1px solid #000", padding: "6px 4px", width: 95, textAlign: "right" }}>Thành tiền / 金额</th>
+                  );
+                }
+              });
+              rows.push(
+                <tr key={"sub-" + inv._id} className="debt-subtotal-row">
+                  <td colSpan={6} style={{textAlign:"right",padding:"5px 8px",fontSize:11}}>
+                    {T.invoiceSubtotalLabel} {fmt(inv.subtotal)} đ &nbsp;|&nbsp; {T.invoiceVatLabel} {fmt(inv.vatTotal)} đ
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceSubtotalLabelB} {fmt(inv.subtotal)} VND · {T.invoiceVatLabelB} {fmt(inv.vatTotal)} VND</div>
+                  </td>
+                  <td style={{textAlign:"right",fontWeight:700,fontSize:12,padding:"5px 8px",color:"#1a2540"}} colSpan={2}>
+                    {T.invoiceGrandLabel} {fmt(inv.grand)} đ
+                    <div style={{fontSize:10,color:"#888",marginTop:2}}>{T.invoiceGrandLabelB} {fmt(inv.grand)} VND</div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {invoices.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" style={{ border: "1px solid #000", padding: 16, textAlign: "center", color: "#888", fontStyle: "italic" }}>
-                      Chưa có hóa đơn nào — hãy import file XML hóa đơn điện tử ở cột bên trái
-                    </td>
-                  </tr>
-                ) : (
-                  invoices.map((inv, invIdx) => {
-                    let globalIdx = 0;
-                    return (
-                      <React.Fragment key={inv._id || invIdx}>
-                        {/* Invoice Header Sub-row */}
-                        <tr style={{ background: "#f0f4ff", fontWeight: 700 }}>
-                          <td colSpan="2" style={{ border: "1px solid #000", padding: "5px 8px" }}>
-                            HĐ: {inv.serial ? `${inv.serial} / ` : ""}{inv.invoiceNumber || "—"}
-                          </td>
-                          <td colSpan="2" style={{ border: "1px solid #000", padding: "5px 8px" }}>
-                            Ngày: {inv.invoiceDate || "—"}
-                          </td>
-                          <td colSpan="4" style={{ border: "1px solid #000", padding: "5px 8px", textAlign: "right" }}>
-                            Tổng HĐ: {fmt(inv.grandTotal)} đ
-                          </td>
-                        </tr>
+              );
+              return rows;
+            })}
 
-                        {/* Invoice Items */}
-                        {inv.items.map((it, itIdx) => {
-                          globalIdx++;
-                          const vatDisplay = it.vatRate === -1 ? "KCT" : `${it.vatRate || 0}%`;
-                          return (
-                            <tr key={itIdx}>
-                              <td style={{ border: "1px solid #000", padding: "5px 4px", textAlign: "center" }}>{itIdx + 1}</td>
-                              <td style={{ border: "1px solid #000", padding: "5px 4px" }}>
-                                {inv.serial ? `${inv.serial} / ` : ""}{inv.invoiceNumber || "—"}
-                              </td>
-                              <td style={{ border: "1px solid #000", padding: "5px 6px" }}>
-                                <div>{it.name}</div>
-                                {it.nameEn && <div style={{ fontSize: 10, fontStyle: "italic", color: "#555" }}>{it.nameEn}</div>}
-                              </td>
-                              <td style={{ border: "1px solid #000", padding: "5px 4px", textAlign: "center" }}>{it.unit}</td>
-                              <td style={{ border: "1px solid #000", padding: "5px 4px", textAlign: "center" }}>{it.qty}</td>
-                              <td style={{ border: "1px solid #000", padding: "5px 6px", textAlign: "right" }}>{fmt(it.price)}</td>
-                              <td style={{ border: "1px solid #000", padding: "5px 4px", textAlign: "center" }}>{vatDisplay}</td>
-                              <td style={{ border: "1px solid #000", padding: "5px 6px", textAlign: "right" }}>{fmt(it.lineTotal + it.vatAmt)}</td>
-                            </tr>
-                          );
-                        })}
-
-                        {/* Invoice Subtotal Row */}
-                        <tr style={{ background: "#fafafb", fontWeight: 600 }}>
-                          <td colSpan="6" style={{ border: "1px solid #000", padding: "5px 8px", textAlign: "right" }}>
-                            Tiền hàng: {fmt(inv.subtotal)} đ | VAT: {fmt(inv.vatTotal)} đ
-                          </td>
-                          <td colSpan="2" style={{ border: "1px solid #000", padding: "5px 8px", textAlign: "right" }}>
-                            Tổng: {fmt(inv.grandTotal)} đ
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })
-                )}
-              </tbody>
-              {invoices.length > 0 && (
-                <tfoot>
-                  <tr style={{ background: "#f1f5f9", fontWeight: 700 }}>
-                    <td colSpan="6" style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "right" }}>
-                      Tổng tiền hàng (chưa VAT) / 货物总额 (不含增值税):
-                    </td>
-                    <td colSpan="2" style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "right" }}>
-                      {fmt(totalGoods)} đ
-                    </td>
-                  </tr>
-                  <tr style={{ background: "#f1f5f9", fontWeight: 700 }}>
-                    <td colSpan="6" style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "right" }}>
-                      Tổng thuế VAT / 增值税总额:
-                    </td>
-                    <td colSpan="2" style={{ border: "1px solid #000", padding: "6px 8px", textAlign: "right" }}>
-                      {fmt(totalVat)} đ
-                    </td>
-                  </tr>
-                  <tr style={{ background: "#e2e8f0", fontWeight: 800 }}>
-                    <td colSpan="6" style={{ border: "1px solid #000", padding: "8px 8px", textAlign: "right", fontSize: 13 }}>
-                      TỔNG CỘNG PHẢI THU / 应收总额:
-                    </td>
-                    <td colSpan="2" style={{ border: "1px solid #000", padding: "8px 8px", textAlign: "right", fontSize: 14 }}>
-                      {fmt(grandTotal)} đ
-                    </td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-
-            {/* Closing Notes */}
-            <div style={{ fontSize: 12, lineHeight: 1.7, marginBottom: 20 }}>
-              <div>
-                Như vậy, tính đến ngày <b>{reconcileDate}</b>, {COMPANY.name} còn phải thu của <b>{buyerName || "Quý công ty"}</b> số tiền là: <b>{fmt(grandTotal)} đồng</b>.
-              </div>
-              <div style={{ marginTop: 4 }}>
-                <b>{currentT.wordsPrefix}</b><i>{currentT.wordsText}</i>
-              </div>
-              {currentT.wordsTextSub && (
-                <div style={{ fontSize: 11, color: "#555" }}>
-                  <i>{currentT.wordsTextSub}</i>
-                </div>
-              )}
-              <div style={{ marginTop: 8 }}>
-                {currentT.copyNote}
-              </div>
-              {currentT.copyNoteSub && (
-                <div style={{ fontSize: 11, color: "#555" }}>
-                  {currentT.copyNoteSub}
-                </div>
-              )}
+            {sortedInvoices.length > 0 && (
+              <>
+                <tr style={{background:"#eef0f8"}}>
+                  <td colSpan={6} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    {T.totalGoods}
+                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.totalGoodsB}</div>
+                  </td>
+                  <td colSpan={2} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    {fmt(grandSubtotal)} đ
+                  </td>
+                </tr>
+                <tr style={{background:"#eef0f8"}}>
+                  <td colSpan={6} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    {T.totalVat}
+                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.totalVatB}</div>
+                  </td>
+                  <td colSpan={2} style={{textAlign:"right",fontWeight:600,padding:"6px 8px",fontSize:12}}>
+                    {fmt(grandVat)} đ
+                  </td>
+                </tr>
+                <tr className="debt-grand-row">
+                  <td colSpan={6} style={{textAlign:"right",padding:"8px 10px",fontSize:14}}>
+                    {T.grandTotal}
+                    <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.grandTotalB}</div>
+                  </td>
+                  <td colSpan={2} style={{textAlign:"right",padding:"8px 10px",fontSize:15,letterSpacing:"0.02em"}}>
+                    {fmt(grandTotal)} đ
+                  </td>
+                </tr>
+              </>
+            )}
+          </tbody>
+        </table>
+ 
+        {sortedInvoices.length > 0 && (
+          <div style={{marginTop:12,fontSize:12,lineHeight:1.8}}>
+            <p>
+              {T.totalDue} <strong>{toDateStr}</strong>, {COMPANY.name} {T.oweAmount} <strong>{buyerName || "Quý công ty"}</strong> {T.amountIs} <strong>{fmt(grandTotal)} đồng</strong>.
+            </p>
+            <p style={{fontSize:11,color:"#555",marginTop:2}}>
+              {T.totalDueB} <strong>{toDateStr}</strong>, {COMPANY.name} {T.oweAmountB} <strong>{buyerName || (debtLang === "vi_en" ? "Your company" : "贵公司")}</strong> {T.amountIsB} <strong>{fmt(grandTotal)} VND</strong>。
+            </p>
+            <p style={{fontStyle:"italic",color:"#555",marginTop:8}}>
+              {T.inWords} {numberToWordsVN(grandTotal)}
+            </p>
+            <p style={{fontSize:11,color:"#555",marginTop:4}}>
+              {T.inWordsB} {debtLang === "vi_en" ? numberToWordsEN(grandTotal) : numberToWordsCN(grandTotal)}
+            </p>
+            <p style={{marginTop:8}}>
+              {T.copiesNote}
+              <br />
+              <span style={{fontSize:11,color:"#555"}}>{T.copiesNoteB}</span>
+            </p>
+          </div>
+        )}
+ 
+        <div className="debt-sign" style={{marginTop:28}}>
+          <div className="debt-sign-block">
+            <div className="sign-title">{T.buyerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600,borderBottom:buyerRep?"none":"1px solid #333",minWidth:160,display:"inline-block",minHeight:18}}>
+              {buyerRep || ""}
             </div>
-
-            {/* Signatures */}
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 30, textAlign: "center", fontSize: 12 }}>
-              <div style={{ width: "45%" }}>
-                <div style={{ fontWeight: 700 }}>{currentT.buyerSign}</div>
-                <div style={{ fontSize: 11, color: "#555", fontStyle: "italic" }}>{currentT.buyerSignSub}</div>
-                <div style={{ height: 70 }}></div>
-                <div style={{ fontWeight: 600 }}>{buyerRep || buyerName || "...................................."}</div>
-              </div>
-              <div style={{ width: "45%" }}>
-                <div style={{ fontWeight: 700 }}>{currentT.sellerSign}</div>
-                <div style={{ fontSize: 11, color: "#555", fontStyle: "italic" }}>{currentT.sellerSignSub}</div>
-                <div style={{ height: 70 }}></div>
-                <div style={{ fontWeight: 600 }}>{sellerRep}</div>
-                <div style={{ fontSize: 11 }}>{sellerPos}</div>
-                <div style={{ fontSize: 11 }}>{COMPANY.name}</div>
-              </div>
-            </div>
+            {buyerTitle && <div style={{fontSize:11,color:"#666",marginTop:2}}>{buyerTitle}</div>}
+            <div style={{fontSize:11,color:"#666"}}>{buyerName || ""}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:4}}>{T.buyerSignB}</div>
+          </div>
+          <div className="debt-sign-block">
+            <div className="sign-title">{T.sellerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{sellerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{sellerTitle}</div>
+            <div style={{fontSize:11,color:"#666"}}>{COMPANY.name}</div>
+            <div style={{fontSize:11,color:"#555",marginTop:4}}>{T.sellerSignB}</div>
           </div>
         </div>
       </div>
-    </div>
+    );
+  };
+
+  const renderPaymentRequest = () => {
+    const T = DEBT_TEXT[debtLang];
+    const payNum = "DNTT-" + (refNum ? refNum.replace(/^BBDCCN-/, "") : todayFull.replace(/ /g,"_"));
+    return (
+      <div className="debt-preview" id="debtPreviewContent">
+        <table className="debt-header-table" style={{ width:"100%", tableLayout:"fixed", borderCollapse:"collapse", marginBottom:14 }}>
+          <tbody>
+            <tr>
+              <td className="debt-header-left" style={{ width:"52%", verticalAlign:"top", borderRight:"2px solid #000", paddingRight:10 }}>
+                <table style={{width:"100%", borderCollapse:"collapse"}}><tbody><tr>
+                  <td style={{verticalAlign:"top",paddingRight:10,width:48}}>
+                    <img src={getLogoUrl()} style={{width:48,height:48,objectFit:"contain"}} alt="Logo" />
+                  </td>
+                  <td style={{verticalAlign:"top"}}>
+                    <div style={{fontWeight:700,fontSize:13,color:"#1a2540"}}>{COMPANY.name}</div>
+                    <div style={{fontSize:10,color:"#555"}}>MST: {COMPANY.mst}</div>
+                    <div style={{fontSize:10,color:"#555"}}>ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
+                    <div style={{fontSize:10,color:"#555"}}>{COMPANY.address}</div>
+                  </td>
+                </tr></tbody></table>
+              </td>
+              <td className="debt-header-right" style={{ width:"48%", verticalAlign:"top", textAlign:"center", paddingLeft:10 }}>
+                <div style={{fontWeight:700,fontSize:12,whiteSpace:"nowrap"}}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                <div style={{fontWeight:600,fontSize:12,whiteSpace:"nowrap",marginTop:2}}>Độc lập – Tự do – Hạnh phúc</div>
+                <div style={{fontSize:11,marginTop:2,letterSpacing:"-1px"}}>⸻⸻⸻</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+ 
+        <div className="debt-title">
+          <h1>{T.paymentTitle}</h1>
+          <div style={{fontSize:12,color:"#555",marginTop:4}}>{T.paymentTitleB}</div>
+          <div className="ref">Số: {payNum}</div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            {T.paymentBasedOn} {refNum ? <strong>{T.paymentBasedOnB} {refNum}</strong> : <strong>{T.paymentBasedOnB}</strong>}
+          </div>
+          <div style={{fontSize:11,color:"#666",marginTop:2}}>
+            {T.paymentInfo1} <strong>{dateStr}</strong>, {T.paymentInfo2}
+          </div>
+        </div>
+ 
+        <div className="debt-party-block">
+          <p>{T.paymentTo} / {T.paymentToB}:</p>
+          <p style={{marginTop:4}}>{T.company} / {T.companyB}: <strong>{buyerName || "……………………………………………………"}</strong></p>
+          {buyerAddr && <p style={{marginTop:2}}>{T.address} / {T.addressB}: {buyerAddr}</p>}
+          <p style={{marginTop:2}}>{T.tax} / {T.taxB}: {buyerTax || "………………………"}</p>
+ 
+          <p style={{marginTop:10}}>
+            {T.paymentRequestNote} <strong>{COMPANY.name}</strong>.
+          </p>
+          <p style={{fontSize:11,color:"#555",marginTop:2}}>
+            {T.paymentRequestNoteB} <strong>{COMPANY.name}</strong>.
+          </p>
+        </div>
+ 
+        <table className="debt-items-table">
+          <thead>
+            <tr>
+              <th style={{textAlign:"left"}}>{T.paymentContent}</th>
+              <th style={{width:140}}>{T.paymentAmountHeader}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{fontSize:12,padding:"7px 10px"}}>
+                {T.paymentGoods}
+                <div style={{fontSize:10,color:"#555",marginTop:2}}>{T.paymentGoodsB}</div>
+              </td>
+              <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandSubtotal)}</td>
+            </tr>
+            <tr>
+              <td style={{fontSize:12,padding:"7px 10px"}}>
+                {T.paymentVat}
+                <div style={{fontSize:10,color:"#555",marginTop:2}}>{T.paymentVatB}</div>
+              </td>
+              <td className="right" style={{fontSize:12,padding:"7px 10px"}}>{fmt(grandVat)}</td>
+            </tr>
+            <tr className="debt-grand-row">
+              <td style={{padding:"8px 10px",fontSize:14}}>
+                {T.paymentTotal}
+                <div style={{fontSize:11,color:"#555",marginTop:2}}>{T.paymentTotalB}</div>
+              </td>
+              <td className="right" style={{padding:"8px 10px",fontSize:15,letterSpacing:"0.02em"}}>{fmt(grandTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+ 
+        <div className="debt-sign" style={{marginTop:28}}>
+          <div className="debt-sign-block">
+            <div className="sign-title">{T.paymentBuyerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{buyerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{buyerTitle}</div>
+          </div>
+          <div className="debt-sign-block">
+            <div className="sign-title">{T.paymentSellerSign}</div>
+            <div style={{fontSize:11,color:"#666",fontStyle:"italic"}}>{T.signSubNote}</div>
+            <div className="sign-space" />
+            <div style={{fontWeight:600}}>{sellerRep || "……………………………"}</div>
+            <div style={{fontSize:11,color:"#666"}}>{sellerTitle}</div>
+            <div style={{fontSize:11,color:"#666"}}>{COMPANY.name}</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+ 
+  return (
+    <div className="fullpage-screen" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh", maxWidth: "100vw", maxHeight: "100vh", zIndex: 999999, background: "#f8fafc", display: "flex", flexDirection: "column", margin: 0, padding: 0, borderRadius: 0, border: "none", boxShadow: "none" }}>
+      <div className="modal-header no-print" style={{ background: "#1a2540", color: "#fff", padding: "12px 24px", flexShrink: 0 }}>
+          <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>💰 Biên bản đối chiếu công nợ (Toàn màn hình)</span>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <button className={`btn btn-sm ${viewMode==="form"?"btn-primary":"btn-ghost"}`} style={{ color: viewMode==="form"?"#fff":"#e2e8f0" }}
+              onClick={() => setViewMode("form")}>⚙️ Nhập liệu</button>
+            <button className={`btn btn-sm ${viewMode==="preview"?"btn-primary":"btn-ghost"}`} style={{ color: viewMode==="preview"?"#fff":"#e2e8f0" }}
+              onClick={() => setViewMode("preview")}>👁️ Xem trước</button>
+            <button className="btn btn-sm btn-ghost"
+              onClick={() => {
+                if (onOpenPaymentRequest) {
+                  onOpenPaymentRequest({
+                    requestType: "debt_recon",
+                    buyerName: customerName,
+                    buyerTaxCode: taxCode,
+                    buyerAddress: customerAddress,
+                    buyerRep: buyerRep,
+                    buyerPosition: buyerTitle,
+                    debtReconNo: refNum,
+                    debtReconDate: dateStr,
+                    debtPeriod: periodText,
+                    amount: grandClosingBalance,
+                    reason: `Thanh toán số tiền công nợ theo Biên bản đối chiếu công nợ số ${refNum || "..."} ngày ${dateStr || "..."}`
+                  });
+                }
+              }} 
+              disabled={invoices.length===0}
+              title="Tạo Giấy đề nghị thanh toán dựa trên biên bản này">🧾 Đề nghị thanh toán</button>
+            <button className="close-btn" onClick={onClose}>×</button>
+          </div>
+        </div>
+ 
+        <div className="modal-body" style={{display:"flex",gap:0,padding:0,overflow:"hidden"}}>
+          <div className="no-print" style={{
+            width: viewMode==="preview" ? 0 : 340,
+            minWidth: viewMode==="preview" ? 0 : 340,
+            overflow:"hidden",
+            transition:"width 0.2s, min-width 0.2s",
+            borderRight:"1px solid #e5e3dc",
+            overflowY:"auto",
+            padding: viewMode==="preview" ? 0 : "16px 18px",
+          }}>
+            {viewMode === "form" && (
+              <>
+                <div style={{marginBottom:16}}>
+                  <div className="section-title" style={{marginBottom:8}}>📂 Import hóa đơn XML</div>
+                  <div className="debt-xml-dropzone"
+                    onClick={() => fileRef.current && fileRef.current.click()}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}>
+                    <div style={{fontSize:28,marginBottom:6}}>🗂️</div>
+                    <div style={{fontSize:13,color:"#555",fontWeight:500}}>Click hoặc kéo thả file XML</div>
+                    <div style={{fontSize:11,color:"#aaa",marginTop:3}}>Hỗ trợ nhiều file cùng lúc · VNPT, MISA, FAST...</div>
+                    <input ref={fileRef} type="file" accept=".xml,text/xml,application/xml" multiple style={{display:"none"}}
+                      onChange={e => { handleFiles(e.target.files); e.target.value=""; }} />
+                  </div>
+                  {xmlError && <div style={{background:"#fee2e2",color:"#dc2626",padding:"8px 12px",borderRadius:6,fontSize:12,marginTop:8}}>{xmlError}</div>}
+                </div>
+ 
+                <div style={{marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
+                    <div className="section-title" style={{marginBottom:0}}>🗂️ Danh sách biên bản đã lưu</div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={handleReloadSavedRecs}>🔄 Tải lại</button>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={handleNewDebtRec}>🆕 Tạo mới</button>
+                    </div>
+                  </div>
+                  {recListLoading ? (
+                    <div style={{fontSize:12,color:"#666"}}>Đang tải danh sách...</div>
+                  ) : savedRecs.length === 0 ? (
+                    <div style={{fontSize:12,color:"#666"}}>Chưa có biên bản nào. Lưu biên bản để nó xuất hiện tại đây.</div>
+                  ) : (
+                    <div style={{display:"grid",gap:10,marginBottom:10}}>
+                      {savedRecs.map(rec => (
+                        <div key={rec.id} className="debt-invoice-card" style={{borderColor:rec.id===refNum?"#1a2540":"#e5e3dc"}}>
+                          <div className="debt-invoice-card-header" style={{cursor:"pointer"}} onClick={() => { setRefNum(rec.id); loadSavedByRefNum(rec.id); }}>
+                            <div>
+                              <div className="inv-num" style={{fontSize:12,fontWeight:600}}>{rec.refNum}</div>
+                              <div className="inv-date" style={{fontSize:11,color:"#888"}}>
+                                {rec.buyerName ? `${rec.buyerName} · ` : ""}{rec.invoices?.length || 0} hóa đơn
+                              </div>
+                            </div>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                              <div className="inv-total" style={{fontSize:12,fontWeight:600}}>{fmt((rec.invoices||[]).reduce((s,i)=>s+(i.grand||0),0))} đ</div>
+                              <button type="button" className="btn btn-ghost btn-sm" style={{padding:"4px 8px"}} onClick={e => { e.stopPropagation(); handleDeleteDebtRec(rec.id); }}>
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                          <div style={{padding:"6px 10px",fontSize:11,color:"#555"}}>
+                            Cập nhật: {new Date(rec.updatedAt||0).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+ 
+                {invoices.length > 0 && (
+                  <div style={{marginBottom:16}}>
+                    <div className="section-title" style={{marginBottom:6}}>
+                      📋 {invoices.length} hóa đơn đã nhập
+                      <span style={{fontSize:11,fontWeight:400,marginLeft:8,color:"#888"}}>Tổng: {fmt(grandTotal)} đ</span>
+                    </div>
+                    {invoices.map(inv => (
+                      <div key={inv._id} className="debt-invoice-card">
+                        <div className="debt-invoice-card-header" onClick={() => toggleExpand(inv._id)} style={{cursor:"pointer"}}>
+                          <div>
+                            <div className="inv-num">
+                              {inv.serial && <span style={{fontFamily:"monospace",fontSize:11}}>{inv.serial}</span>}
+                              {inv.serial && inv.invoiceNumber ? " / " : ""}
+                              {inv.invoiceNumber && <span>No. {inv.invoiceNumber}</span>}
+                            </div>
+                            <div className="inv-date">📅 {inv.invoiceDate || "—"} · {inv.items.length} dòng hàng</div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+                            <div className="inv-total">{fmt(inv.grand)} đ</div>
+                            <button onClick={e => { e.stopPropagation(); removeInvoice(inv._id); }}
+                              style={{background:"none",border:"none",color:"#dc2626",cursor:"pointer",fontSize:16,lineHeight:1,padding:"2px 4px",opacity:0.5}}
+                              onMouseEnter={e => e.currentTarget.style.opacity="1"}
+                              onMouseLeave={e => e.currentTarget.style.opacity="0.5"}
+                              title="Xóa hóa đơn này">✕</button>
+                            <span style={{color:"#aaa",fontSize:12}}>{expandedInv.has(inv._id)?"▲":"▼"}</span>
+                          </div>
+                        </div>
+                        {expandedInv.has(inv._id) && (
+                          <div style={{padding:"8px 10px",fontSize:11,background:"#fff"}}>
+                            {inv.items.map((it, i) => (
+                              <div key={i} style={{display:"flex",gap:6,padding:"3px 0",borderBottom:"1px solid #f0ede6",alignItems:"flex-start"}}>
+                                <span style={{color:"#aaa",minWidth:16,textAlign:"right",flexShrink:0}}>{i+1}.</span>
+                                <div style={{flex:1}}>
+                                  <div style={{fontWeight:500,wordBreak:"break-word"}}>{it.name}</div>
+                                  <div style={{color:"#888",fontSize:10,marginTop:1}}>
+                                    {it.unit && `${it.unit} · `}SL: {it.qty} · {fmt(it.price)} đ ·&nbsp;
+                                    VAT {it.vatRate === -1 ? "KCT" : it.vatRate + "%"} →&nbsp;
+                                    <strong>{fmt(it.lineTotal + it.vatAmt)} đ</strong>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    value={it.extraNote || ""}
+                                    onChange={e => updateItemNote(inv._id, i, e.target.value)}
+                                    placeholder="+ Thêm thông tin hiển thị trong biên bản..."
+                                    style={{width:"100%",fontSize:10,padding:"3px 6px",marginTop:4,border:"1px dashed #ccc",borderRadius:4,outline:"none",boxSizing:"border-box"}}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                            <div style={{marginTop:6,textAlign:"right",color:"#555",fontSize:11}}>
+                              Hàng: {fmt(inv.subtotal)} · VAT: {fmt(inv.vatTotal)} · Tổng: <strong>{fmt(inv.grand)} đ</strong>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+ 
+                <div className="section-title" style={{marginBottom:8}}>📝 Thông tin biên bản</div>
+                <div className="form-group">
+                  <label>Ngôn ngữ song ngữ</label>
+                  <select className="form-control" value={debtLang} onChange={e => setDebtLang(e.target.value)}>
+                    <option value="vi_en">Việt - Anh</option>
+                    <option value="vi_zh">Việt - Trung (giản thể)</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Số biên bản</label>
+                  <div style={{display:"flex",gap:6}}>
+                    <input className="form-control" value={refNum} onChange={e => setRefNum(e.target.value)}
+                      onBlur={e => loadSavedByRefNum(e.target.value)} placeholder="VD: BBDCCN-01/2026" />
+                    <button type="button" className="btn btn-ghost btn-sm" title="Sinh số mới"
+                      onClick={() => setRefNum(generateDebtRecNumber())}>🔄</button>
+                  </div>
+                  <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8}}>
+                    <button type="button" className="btn btn-success btn-sm" onClick={handleSaveDebtRec} disabled={saving}>
+                      {saving ? "⏳ Đang lưu..." : "💾 Lưu biên bản"}
+                    </button>
+                    {saveMsg && <span style={{color:"#16a34a",fontSize:12}}>{saveMsg}</span>}
+                  </div>
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>Ngày lập</label>
+                    <input className="form-control" value={dateStr} onChange={e => setDateStr(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>Đối chiếu đến ngày</label>
+                    <input className="form-control" value={toDateStr} onChange={e => setToDateStr(e.target.value)} />
+                  </div>
+                </div>
+ 
+                <div className="section-title" style={{marginBottom:8}}>🏢 Bên bán (Bên A)</div>
+                <div style={{background:"#f5f7fb",borderRadius:8,padding:"10px 12px",marginBottom:12,fontSize:12,color:"#555"}}>
+                  <div style={{fontWeight:700,color:"#1a2540"}}>{T.company} / {T.companyB}</div>
+                  <strong style={{color:"#1a2540"}}>{COMPANY.name}</strong><br/>
+                  {T.tax} / {T.taxB}: {COMPANY.mst} · {T.address} / {T.addressB}: {COMPANY.address}
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>{T.rep} / {T.repB}</label>
+                    <input className="form-control" value={sellerRep} onChange={e => setSellerRep(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>{T.position} / {T.positionB}</label>
+                    <input className="form-control" value={sellerTitle} onChange={e => setSellerTitle(e.target.value)} />
+                  </div>
+                </div>
+ 
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div className="section-title" style={{marginBottom:0}}>🧑‍💼 {T.buyer} / {T.buyerB}</div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleAutoTranslate}
+                    disabled={translating}
+                    title="🌐 Tự động dịch tên & địa chỉ bên mua"
+                  >
+                    🌐 {translating ? "Đang dịch..." : "Tự động dịch"}
+                  </button>
+                </div>
+                <div style={{fontSize:11,color:"#888",marginBottom:8}}>
+                  💡 Tự động điền từ file XML — có thể chỉnh sửa
+                </div>
+                <div className="form-group">
+                  <label>{T.company} / {T.companyB}</label>
+                  <input className="form-control" value={buyerName} onChange={e => setBuyerName(e.target.value)} placeholder={T.companyB} />
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>{T.tax} / {T.taxB}</label>
+                    <input className="form-control" value={buyerTax} onChange={e => setBuyerTax(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label>{T.address} / {T.addressB}</label>
+                    <input className="form-control" value={buyerAddr} onChange={e => setBuyerAddr(e.target.value)} />
+                  </div>
+                </div>
+                <div className="form-row form-row-2">
+                  <div className="form-group">
+                    <label>{T.rep} / {T.repB}</label>
+                    <input className="form-control" value={buyerRep} onChange={e => setBuyerRep(e.target.value)} placeholder={T.repB} />
+                  </div>
+                  <div className="form-group">
+                    <label>{T.position} / {T.positionB}</label>
+                    <input className="form-control" value={buyerTitle} onChange={e => setBuyerTitle(e.target.value)} placeholder={T.positionB} />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+ 
+          <div style={{flex:1,overflowY:"auto",padding:"16px",background:"#f9f8f5"}}>
+            <div style={{maxWidth:794,margin:"0 auto",boxShadow:"0 2px 16px rgba(0,0,0,0.10)",borderRadius:4}}>
+              {viewMode === "payment" ? renderPaymentRequest() : renderPreview()}
+            </div>
+          </div>
+        </div>
+ 
+        <div className="modal-footer no-print">
+          <button className="btn btn-ghost" onClick={onClose}>Đóng</button>
+          <div style={{flex:1}} />
+          {invoices.length === 0 && (
+            <span style={{fontSize:12,color:"#aaa",alignSelf:"center"}}>⚠️ Import ít nhất 1 file XML để xuất</span>
+          )}
+          <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading || invoices.length === 0} style={{minWidth:120}}>
+            {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
+          </button>
+          <button className="btn btn-ghost" onClick={handleWordClick} disabled={wordLoading || invoices.length === 0} style={{minWidth:120}}>
+            {wordLoading ? "⏳ Đang tạo..." : "📝 Xuất Word"}
+          </button>
+          <button className="btn btn-primary" onClick={handlePrint} disabled={invoices.length === 0}>
+            🖨️ In
+          </button>
+        </div>
+      </div>
   );
 }
