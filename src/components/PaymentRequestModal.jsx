@@ -470,10 +470,10 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
   const amountVal = Number(form.amount || 0);
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 1100 }}>
-        <div className="modal-header">
-          <span className="modal-title">🧾 Giấy đề nghị thanh toán</span>
+    <div className="fullscreen-page-overlay" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#f8fafc", display: "flex", flexDirection: "column", width: "100vw", height: "100vh", overflow: "hidden" }}>
+      <div className="fullscreen-page-container" style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", borderRadius: 0, margin: 0, border: "none" }}>
+        <div className="modal-header" style={{ background: "#1a2540", color: "#fff", padding: "12px 24px", flexShrink: 0 }}>
+          <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>🧾 Giấy đề nghị thanh toán (Toàn màn hình)</span>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button 
               className="btn btn-ghost btn-sm" 

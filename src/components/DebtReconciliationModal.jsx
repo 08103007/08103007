@@ -319,36 +319,78 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
     setRecListLoading(true);
     try {
       const recs = await listDebtRecs();
-      setSavedRecs((recs || []).slice().sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0)));
+      const combined = [...(recs || [])];
+      try {
+        const { _mem } = await import('../utils/gasStore');
+        if (_mem && Array.isArray(_mem.handovers)) {
+          _mem.handovers.forEach(h => {
+            if (h && h.id && !combined.some(r => r.id === h.id || r.refNum === h.handoverNum)) {
+              combined.push({
+                id: h.id,
+                refNum: h.handoverNum || `BBBG-${h.id.slice(0,6)}`,
+                buyerName: h.customer || h.buyerName || "",
+                dateStr: h.date || h.dateStr || "",
+                type: "handover",
+                invoices: (h.items || []).length ? [{
+                  _id: h.id,
+                  invoiceNumber: h.handoverNum || "",
+                  serial: "",
+                  invoiceDate: h.date || "",
+                  subtotal: (h.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  vatTotal: 0,
+                  grand: (h.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  items: (h.items || []).map(i => ({
+                    name: i.name || "",
+                    unit: i.unit || "Cái",
+                    qty: i.qty || 1,
+                    price: i.price || 0,
+                    vatRate: 0,
+                    vatAmt: 0,
+                    lineTotal: ((i.price||0) * (i.qty||1))
+                  }))
+                }] : []
+              });
+            }
+          });
+        }
+        if (_mem && Array.isArray(_mem.quotes)) {
+          _mem.quotes.forEach(q => {
+            if (q && q.id && !combined.some(r => r.id === q.id || r.refNum === q.quoteNumber)) {
+              combined.push({
+                id: q.id,
+                refNum: q.quoteNumber || `BG-${q.id.slice(0,6)}`,
+                buyerName: q.customer || "",
+                dateStr: q.date || "",
+                type: "quote",
+                invoices: (q.items || []).length ? [{
+                  _id: q.id,
+                  invoiceNumber: q.quoteNumber || "",
+                  serial: "",
+                  invoiceDate: q.date || "",
+                  subtotal: (q.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  vatTotal: 0,
+                  grand: (q.items || []).reduce((s, i) => s + ((i.price||0) * (i.qty||1)), 0),
+                  items: (q.items || []).map(i => ({
+                    name: i.name || "",
+                    unit: i.unit || "Cái",
+                    qty: i.qty || 1,
+                    price: i.price || 0,
+                    vatRate: q.vatRate || 8,
+                    vatAmt: 0,
+                    lineTotal: ((i.price||0) * (i.qty||1))
+                  }))
+                }] : []
+              });
+            }
+          });
+        }
+      } catch(err) {}
+
+      setSavedRecs(combined.sort((a,b) => (b.updatedAt||0) - (a.updatedAt||0)));
     } finally {
       setRecListLoading(false);
     }
   };
-
-  const handleNewDebtRec = () => {
-    const newRef = generateDebtRecNumber();
-    setRefNum(newRef);
-    setDateStr(todayFull);
-    setToDateStr(endOfMonth);
-    setSellerRep(COMPANY.representative || "");
-    setSellerTitle(COMPANY.position || "");
-    setBuyerName("");
-    setBuyerTax("");
-    setBuyerAddr("");
-    setBuyerRep("");
-    setBuyerTitle("");
-    setInvoices([]);
-    setExpandedInv(new Set());
-    setSaveMsg("");
-    showToast("🆕 Tạo biên bản mới", 1500);
-  };
-
-  const handleReloadSavedRecs = async () => {
-    await fetchSavedRecs();
-    showToast("🔄 Đã tải lại danh sách biên bản", 1500);
-  };
-
-  const [translating,      setTranslating]      = useState(false);
 
   const handleAutoTranslate = async () => {
     const targetLang = debtLang === "vi_zh" ? "zh-CN" : "en";
@@ -378,7 +420,18 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
       if (tBuyerName) setBuyerName(tBuyerName);
       if (tBuyerAddr) setBuyerAddr(tBuyerAddr);
 
-      showToast(`✓ Đã tự động dịch thông tin khách hàng sang ${debtLang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"}!`, 3000);
+      // Translate all item names in invoices
+      const updatedInvoices = await Promise.all(invoices.map(async (inv) => {
+        const updatedItems = await Promise.all(inv.items.map(async (it) => {
+          const tName = await translateText(it.name);
+          return { ...it, nameB: tName !== it.name ? tName : (it.nameB || "") };
+        }));
+        return { ...inv, items: updatedItems };
+      }));
+
+      setInvoices(updatedInvoices);
+
+      showToast(`✓ Đã tự động dịch thông tin & hàng hóa trong bảng sang ${debtLang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"}!`, 3000);
     } catch (e) {
       showToast("⚠️ Lỗi dịch tự động: " + e.message, 3000);
     } finally {
@@ -734,7 +787,8 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                       {inv.serial || ""}{inv.serial && inv.invoiceNumber ? " / " : ""}{inv.invoiceNumber || ""}
                     </td>
                     <td style={{fontSize:11,wordBreak:"break-word",padding:"5px 7px"}}>
-                      {it.name}
+                      <div>{it.name}</div>
+                      {it.nameB && <div style={{fontSize:10,color:"#475569",marginTop:2,fontStyle:"italic"}}>{it.nameB}</div>}
                     </td>
                     <td className="center" style={{fontSize:11}}>{it.unit}</td>
                     <td className="center" style={{fontSize:11}}>{it.qty !== 0 ? it.qty : "—"}</td>
@@ -964,14 +1018,14 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
   };
  
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{maxWidth:1100}}>
-        <div className="modal-header no-print">
-          <span className="modal-title">💰 Biên bản đối chiếu công nợ</span>
+    <div className="fullscreen-page-overlay" style={{ position: "fixed", inset: 0, zIndex: 9999, background: "#f8fafc", display: "flex", flexDirection: "column", width: "100vw", height: "100vh", overflow: "hidden" }}>
+      <div className="fullscreen-page-container" style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", borderRadius: 0, margin: 0, border: "none" }}>
+        <div className="modal-header no-print" style={{ background: "#1a2540", color: "#fff", padding: "12px 24px", flexShrink: 0 }}>
+          <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>💰 Biên bản đối chiếu công nợ (Toàn màn hình)</span>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            <button className={`btn btn-sm ${viewMode==="form"?"btn-primary":"btn-ghost"}`}
+            <button className={`btn btn-sm ${viewMode==="form"?"btn-primary":"btn-ghost"}`} style={{ color: viewMode==="form"?"#fff":"#e2e8f0" }}
               onClick={() => setViewMode("form")}>⚙️ Nhập liệu</button>
-            <button className={`btn btn-sm ${viewMode==="preview"?"btn-primary":"btn-ghost"}`}
+            <button className={`btn btn-sm ${viewMode==="preview"?"btn-primary":"btn-ghost"}`} style={{ color: viewMode==="preview"?"#fff":"#e2e8f0" }}
               onClick={() => setViewMode("preview")}>👁️ Xem trước</button>
             <button className="btn btn-sm btn-ghost"
               onClick={() => {
