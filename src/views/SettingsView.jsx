@@ -52,6 +52,8 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     } finally {
       setMigrating(false);
     }
+  };
+
   useEffect(() => {
     if (COMPANY) {
       setCompany({ ...DEFAULT_COMPANY, ...COMPANY });
@@ -280,6 +282,7 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? "⏳ Đang lưu..." : "💾 Lưu cài đặt"}{saveMsg && <span style={{marginLeft:8,fontSize:12}}>{saveMsg}</span>}
         </button>
+      </div>
       <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "14px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: 14, color: "#166534", marginBottom: 4 }}>
