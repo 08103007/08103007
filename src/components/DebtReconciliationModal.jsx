@@ -313,6 +313,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
   const [saveMsg,          setSaveMsg]          = useState("");
   const [savedRecs,        setSavedRecs]        = useState([]);
   const [recListLoading,   setRecListLoading]   = useState(false);
+  const [translating,      setTranslating]      = useState(false);
   const fileRef = useRef(null);
 
   const fetchSavedRecs = async () => {

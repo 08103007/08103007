@@ -956,19 +956,19 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
               })()}
 
             </div>
+          </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="btn btn-ghost" onClick={onClose}>Đóng</button>
-          <button className="btn btn-ghost" onClick={handleSave}>
-            💾 Lưu đề nghị {saveMsg && <span style={{ color: "#16a34a", marginLeft: 6 }}>{saveMsg}</span>}
+        <div className="modal-footer no-print" style={{ background: "#1a2540", padding: "10px 24px", display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid #334155", flexShrink: 0 }}>
+          <button className="btn btn-ghost" style={{ color: "#fff" }} onClick={onClose}>Đóng</button>
+          <button className="btn btn-ghost" style={{ color: "#fff" }} onClick={handleSave}>
+            💾 Lưu đề nghị {saveMsg && <span style={{ color: "#4ade80", marginLeft: 6 }}>{saveMsg}</span>}
           </button>
-          <button className="btn btn-ghost" onClick={handlePrint}>🖨️ In Đề Nghị Thanh Toán</button>
-          <button className="btn btn-ghost" onClick={handlePDFClick} disabled={pdfLoading} style={{ minWidth: 120 }}>
+          <button className="btn btn-ghost" style={{ color: "#fff" }} onClick={handlePrint}>🖨️ In Đề Nghị Thanh Toán</button>
+          <button className="btn btn-primary" onClick={handlePDFClick} disabled={pdfLoading} style={{ minWidth: 120 }}>
             {pdfLoading ? "⏳ Đang tạo..." : "📄 Xuất PDF"}
           </button>
         </div>
       </div>
-    </div>
   );
 }
