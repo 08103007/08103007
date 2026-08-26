@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
 import { loadProductCatalog, PRODUCT_CATALOG, upsertProductImage } from '../../utils/gasStore';
-import { fmt } from '../../utils/helpers';
+import { fmt, removeAccents } from '../../utils/helpers';
 import { FormattedNumberInput } from '../common/FormattedNumberInput';
 
 function QuoteItemRow({
@@ -26,14 +26,14 @@ function QuoteItemRow({
     let mounted = true;
     loadProductCatalog().then(persisted => {
       if (!mounted) return;
-      const byName = new Map(persisted.map(p => [p.name, p]));
+      const byName = new Map((persisted || []).map(p => [p.name, p]));
       PRODUCT_CATALOG.forEach(n => {
-        if (!byName.has(n)) byName.set(n, { name: n, note: "", unit: "Cái", price: 0, cost: 0, costNoVat: 0, image: "" });
+        if (n && !byName.has(n)) byName.set(n, { name: n, note: "", unit: "Cái", price: 0, cost: 0, costNoVat: 0, image: "" });
       });
-      allQuotes.flatMap(q => q.items || []).forEach(i => {
-        if (i.name && !byName.has(i.name)) {
-          byName.set(i.name, {
-            name: i.name,
+      (allQuotes || []).flatMap(q => q.items || []).forEach(i => {
+        if (i && i.name && i.name.trim() && !byName.has(i.name.trim())) {
+          byName.set(i.name.trim(), {
+            name: i.name.trim(),
             note: i.note || "",
             unit: i.unit || "Cái",
             price: i.price || 0,
@@ -57,12 +57,18 @@ function QuoteItemRow({
 
   const handleNameChange = (val) => {
     onSetItem(idx, "name", val);
-    if (val.trim().length >= 1) {
-      const results = catalog.filter(p => p.name.toLowerCase().includes(val.toLowerCase()) && p.name !== val);
-      setSearchResults(results.slice(0, 8));
+    const cleanVal = removeAccents(val.trim());
+    if (cleanVal.length >= 1) {
+      const results = catalog.filter(p => {
+        const nameClean = removeAccents(p.name);
+        const noteClean = removeAccents(p.note || "");
+        return nameClean.includes(cleanVal) || noteClean.includes(cleanVal);
+      });
+      setSearchResults(results.slice(0, 30));
       setShowSearch(results.length > 0);
     } else {
-      setShowSearch(false);
+      setSearchResults(catalog.slice(0, 30));
+      setShowSearch(catalog.length > 0);
     }
   };
 
@@ -151,8 +157,8 @@ function QuoteItemRow({
               className="item-name"
               value={it.name || ""}
               onChange={e => handleNameChange(e.target.value)}
-              onBlur={() => setTimeout(() => setShowSearch(false), 150)}
-              onFocus={() => it.name && handleNameChange(it.name)}
+              onBlur={() => setTimeout(() => setShowSearch(false), 200)}
+              onFocus={() => handleNameChange(it.name || "")}
               placeholder="Tên sản phẩm / dịch vụ..."
             />
             {showSearch && (

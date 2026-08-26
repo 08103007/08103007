@@ -20,6 +20,16 @@ export function fmt(n) {
   return num.toLocaleString("vi-VN", { maximumFractionDigits: 4 });
 }
 
+export function removeAccents(str) {
+  if (!str) return "";
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase();
+}
+
 export function todayStr() {
   const d = new Date();
   return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;

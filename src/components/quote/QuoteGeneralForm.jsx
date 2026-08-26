@@ -66,8 +66,8 @@ export default function QuoteGeneralForm({
               placeholder="VD: CÔNG TY TNHH ABC"
               value={form.customer || ""}
               onChange={e => handleCustomerChange(e.target.value)}
-              onBlur={() => setTimeout(() => setShowCustSearch(false), 150)}
-              onFocus={() => form.customer && handleCustomerChange(form.customer)}
+              onBlur={() => setTimeout(() => setShowCustSearch(false), 200)}
+              onFocus={() => handleCustomerChange(form.customer || "")}
             />
             {showCustSearch && (
               <div className="item-search-dropdown">

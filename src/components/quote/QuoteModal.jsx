@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { loadCustomerCatalog, upsertCatalogItems, upsertCatalogCustomer, showToast } from '../../utils/gasStore';
-import { generateId, generateQuoteNumber, todayStr, calcItems } from '../../utils/helpers';
+import { generateId, generateQuoteNumber, todayStr, calcItems, removeAccents } from '../../utils/helpers';
 import QuoteGeneralForm from './QuoteGeneralForm';
 import QuoteItemsTable from './QuoteItemsTable';
 import QuoteProfitJVCard from './QuoteProfitJVCard';
@@ -58,19 +58,44 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   useEffect(() => {
-    loadCustomerCatalog().then(setCustCatalog).catch(() => {});
-  }, []);
+    loadCustomerCatalog().then(persisted => {
+      const byName = new Map();
+      (persisted || []).forEach(c => {
+        if (c && c.customer && c.customer.trim()) byName.set(c.customer.trim(), c);
+      });
+      (allQuotes || []).forEach(q => {
+        if (q && q.customer && q.customer.trim() && !byName.has(q.customer.trim())) {
+          byName.set(q.customer.trim(), {
+            customer: q.customer.trim(),
+            contact: q.contact || "",
+            address: q.address || "",
+            taxId: q.taxId || "",
+            phone: q.phone || ""
+          });
+        }
+      });
+      setCustCatalog([...byName.values()]);
+    }).catch(() => {});
+  }, [allQuotes]);
 
   const setField = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
   const handleCustomerChange = (val) => {
     setField("customer", val);
-    if (val.trim().length >= 1) {
-      const results = custCatalog.filter(c => c.customer.toLowerCase().includes(val.toLowerCase()) && c.customer !== val);
-      setCustSearchResults(results.slice(0, 8));
+    const cleanVal = removeAccents(val.trim());
+    if (cleanVal.length >= 1) {
+      const results = custCatalog.filter(c => {
+        const nameClean = removeAccents(c.customer);
+        const contactClean = removeAccents(c.contact);
+        const taxClean = removeAccents(c.taxId);
+        const phoneClean = removeAccents(c.phone);
+        return nameClean.includes(cleanVal) || contactClean.includes(cleanVal) || taxClean.includes(cleanVal) || phoneClean.includes(cleanVal);
+      });
+      setCustSearchResults(results.slice(0, 20));
       setShowCustSearch(results.length > 0);
     } else {
-      setShowCustSearch(false);
+      setCustSearchResults(custCatalog.slice(0, 20));
+      setShowCustSearch(custCatalog.length > 0);
     }
   };
 
