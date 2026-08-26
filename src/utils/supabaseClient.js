@@ -179,14 +179,47 @@ export async function fetchSupabaseProducts() {
 }
 
 /**
- * Upsert products to Supabase
+ * Upsert products to Supabase (aggregates catalog + all unique items from quotes)
  */
-export async function upsertSupabaseProducts(products) {
-  if (!hasSupabase() || !Array.isArray(products) || products.length === 0) return false;
+export async function upsertSupabaseProducts(products, catalog = [], quotes = []) {
+  if (!hasSupabase()) return false;
+  let itemsToSync = Array.isArray(products) && products.length > 0 ? [...products] : [];
+  
+  if (itemsToSync.length === 0 && Array.isArray(catalog) && catalog.length > 0) {
+    itemsToSync.push(...catalog);
+  }
+
+  if (Array.isArray(quotes)) {
+    const nameMap = new Map(itemsToSync.map(p => [(p.name || "").trim().toLowerCase(), p]));
+    quotes.forEach(q => {
+      if (q && Array.isArray(q.items)) {
+        q.items.forEach(it => {
+          if (it && it.name && it.name.trim()) {
+            const key = it.name.trim().toLowerCase();
+            if (!nameMap.has(key)) {
+              const pObj = {
+                id: `prod_${Date.now()}_${Math.random().toString(36).substring(2,5)}`,
+                name: it.name.trim(),
+                unit: it.unit || "Cái",
+                price: it.price || 0,
+                cost: it.cost || 0,
+                vatRate: it.vatRate || 8,
+                image: it.image || ""
+              };
+              nameMap.set(key, pObj);
+              itemsToSync.push(pObj);
+            }
+          }
+        });
+      }
+    });
+  }
+
+  if (itemsToSync.length === 0) return false;
   try {
     const chunkSize = 50;
-    for (let i = 0; i < products.length; i += chunkSize) {
-      const chunk = products.slice(i, i + chunkSize);
+    for (let i = 0; i < itemsToSync.length; i += chunkSize) {
+      const chunk = itemsToSync.slice(i, i + chunkSize);
       const rows = chunk.map((p, idx) => ({
         id: p.id || `prod_${idx}_${Date.now()}`,
         name: p.name || "",
@@ -207,9 +240,122 @@ export async function upsertSupabaseProducts(products) {
       });
     }
     return true;
-  } catch {
+  } catch (e) {
+    console.warn("Supabase product upsert error:", e);
     return false;
   }
+}
+
+/**
+ * Sync Debt Reconciliations to debt_reconciliations table
+ */
+export async function upsertSupabaseDebtRecs(debtRecsMap) {
+  if (!hasSupabase() || !debtRecsMap || typeof debtRecsMap !== "object") return false;
+  const list = Object.values(debtRecsMap);
+  if (list.length === 0) return false;
+  try {
+    const rows = list.map(d => ({
+      id: d.id || d.refNum || `dr_${Date.now()}`,
+      ref_num: d.refNum || "",
+      buyer_name: d.buyerName || "",
+      date_str: d.dateStr || "",
+      amount: (d.invoices || []).reduce((s, i) => s + (i.grand || 0), 0),
+      payload: d,
+      updated_at: new Date().toISOString()
+    }));
+    const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations`;
+    const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
+    return resp.ok;
+  } catch { return false; }
+}
+
+export async function fetchSupabaseDebtRecs() {
+  if (!hasSupabase()) return {};
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations?select=*`;
+    const resp = await fetch(url, { headers: getHeaders() });
+    if (!resp.ok) return {};
+    const rows = await resp.json();
+    const map = {};
+    if (Array.isArray(rows)) {
+      rows.forEach(r => { if (r.id) map[r.id] = r.payload || r; });
+    }
+    return map;
+  } catch { return {}; }
+}
+
+/**
+ * Sync Payment Requests to payment_requests table
+ */
+export async function upsertSupabasePaymentRequests(reqsMap) {
+  if (!hasSupabase() || !reqsMap || typeof reqsMap !== "object") return false;
+  const list = Object.values(reqsMap);
+  if (list.length === 0) return false;
+  try {
+    const rows = list.map(r => ({
+      id: r.id || r.reqNumber || `pr_${Date.now()}`,
+      req_number: r.reqNumber || "",
+      buyer_name: r.buyerName || "",
+      amount: r.amount || 0,
+      payload: r,
+      updated_at: new Date().toISOString()
+    }));
+    const url = `${getSupabaseUrl()}/rest/v1/payment_requests`;
+    const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
+    return resp.ok;
+  } catch { return false; }
+}
+
+export async function fetchSupabasePaymentRequests() {
+  if (!hasSupabase()) return {};
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/payment_requests?select=*`;
+    const resp = await fetch(url, { headers: getHeaders() });
+    if (!resp.ok) return {};
+    const rows = await resp.json();
+    const map = {};
+    if (Array.isArray(rows)) {
+      rows.forEach(r => { if (r.id) map[r.id] = r.payload || r; });
+    }
+    return map;
+  } catch { return {}; }
+}
+
+/**
+ * Sync Handovers to handovers table
+ */
+export async function upsertSupabaseHandovers(handoversMap) {
+  if (!hasSupabase() || !handoversMap || typeof handoversMap !== "object") return false;
+  const list = Object.values(handoversMap);
+  if (list.length === 0) return false;
+  try {
+    const rows = list.map(h => ({
+      id: h.id || `hw_${Date.now()}`,
+      quote_id: h.quoteId || "",
+      customer: h.customer || "",
+      date: h.date || "",
+      payload: h,
+      updated_at: new Date().toISOString()
+    }));
+    const url = `${getSupabaseUrl()}/rest/v1/handovers`;
+    const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
+    return resp.ok;
+  } catch { return false; }
+}
+
+export async function fetchSupabaseHandovers() {
+  if (!hasSupabase()) return {};
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/handovers?select=*`;
+    const resp = await fetch(url, { headers: getHeaders() });
+    if (!resp.ok) return {};
+    const rows = await resp.json();
+    const map = {};
+    if (Array.isArray(rows)) {
+      rows.forEach(r => { if (r.id) map[r.id] = r.payload || r; });
+    }
+    return map;
+  } catch { return {}; }
 }
 
 /**

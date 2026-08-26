@@ -125,7 +125,10 @@ export function showToast(msg, duration = 3000) {
 
 import { 
   hasSupabase, fetchSupabaseQuotes, upsertSupabaseQuotes, deleteSupabaseQuote,
-  fetchSupabaseProducts, upsertSupabaseProducts, fetchSupabaseSettings, upsertSupabaseSettings 
+  fetchSupabaseProducts, upsertSupabaseProducts, fetchSupabaseSettings, upsertSupabaseSettings,
+  upsertSupabaseDebtRecs, fetchSupabaseDebtRecs,
+  upsertSupabasePaymentRequests, fetchSupabasePaymentRequests,
+  upsertSupabaseHandovers, fetchSupabaseHandovers
 } from './supabaseClient';
 
 // Debounce save timer
@@ -184,6 +187,10 @@ export async function _flushToGAS() {
     upsertSupabaseQuotes(_mem.quotes || [], payload).then(ok => {
       if (ok) console.log("⚡ Đã đồng bộ Supabase Cloud Database & Master Payload thành công");
     });
+    upsertSupabaseProducts(_mem.products || [], PRODUCT_CATALOG, _mem.quotes || []);
+    upsertSupabaseDebtRecs(_mem.debtRecs || {});
+    upsertSupabasePaymentRequests(_mem.paymentRequests || {});
+    upsertSupabaseHandovers(_mem.handovers || {});
     upsertSupabaseSettings("master_settings", payload);
   }
 
@@ -314,6 +321,16 @@ export async function doLoad() {
       if (Array.isArray(sbProducts) && sbProducts.length > 0) {
         _mem.products = sbProducts;
       }
+
+      // Fetch dedicated Supabase tables if present
+      try {
+        const sbDebtRecs = await fetchSupabaseDebtRecs();
+        if (sbDebtRecs && Object.keys(sbDebtRecs).length > 0) _mem.debtRecs = { ..._mem.debtRecs, ...sbDebtRecs };
+        const sbPayReqs = await fetchSupabasePaymentRequests();
+        if (sbPayReqs && Object.keys(sbPayReqs).length > 0) _mem.paymentRequests = { ..._mem.paymentRequests, ...sbPayReqs };
+        const sbHandovers = await fetchSupabaseHandovers();
+        if (sbHandovers && Object.keys(sbHandovers).length > 0) _mem.handovers = { ..._mem.handovers, ...sbHandovers };
+      } catch {}
 
       const sbSettings = await fetchSupabaseSettings("master_settings");
       if (sbSettings && typeof sbSettings === "object") {

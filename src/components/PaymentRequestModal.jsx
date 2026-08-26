@@ -518,7 +518,7 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
   const amountVal = Number(form.amount || 0);
 
   return (
-    <div className="fullpage-screen">
+    <div className="fullpage-screen" style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100vh", maxWidth: "100vw", maxHeight: "100vh", zIndex: 999999, background: "#f8fafc", display: "flex", flexDirection: "column", margin: 0, padding: 0, borderRadius: 0, border: "none", boxShadow: "none" }}>
       <div className="modal-header no-print" style={{ background: "#1a2540", color: "#fff", padding: "14px 24px", flexShrink: 0, borderBottom: "1px solid #334155" }}>
         <span className="modal-title" style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>🧾 GIẤY ĐỀ NGHỊ THANH TOÁN (TOÀN MÀN HÌNH)</span>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
