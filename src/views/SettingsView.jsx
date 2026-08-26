@@ -279,6 +279,19 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
         <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
           {saving ? "⏳ Đang lưu..." : "💾 Lưu cài đặt"}{saveMsg && <span style={{marginLeft:8,fontSize:12}}>{saveMsg}</span>}
         </button>
+      <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "14px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#166534", marginBottom: 4 }}>
+            🚀 ĐỒNG BỘ 1-CLICK: Đẩy tất cả dữ liệu cũ lên Supabase Cloud
+          </div>
+          <div style={{ fontSize: 12, color: "#15803d" }}>
+            Tự động quét và đẩy tất cả Báo giá, Sản phẩm, Biên bản công nợ, Đề nghị thanh toán, Hợp đồng, Bàn giao lên 8 bảng Supabase Cloud
+          </div>
+          {migMsg && <div style={{ fontSize: 12, marginTop: 6, fontWeight: 600, color: migMsg.startsWith("✅") ? "#16a34a" : migMsg.startsWith("⏳") ? "#888" : "#dc2626" }}>{migMsg}</div>}
+        </div>
+        <button type="button" className="btn btn-success" onClick={handleMigrateToSupabase} disabled={migrating} style={{ fontWeight: 700, fontSize: 13, background: "#16a34a", color: "#fff", whiteSpace: "nowrap", padding: "10px 18px" }}>
+          {migrating ? "⏳ Đang đồng bộ..." : "🚀 Đẩy tất cả dữ liệu cũ lên Supabase Cloud"}
+        </button>
       </div>
 
       <div className="card" style={{ marginBottom:16 }}>
