@@ -10,10 +10,10 @@ export function buildPrintHtml(elementId, extraCss) {
     ${styles}
     <style>
       @page { margin:10mm; size:A4; }
-      html { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-      body { background:#fff; margin:0; padding:0; }
+      html, body { background:#fff; margin:0; padding:0; height:auto !important; overflow:visible !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
       * { font-family: 'Plus Jakarta Sans', sans-serif !important; }
       .no-print { display:none !important; }
+      #${elementId} { position:relative !important; width:100% !important; max-width:100% !important; height:auto !important; overflow:visible !important; margin:0 !important; padding:0 !important; box-shadow:none !important; }
       ${extraCss || ""}
     </style>
   </head><body>${el.outerHTML}</body></html>`;

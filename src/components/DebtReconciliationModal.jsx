@@ -581,7 +581,8 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
   });
  
   const handlePrint = () => {
-    printElementViaIframe("debtPreviewContent", `
+    const targetId = viewMode === "payment" ? "debtPayReqPreviewContent" : "debtPreviewContent";
+    printElementViaIframe(targetId, `
       .debt-preview * { color:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
       .debt-items-table { border:1px solid #000 !important; border-collapse: collapse !important; width: 100% !important; }
       .debt-items-table th, .debt-items-table td { border-right:1px solid #000 !important; border-bottom:1px solid #000 !important; white-space: normal !important; word-break: break-word !important; }
@@ -912,7 +913,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
     const T = DEBT_TEXT[debtLang];
     const payNum = "DNTT-" + (refNum ? refNum.replace(/^BBDCCN-/, "") : todayFull.replace(/ /g,"_"));
     return (
-      <div className="debt-preview" id="debtPreviewContent">
+      <div className="debt-preview" id="debtPayReqPreviewContent">
         <table className="debt-header-table" style={{ width:"100%", tableLayout:"fixed", borderCollapse:"collapse", marginBottom:14 }}>
           <tbody>
             <tr>
