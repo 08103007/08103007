@@ -139,7 +139,7 @@ export const _mem = {
 // GAS_URL getter/setter
 export function getGasUrl() { return getLS(LS_GAS_URL) || ""; }
 export function setGasUrl(url) { setLS(LS_GAS_URL, url.trim()); }
-export function hasGasUrl() { const u = getGasUrl(); return !!u && u !== "PASTE_GAS_URL_HERE"; }
+export function hasGasUrl() { const u = getGasUrl(); return (!!u && u !== "PASTE_GAS_URL_HERE") || hasSupabase(); }
 
 // Toast implementation
 export function showToast(msg, duration = 3000) {

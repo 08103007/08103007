@@ -55,6 +55,11 @@ export default function SetupScreen({ onDone }) {
           onClick={handleSave} disabled={testing || !url.trim()}>
           {testing ? "⏳ Đang kiểm tra kết nối..." : "✅ Kết nối & bắt đầu"}
         </button>
+
+        <button className="btn btn-ghost" style={{ width:"100%", marginTop:10, justifyContent:"center", color:"var(--accent)", border:"1px solid var(--border-color)" }}
+          onClick={() => onDone()}>
+          ⚡ Bỏ qua & Sử dụng Supabase Cloud Database
+        </button>
       </div>
     </div>
   );
