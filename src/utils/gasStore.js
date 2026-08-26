@@ -43,11 +43,38 @@ export function getLS(key) {
 }
 
 export function setLS(key, val) {
-  localStorage.setItem(getLSKey(key), val);
+  // ONLY allow storing connection credentials (Supabase URL, Anon Key, Session Token, App Prefix)
+  const allowedKeys = [LS_GAS_URL, LS_TOKEN, "pmc_app_prefix", "pmc_sb_url_v1", "pmc_sb_key_v1"];
+  if (allowedKeys.includes(key)) {
+    try {
+      localStorage.setItem(getLSKey(key), val);
+    } catch (e) {}
+  }
 }
 
 export function removeLS(key) {
-  localStorage.removeItem(getLSKey(key));
+  try {
+    localStorage.removeItem(getLSKey(key));
+    localStorage.removeItem(key);
+  } catch (e) {}
+}
+
+export function _flushToLocalStorage() {
+  // Purge any legacy data keys from localStorage to ensure 0% storage footprint in browser
+  try {
+    const legacyKeys = [
+      LS_QUOTES, LS_PRODUCTS, LS_CUSTOMERS, LS_CONTRACTS, LS_HANDOVERS,
+      LS_DELIVERIES, LS_DEBTRECS, LS_TASKS, LS_NOTES, LS_COMPANY,
+      LS_CONTRACTS_DF, LS_CATALOG, "pmc_quotes_emergency_backup",
+      "pmc_quotes_v4", "pmc_quotes_v3", "pmc_quotes_v2", "pmc_quotes_v1", "pmc_quotes"
+    ];
+    legacyKeys.forEach(k => {
+      try {
+        localStorage.removeItem(getLSKey(k));
+        localStorage.removeItem(k);
+      } catch {}
+    });
+  } catch (e) {}
 }
 
 // Global company and catalog definitions
@@ -231,32 +258,7 @@ export async function _flushToGAS() {
   }
 }
 
-export function _flushToLocalStorage() {
-  try {
-    setLS(LS_COMPANY,      JSON.stringify(COMPANY));
-    setLS(LS_CONTRACTS_DF, JSON.stringify(CONTRACT_DEFAULTS));
-    setLS(LS_CATALOG,      JSON.stringify(PRODUCT_CATALOG));
-    setLS(LS_PRODUCTS,     JSON.stringify(_mem.products || []));
-    setLS(LS_CUSTOMERS,    JSON.stringify(_mem.customers || []));
 
-    // When Supabase Cloud Database is connected, store quotes on Supabase Cloud to avoid QuotaExceededError
-    if (!hasSupabase()) {
-      setLS(LS_QUOTES, JSON.stringify(_mem.quotes ?? []));
-    } else {
-      try { removeLS(LS_QUOTES); } catch {}
-    }
-  } catch (e) {
-    // Silent catch for localStorage quota limits
-  }
-}
-      setLS("pmc_quotes_emergency_backup", JSON.stringify(_mem.quotes));
-    }
-
-    if (_currentFileHandle) {
-      writeToLocalJsonFile();
-    }
-  } catch(e) { console.warn("localStorage full:", e); }
-}
 
 export async function doLoad() {
   const localQuotes = mergeAllLocalStorageSources();
