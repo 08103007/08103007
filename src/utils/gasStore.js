@@ -114,13 +114,15 @@ export const DEFAULT_COMPANY = {
     "Cáp mạng Cat6 UTP 305m chính hãng CommScope"
   ]
 };
+if (DEFAULT_COMPANY.logo) DEFAULT_COMPANY.logo = DEFAULT_COMPANY.logo.replace(/[\r\n\s]+/g, "");
 export const COMPANY = { ...DEFAULT_COMPANY };
 export const CONTRACT_DEFAULTS = { ...DEFAULT_COMPANY.contractDefaults };
 export const PRODUCT_CATALOG = [ ...DEFAULT_COMPANY.productCatalog ];
 
 export function getLogoUrl() {
   if (!COMPANY.logo || COMPANY.logo.length < 10) return "";
-  return COMPANY.logo.replace(/[\r\n\s]+/g, "");
+  COMPANY.logo = COMPANY.logo.replace(/[\r\n\s]+/g, "");
+  return COMPANY.logo;
 }
 
 // In-memory store
@@ -470,7 +472,7 @@ export function _initFromLocalStorage() {
   try { const tk= getLS(LS_TASKS);        _mem.tasks      = tk  ? JSON.parse(tk)  : []; } catch { _mem.tasks      = []; }
   try { const nt= getLS(LS_NOTES);        _mem.notes      = nt  ? JSON.parse(nt)  : []; } catch { _mem.notes      = []; }
 
-  try { const comp = getLS(LS_COMPANY); if (comp) Object.assign(COMPANY, JSON.parse(comp)); } catch {}
+  try { const comp = getLS(LS_COMPANY); if (comp) Object.assign(COMPANY, JSON.parse(comp)); if (COMPANY.logo) COMPANY.logo = COMPANY.logo.replace(/[\r\n\s]+/g, ""); } catch {}
   try { const df = getLS(LS_CONTRACTS_DF); if (df) Object.assign(CONTRACT_DEFAULTS, JSON.parse(df)); } catch {}
   try { const cat = getLS(LS_CATALOG); if (cat) PRODUCT_CATALOG.splice(0, PRODUCT_CATALOG.length, ...JSON.parse(cat)); } catch {}
 }
