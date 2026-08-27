@@ -413,15 +413,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
     };
 
     try {
-      const [tBuyerName, tBuyerAddr] = await Promise.all([
-        translateText(buyerName),
-        translateText(buyerAddr)
-      ]);
-
-      if (tBuyerName) setBuyerName(tBuyerName);
-      if (tBuyerAddr) setBuyerAddr(tBuyerAddr);
-
-      // Translate all item names in invoices
+      // Translate only goods/services item names in invoices (Do NOT alter legal company name & address)
       const updatedInvoices = await Promise.all(invoices.map(async (inv) => {
         const updatedItems = await Promise.all(inv.items.map(async (it) => {
           const tName = await translateText(it.name);
@@ -432,7 +424,7 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
 
       setInvoices(updatedInvoices);
 
-      showToast(`✓ Đã tự động dịch thông tin & hàng hóa trong bảng sang ${debtLang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"}!`, 3000);
+      showToast(`✓ Đã tự động dịch tên hàng hóa trong bảng sang ${debtLang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"}!`, 3000);
     } catch (e) {
       showToast("⚠️ Lỗi dịch tự động: " + e.message, 3000);
     } finally {
@@ -1241,9 +1233,9 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
                     style={{ fontSize: 11, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", fontWeight: 600 }}
                     onClick={handleAutoTranslate}
                     disabled={translating}
-                    title="🌐 Tự động dịch tên & địa chỉ bên mua"
+                    title="🌐 Tự động dịch danh mục hàng hóa trong bảng đối chiếu"
                   >
-                    🌐 {translating ? "Đang dịch..." : "Tự động dịch"}
+                    🌐 {translating ? "Đang dịch..." : "Tự động dịch hàng hóa"}
                   </button>
                 </div>
                 <div style={{ fontSize: 11, color: "#64748b", marginBottom: 8 }}>

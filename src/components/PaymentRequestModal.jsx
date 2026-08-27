@@ -213,20 +213,14 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
     };
 
     try {
-      const [transReason, transBuyerName, transBuyerAddr] = await Promise.all([
-        translateOne(form.reason),
-        translateOne(form.buyerName),
-        translateOne(form.buyerAddress),
-      ]);
+      const transReason = await translateOne(form.reason);
 
       setForm(p => ({
         ...p,
         reasonEn: transReason || p.reasonEn,
-        buyerNameEn: transBuyerName || p.buyerNameEn,
-        buyerAddressEn: transBuyerAddr || p.buyerAddressEn,
       }));
 
-      setXmlMsg(`✓ Đã tự động dịch sang ${lang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"} thành công!`);
+      setXmlMsg(`✓ Đã tự động dịch lý do thanh toán sang ${lang === "vi_zh" ? "Tiếng Trung" : "Tiếng Anh"}!`);
       setTimeout(() => setXmlMsg(""), 5000);
     } catch (e) {
       alert("Lỗi dịch tự động: " + e.message);
