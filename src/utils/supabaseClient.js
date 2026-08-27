@@ -27,8 +27,7 @@ export function setSupabaseKey(key) {
 export function hasSupabase() {
   const url = getSupabaseUrl();
   const key = getSupabaseKey();
-  // If Supabase URL is present, Supabase Cloud is enabled
-  return !!(url && url.startsWith("http") && (key || url === DEFAULT_SB_URL));
+  return !!(url && key && url.startsWith("http"));
 }
 
 function getHeaders() {
