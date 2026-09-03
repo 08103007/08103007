@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   COMPANY, getGasUrl, setGasUrl, logout, PRODUCT_CATALOG, 
-  CONTRACT_DEFAULTS, LS_TOKEN, LS_GAS_URL,
+  CONTRACT_DEFAULTS, LS_TOKEN, LS_GAS_URL, getLogoUrl, DEFAULT_LOGO_URI,
   exportToJSON, importFromJSON, recoverEmergencyBackup,
   initLocalFileHandle, getCurrentFileHandle, selectAndBindLocalJsonFile,
   createAndBindLocalJsonFile, disconnectLocalJsonFile, readFromLocalJsonFile,
@@ -356,6 +356,7 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
             </div>
             <div>
               <button className="btn btn-ghost btn-sm" onClick={() => fileRef.current && fileRef.current.click()}>📁 Chọn logo</button>
+              <button className="btn btn-ghost btn-sm" style={{ marginLeft:8, color:"#2563eb" }} onClick={() => { setLogoPreview(DEFAULT_LOGO_URI); setC("logo", DEFAULT_LOGO_URI); }}>↺ Dùng Logo PMC chuẩn</button>
               {logoPreview && <button className="btn btn-ghost btn-sm" style={{ marginLeft:8, color:"#dc2626" }} onClick={() => { setLogoPreview(""); setC("logo",""); }}>✕ Xóa</button>}
               <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>PNG, JPG — nên dùng ảnh vuông, nền trắng</div>
               <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleLogoUpload} />

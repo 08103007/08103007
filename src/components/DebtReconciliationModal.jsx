@@ -577,10 +577,8 @@ export default function DebtReconciliationModal({ onClose, onOpenPaymentRequest 
     const targetId = viewMode === "payment" ? "debtPayReqPreviewContent" : "debtPreviewContent";
     printElementViaIframe(targetId, `
       .debt-preview * { color:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-      .debt-items-table { border:1px solid #000 !important; border-collapse: collapse !important; width: 100% !important; }
-      .debt-items-table th, .debt-items-table td { border-right:1px solid #000 !important; border-bottom:1px solid #000 !important; white-space: normal !important; word-break: break-word !important; }
-      .debt-items-table th:last-child, .debt-items-table td:last-child { border-right:none !important; }
-      .debt-items-table tr:last-child td { border-bottom:none !important; }
+      .debt-items-table { border:1px solid #000 !important; border-collapse: collapse !important; border-spacing: 0 !important; width: 100% !important; }
+      .debt-items-table th, .debt-items-table td { border:1px solid #000 !important; white-space: normal !important; word-break: break-word !important; box-sizing: border-box !important; }
       .debt-items-table th { background:#fff !important; white-space: normal !important; vertical-align: middle !important; }
       .debt-grand-row td { background:#eef0f8 !important; }
       .debt-header-table { width:100% !important; table-layout:fixed !important; border-collapse:collapse !important; margin-bottom:14px !important; }

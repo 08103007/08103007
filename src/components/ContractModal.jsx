@@ -560,8 +560,8 @@ export default function ContractModal({ quote, onClose }) {
             html, body { width: 100%; margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: 'Plus Jakarta Sans', sans-serif; }
             * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif !important; }
             #contract-preview-area { width: 100% !important; max-width: 100% !important; margin: 0 !important; font-size: ${fontSize}pt !important; line-height: ${lineSpacing} !important; }
-            table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; margin: 10px 0 !important; }
-            th, td { border: 1px solid #1a2540 !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border-spacing: 0 !important; table-layout: fixed !important; margin: 10px 0 !important; border: 1px solid #000000 !important; }
+            th, td { border: 1px solid #000000 !important; box-sizing: border-box !important; }
             th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
             td:nth-child(1), td:nth-child(3), td:nth-child(4), td:nth-child(5), td:nth-child(6), td:nth-child(7) { white-space: nowrap !important; }
             td:nth-child(2) { word-break: break-word !important; overflow-wrap: break-word !important; }
@@ -587,13 +587,15 @@ export default function ContractModal({ quote, onClose }) {
         const paymentB_zh = form.paymentTermZh ||
           `合同总价值的100%，相当于 ${fmt(total)} 越南盾（${numberToWordsCN(total)}），在设备交接安装完成后支付。`;
 
-        const biRow = (vi, zh) =>
-          `<p style="margin:0 0 1px;font-size:${FS}pt;color:#000">${vi}</p>
-           <p style="margin:0 0 4px;font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">${zh}</p>`;
+        const biRow = (vi, zh) => {
+          if (!zh) return `<p style="margin:2px 0;font-size:${FS}pt;color:#000">${vi}</p>`;
+          return `<p style="margin:2px 0;font-size:${FS}pt;color:#000">${vi} <span style="font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">/ ${zh}</span></p>`;
+        };
 
-        const artHead = (vi, zh) =>
-          `<p style="margin:10px 0 1px;font-size:${FS_LG}pt;font-weight:700;color:${COL_NAVY};text-transform:uppercase">${vi}</p>
-           <p style="margin:0 0 5px;font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic">${zh}</p>`;
+        const artHead = (vi, zh) => {
+          if (!zh) return `<p style="margin:8px 0 2px;font-size:${FS_LG}pt;font-weight:700;color:${COL_NAVY};text-transform:uppercase">${vi}</p>`;
+          return `<p style="margin:8px 0 2px;font-size:${FS_LG}pt;font-weight:700;color:${COL_NAVY};text-transform:uppercase">${vi} <span style="font-size:${FS_SM}pt;color:${COL_GRAY};font-style:italic;font-weight:normal">/ ${zh}</span></p>`;
+        };
 
         const partyHtml = (titleVi, titleZh, name, nameZh, rep, repZh, pos, posZh, addr, addrZh, tel, taxCode, accNo, bankVi, bankZh) => {
           let h = biRow(`<b>${titleVi}: ${name}</b>`, `<b>${titleZh}: ${nameZh||name}</b>`);
@@ -608,25 +610,8 @@ export default function ContractModal({ quote, onClose }) {
         };
 
         const tdS = (align, extra) =>
-          `style="padding:${tablePadding}px 4px;border:0.5px solid #aaa;font-size:${FS_SM}pt;text-align:${align};vertical-align:top;${extra||''}"`;
-
-        let itemRowsHtml2 = "";
-        quote.items.forEach((it, i) => {
-          const line = (it.qty||0)*(it.price||0);
-          const iRate = it.vatRate !== undefined ? it.vatRate : (quote.vatRate !== undefined ? quote.vatRate : 8);
-          const iLabel = iRate === -1 ? "KCT" : (iRate||0)+"%";
-          itemRowsHtml2 += `<tr>
-            <td ${tdS("center", "white-space:nowrap")}>${i+1}</td>
-            <td ${tdS("left", "word-break:break-word;overflow-wrap:break-word")}>${it.name}${it.note?`<div style="font-size:${FS_SM*0.85}pt;color:${COL_LIGHT};font-style:italic;white-space:pre-wrap">${it.note}</div>`:""}</td>
-            <td ${tdS("center", "white-space:nowrap")}>${it.qty}</td>
-            <td ${tdS("center", "white-space:nowrap")}>${it.unit||"Cái"}</td>
-            <td ${tdS("right", "white-space:nowrap")}>${fmt(it.price)}</td>
-            <td ${tdS("center", "white-space:nowrap")}>${iLabel}</td>
-            <td ${tdS("right", "white-space:nowrap")}>${fmt(line)}</td>
-          </tr>`;
-        });
-
-        const thS = `style="padding:${tablePadding}px 4px;border:0.5px solid #aaa;font-size:${FS_SM}pt;font-weight:700;background:#f0f0f0;text-align:center"`;
+          `style="padding:${tablePadding}px 4px;border:1px solid #000000;font-size:${FS_SM}pt;text-align:${align};vertical-align:top;${extra||''}"`;
+        const thS = `style="padding:${tablePadding}px 4px;border:1px solid #000000;font-size:${FS_SM}pt;font-weight:700;background:#f0f0f0;text-align:center"`;
         const tableHtml = `
           <table style="width:100%;border-collapse:collapse;margin:4px 0;table-layout:fixed">
             <colgroup>
@@ -858,15 +843,25 @@ export default function ContractModal({ quote, onClose }) {
 
       const bi = (vi, other, opts) => {
         const o = opts || {};
-        return [
-          { text: vi, fontSize: o.size || FS, bold: o.bold || false, color: o.color || "#000000", alignment: o.align || "justify", margin: [0, o.spaceBefore || 0, 0, 1] },
-          { text: other, fontSize: o.sizeB || FS_SM, italics: true, color: COL_GRAY, alignment: o.align || "justify", margin: [0, 0, 0, o.spaceAfter || 4] },
-        ];
+        if (!other) return [{ text: vi, fontSize: o.size || FS, bold: o.bold || false, color: o.color || "#000000", alignment: o.align || "justify", margin: [0, 1, 0, 1] }];
+        return [{
+          text: [
+            { text: vi, fontSize: o.size || FS, bold: o.bold || false, color: o.color || "#000000" },
+            { text: ` / ${other}`, fontSize: o.sizeB || FS_SM, italics: true, color: COL_GRAY }
+          ],
+          alignment: o.align || "justify",
+          margin: [0, 1, 0, o.spaceAfter !== undefined ? o.spaceAfter : 2]
+        }];
       };
 
       const artHeading = (vi, other) => [
-        { text: vi,    fontSize: FS_LG, bold: true, color: COL_NAVY, margin: [0, 10, 0, 1] },
-        { text: other, fontSize: FS_SM, italics: true, color: COL_GRAY, margin: [0, 0, 0, 5] },
+        {
+          text: [
+            { text: vi, fontSize: FS_LG, bold: true, color: COL_NAVY },
+            { text: other ? ` / ${other}` : "", fontSize: FS_SM, italics: true, color: COL_GRAY }
+          ],
+          margin: [0, 8, 0, 3]
+        }
       ];
 
       const partyBlock2 = (titleVi, titleEn, name, nameEn, rep, repEn, pos, posEn, addr, addrEn, tel, taxCode, accNo, bankVi, bankEn) => {

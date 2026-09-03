@@ -11,9 +11,30 @@ export function buildPrintHtml(elementId, extraCss) {
     <style>
       @page { margin:10mm; size:A4; }
       html, body { background:#fff; margin:0; padding:0; height:auto !important; overflow:visible !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-      * { font-family: 'Plus Jakarta Sans', sans-serif !important; }
+      * {
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        letter-spacing: normal !important;
+        word-spacing: normal !important;
+        font-variant-numeric: normal !important;
+        font-feature-settings: normal !important;
+      }
       .no-print { display:none !important; }
       #${elementId} { position:relative !important; width:100% !important; max-width:100% !important; height:auto !important; overflow:visible !important; margin:0 !important; padding:0 !important; box-shadow:none !important; }
+      table, th, td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      table.quote-items-table, table.handover-items-table, table.debt-items-table, table.contract-table, table.payreq-table, table.print-table {
+        border-collapse: collapse !important;
+        border-spacing: 0 !important;
+        border: 1px solid #000000 !important;
+      }
+      table.quote-items-table th, table.quote-items-table td,
+      table.handover-items-table th, table.handover-items-table td,
+      table.debt-items-table th, table.debt-items-table td,
+      table.contract-table th, table.contract-table td,
+      table.payreq-table th, table.payreq-table td,
+      table.print-table th, table.print-table td {
+        border: 1px solid #000000 !important;
+        box-sizing: border-box !important;
+      }
       ${extraCss || ""}
     </style>
   </head><body>${el.outerHTML}</body></html>`;

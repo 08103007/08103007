@@ -1484,24 +1484,29 @@ input[type=number] {
   word-break: break-word;
 }
 
-/* 4. Document Border sharpness overrides - using full border collapse for perfectly even lines */
-.quote-items-table, .handover-items-table, .debt-items-table {
-  border: 1.5px solid #222 !important;
+/* 4. Document Border sharpness overrides - 100% uniform crisp 1px solid black borders */
+.quote-items-table, .handover-items-table, .debt-items-table, .contract-table, .payreq-table {
+  border: 1px solid #000000 !important;
   border-collapse: collapse !important;
+  border-spacing: 0 !important;
   table-layout: fixed !important;
 }
 .quote-items-table th, .quote-items-table td,
 .handover-items-table th, .handover-items-table td,
-.debt-items-table th, .debt-items-table td {
-  border-left: none !important;
-  border-top: none !important;
-  border-right: 1.5px solid #222 !important;
-  border-bottom: 1.5px solid #222 !important;
+.debt-items-table th, .debt-items-table td,
+.contract-table th, .contract-table td,
+.payreq-table th, .payreq-table td {
+  border: 1px solid #000000 !important;
+  box-sizing: border-box !important;
 }
 
 /* 5. Document Previews structural styles */
-.quote-preview {
+.quote-preview, .handover-preview, .debt-preview, .contract-preview, #contract-preview-area, #pay-req-preview-area, .print-page, .pdf-mono {
   font-family: var(--font);
+  letter-spacing: normal !important;
+  word-spacing: normal !important;
+  font-variant-numeric: normal !important;
+  font-feature-settings: normal !important;
   padding: 16px 8px;
   max-width: 100%;
   margin: 0 auto;
@@ -1571,14 +1576,6 @@ input[type=number] {
   overflow-wrap: break-word;
   word-break: break-word;
   vertical-align: top;
-}
-
-.quote-items-table th:last-child, .quote-items-table td:last-child {
-  border-right: 1.5px solid #222 !important;
-}
-
-.quote-items-table tr:last-child td {
-  border-bottom: none !important;
 }
 
 .quote-items-table .right {
@@ -1715,14 +1712,6 @@ input[type=number] {
   word-wrap: break-word !important;
 }
 
-.handover-items-table th:last-child, .handover-items-table td:last-child {
-  border-right: none !important;
-}
-
-.handover-items-table tr:last-child td {
-  border-bottom: none !important;
-}
-
 .handover-sign {
   display: flex;
   justify-content: space-between;
@@ -1828,23 +1817,11 @@ input[type=number] {
   text-align: center;
 }
 
-.debt-items-table th:last-child {
-  border-right: none !important;
-}
-
 .debt-items-table td {
   padding: 6px 4px;
   overflow-wrap: break-word;
   word-break: break-word;
   vertical-align: top;
-}
-
-.debt-items-table td:last-child {
-  border-right: none !important;
-}
-
-.debt-items-table tr:last-child td {
-  border-bottom: none !important;
 }
 
 .debt-items-table .right {
@@ -1896,7 +1873,226 @@ input[type=number] {
   opacity: 1 !important;
 }
 
+/* Mobile Optimization - High Touch View & PDF Export */
+@media (max-width: 768px) {
+  .sidebar {
+    display: none !important;
+  }
+
+  .content {
+    padding: 10px 10px 76px 10px !important;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: flex !important;
+  }
+
+  .topbar {
+    padding: 0 12px !important;
+  }
+
+  .topbar-brand span {
+    font-size: 13px !important;
+    max-width: 170px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .topbar-create {
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+
+  .filter-bar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  .search-input {
+    width: 100% !important;
+  }
+
+  /* Mobile Bottom Navigation Dock */
+  .mobile-bottom-dock {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: rgba(255, 255, 255, 0.96);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 1000;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+  }
+
+  .dock-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    height: 100%;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+    gap: 2px;
+  }
+
+  .dock-item.active {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .dock-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  /* Mobile Quote Cards Stream */
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mobile-quote-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: var(--transition);
+    cursor: pointer;
+  }
+
+  .mobile-quote-card:active {
+    transform: scale(0.99);
+    border-color: var(--accent);
+  }
+
+  .mobile-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mobile-quote-num {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--primary);
+  }
+
+  .mobile-card-customer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .cust-pill {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 6px;
+  }
+
+  .mobile-card-date {
+    font-size: 12px;
+    color: var(--text-light);
+  }
+
+  .mobile-card-body {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-app);
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  .mobile-item-count {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .mobile-total-val {
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--accent);
+  }
+
+  .mobile-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .mobile-act-btn {
+    flex: 1;
+    min-height: 40px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .fab-btn {
+    bottom: 74px !important;
+    right: 16px !important;
+  }
+
+  .modal-overlay {
+    padding: 6px !important;
+  }
+
+  .modal {
+    max-height: 98vh !important;
+    border-radius: 12px !important;
+  }
+
+  .preview-container, .print-preview-scroll {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-only {
+    display: none !important;
+  }
+  .mobile-bottom-dock {
+    display: none !important;
+  }
+}
+
 @media print {
+  * {
+    letter-spacing: normal !important;
+    word-spacing: normal !important;
+    font-variant-numeric: normal !important;
+    font-feature-settings: normal !important;
+  }
   html, body, #root, .app, .main, .content, .modal-overlay, .modal, .modal-body, .preview-container, .print-preview-scroll, div[style*="overflow"] {
     position: static !important;
     overflow: visible !important;

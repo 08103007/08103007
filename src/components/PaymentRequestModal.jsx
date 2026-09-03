@@ -362,8 +362,8 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
         html, body { width: 100%; margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: 'Plus Jakarta Sans', sans-serif; }
         * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif !important; }
         #pay-req-preview-area { width: 100% !important; max-width: 100% !important; margin: 0 !important; font-size: ${fontSize}pt !important; line-height: ${lineSpacing} !important; box-shadow: none !important; padding: 0 !important; }
-        table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; margin: 10px 0 !important; }
-        th, td { border: 1px solid #1a2540 !important; }
+        table { width: 100% !important; border-collapse: collapse !important; border-spacing: 0 !important; table-layout: fixed !important; margin: 10px 0 !important; border: 1px solid #000000 !important; }
+        th, td { border: 1px solid #000000 !important; box-sizing: border-box !important; }
         th { background-color: #f1f5f9 !important; -webkit-print-color-adjust: exact; }
         .no-print { display: none !important; }
       </style>
@@ -404,8 +404,8 @@ export default function PaymentRequestModal({ initialData = {}, onClose }) {
             html, body { width: 100%; margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: 'Plus Jakarta Sans', sans-serif; }
             * { box-sizing: border-box; font-family: 'Plus Jakarta Sans', sans-serif !important; }
             #pay-req-preview-area { width: 100% !important; max-width: 100% !important; margin: 0 !important; font-size: ${fontSize}pt !important; line-height: ${lineSpacing} !important; }
-            table { width: 100% !important; border-collapse: collapse !important; table-layout: fixed !important; margin: 10px 0 !important; }
-            th, td { border: 1px solid #1a2540 !important; }
+            table { width: 100% !important; border-collapse: collapse !important; border-spacing: 0 !important; table-layout: fixed !important; margin: 10px 0 !important; border: 1px solid #000000 !important; }
+            th, td { border: 1px solid #000000 !important; box-sizing: border-box !important; }
             .no-print { display: none !important; }
           </style>
         </head><body>${el.outerHTML}</body></html>`;

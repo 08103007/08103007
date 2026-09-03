@@ -220,15 +220,16 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
 
         // Product Name & Note
         const nameRuns = [{ text: it.name, bold: true }];
-        const paras = [dxPara(nameRuns, { size: 19, spaceAfter: 0 })];
         if (lang !== "vi" && it.nameEn) {
-          paras.push(dxPara(it.nameEn, { size: 17, italic: true, color: "555555", spaceAfter: 0 }));
+          nameRuns.push({ text: ` / ${it.nameEn}`, italic: true, color: "555555" });
         }
+        const paras = [dxPara(nameRuns, { size: 19, spaceAfter: 0 })];
         if (it.note && printOptions.showNote) {
-          paras.push(dxPara(it.note, { size: 17, italic: true, color: "666666", spaceAfter: 0 }));
+          const noteRuns = [{ text: it.note, italic: true, color: "666666" }];
           if (lang !== "vi" && it.noteEn) {
-            paras.push(dxPara(it.noteEn, { size: 16, italic: true, color: "666666", spaceAfter: 0 }));
+            noteRuns.push({ text: ` / ${it.noteEn}`, italic: true, color: "666666" });
           }
+          paras.push(dxPara(noteRuns, { size: 17, spaceAfter: 0 }));
         }
         cells.push(`<w:tc><w:tcPr><w:tcW w:w="${colW[cIdx++]}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${paras.join("")}</w:tc>`);
 
@@ -251,12 +252,10 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
         `<w:tc><w:tcPr><w:gridSpan w:val="${labelColSpan}"/><w:tcW w:w="${labelW}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${dxPara(T.subtotalLabel, { align: "right", bold: true, size: 19 })}</w:tc>`,
         `<w:tc><w:tcPr><w:tcW w:w="${valW}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${dxPara(fmt(subtotal), { align: "right", bold: true, size: 19 })}</w:tc>`
       ]);
-
       const vatRow = dxRow([
         `<w:tc><w:tcPr><w:gridSpan w:val="${labelColSpan}"/><w:tcW w:w="${labelW}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${dxPara(T.vatLabel, { align: "right", bold: true, size: 19 })}</w:tc>`,
         `<w:tc><w:tcPr><w:tcW w:w="${valW}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${dxPara(fmt(vat), { align: "right", bold: true, size: 19 })}</w:tc>`
       ]);
-
       const grandRow = dxRow([
         `<w:tc><w:tcPr><w:gridSpan w:val="${labelColSpan}"/><w:tcW w:w="${labelW}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${dxPara(T.grandTotalLabel, { align: "right", bold: true, size: 20, color: "1A2540" })}</w:tc>`,
         `<w:tc><w:tcPr><w:tcW w:w="${valW}" w:type="dxa"/><w:vAlign w:val="center"/></w:tcPr>${dxPara(fmt(total), { align: "right", bold: true, size: 20, color: "1A2540" })}</w:tc>`
@@ -270,9 +269,20 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
 
       const recipPara = dxPara([{ text: `${T.to} `, bold: true }, { text: localQuote.customer }], { size: 20, spaceAfter: 40 });
       const contactPara = localQuote.contact ? dxPara([{ text: `${T.contact} `, bold: true }, { text: localQuote.contact }], { size: 20, spaceAfter: 40 }) : "";
-      const workPara = localQuote.workContent ? dxPara([{ text: `${T.content} `, bold: true }, { text: localQuote.workContent }], { size: 20, spaceAfter: 120 }) : "";
+      const workPara = localQuote.workContent ? dxPara([
+        { text: `${T.content} `, bold: true },
+        { text: localQuote.workContent },
+        ...(lang !== "vi" && localQuote.workContentEn ? [{ text: ` / ${localQuote.workContentEn}`, italic: true, color: "555555" }] : [])
+      ], { size: 20, spaceAfter: 120 }) : "";
 
-      const notesParas = (localQuote.notes || "").split("\n").filter(l => l.trim()).map(l => dxPara(`• ${l.trim()}`, { size: 18, spaceAfter: 40 }));
+      const viNotesLines = (localQuote.notes || "").split("\n");
+      const enNotesLines = (localQuote.notesEn || "").split("\n");
+      const notesParas = viNotesLines.map((l, idx) => {
+        const lineStr = l.trim();
+        if (!lineStr) return "";
+        const enStr = (lang !== "vi" && enNotesLines[idx]) ? ` / ${enNotesLines[idx].trim()}` : "";
+        return dxPara(`• ${lineStr}${enStr}`, { size: 18, spaceAfter: 40 });
+      }).filter(Boolean);
       const notesBlock = [dxPara([{ text: T.notesHeader, bold: true }], { size: 19, spaceAfter: 60 }), ...notesParas];
 
       const signBlock = dxNoBorderTable([
@@ -378,12 +388,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             )}
             {onHandover && (
               <button className="btn btn-ghost" onClick={() => { onClose(); onHandover(localQuote); }} style={{ color: "#059669", fontWeight: 600 }}>
-                📋 Biên bản bàn giao
-              </button>
-            )}
-            {onDelivery && (
-              <button className="btn btn-ghost" onClick={() => { onClose(); onDelivery(localQuote); }} style={{ color: "#d97706", fontWeight: 600 }}>
-                🚚 Phiếu giao hàng
+                📋 Biên bản bàn giao & nghiệm thu (kèm Phiếu giao hàng)
               </button>
             )}
           </div>
@@ -469,25 +474,25 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               {localQuote.contact && <div style={{ marginTop: 4 }}><strong>{T.contact}</strong> {localQuote.contact}</div>}
               {localQuote.workContent && (
                 <div style={{ marginTop: 6, color: "#333" }}>
-                  <div><strong>{T.content}</strong> {localQuote.workContent}</div>
+                  <strong>{T.content}</strong> {localQuote.workContent}
                   {lang !== "vi" && localQuote.workContentEn ? (
-                    <div style={{ fontStyle: "italic", color: "#555", marginLeft: 16 }}>{localQuote.workContentEn}</div>
+                    <span style={{ fontStyle: "italic", color: "#555" }}> / {localQuote.workContentEn}</span>
                   ) : null}
                 </div>
               )}
             </div>
 
-            <table className="quote-items-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12, fontSize: 11, border: "1.5px solid #222", tableLayout: "fixed" }}>
+            <table className="quote-items-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12, fontSize: 11, border: "1px solid #000000", tableLayout: "fixed" }}>
               <thead>
                 <tr>
-                  {printOptions.showStt && <th style={{ width: 32, background: "transparent", color: "#1a2540", padding: "6px 2px", fontWeight: 600, textAlign: "center", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colStt}</th>}
-                  {printOptions.showImage && <th style={{ width: 60, background: "transparent", color: "#1a2540", padding: "6px 2px", fontWeight: 600, textAlign: "center", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colImg}</th>}
-                  <th style={{ background: "transparent", color: "#1a2540", padding: "6px 5px", fontWeight: 600, textAlign: "left", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colItem}</th>
-                  <th style={{ width: 48, background: "transparent", color: "#1a2540", padding: "6px 2px", fontWeight: 600, textAlign: "center", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colQty}</th>
-                  <th style={{ width: 52, background: "transparent", color: "#1a2540", padding: "6px 2px", fontWeight: 600, textAlign: "center", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colUnit}</th>
-                  <th style={{ width: 110, background: "transparent", color: "#1a2540", padding: "6px 3px", fontWeight: 600, textAlign: "right", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colPrice}</th>
-                  {printOptions.showVat && <th style={{ width: 45, background: "transparent", color: "#1a2540", padding: "6px 2px", fontWeight: 600, textAlign: "center", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colVat}</th>}
-                  <th style={{ width: 115, background: "transparent", color: "#1a2540", padding: "6px 3px", fontWeight: 600, textAlign: "right", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colTotal}</th>
+                  {printOptions.showStt && <th style={{ width: 32, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colStt}</th>}
+                  {printOptions.showImage && <th style={{ width: 60, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colImg}</th>}
+                  <th style={{ background: "transparent", color: "#000000", padding: "6px 5px", fontWeight: 700, textAlign: "left", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colItem}</th>
+                  <th style={{ width: 48, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colQty}</th>
+                  <th style={{ width: 52, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colUnit}</th>
+                  <th style={{ width: 110, background: "transparent", color: "#000000", padding: "6px 3px", fontWeight: 700, textAlign: "right", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colPrice}</th>
+                  {printOptions.showVat && <th style={{ width: 45, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colVat}</th>}
+                  <th style={{ width: 115, background: "transparent", color: "#000000", padding: "6px 3px", fontWeight: 700, textAlign: "right", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colTotal}</th>
                 </tr>
               </thead>
               <tbody>
@@ -497,8 +502,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                   const iLabel = iRate === -1 ? "KCT" : (iRate || 0) + "%";
                   const numStyle = (align, extra = {}) => ({
                     padding: "6px 5px",
-                    borderRight: "1.5px solid #222",
-                    borderBottom: "1.5px solid #222",
+                    border: "1px solid #000000",
                     textAlign: align,
                     verticalAlign: "middle",
                     whiteSpace: "nowrap",
@@ -510,20 +514,20 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                     <tr key={it.id || i}>
                       {printOptions.showStt && <td style={numStyle("center")}>{i + 1}</td>}
                       {printOptions.showImage && (
-                        <td style={{ textAlign: "center", verticalAlign: "middle", padding: "6px 4px", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222" }}>
+                        <td style={{ textAlign: "center", verticalAlign: "middle", padding: "6px 4px", border: "1px solid #000000" }}>
                           {it.image && <img src={it.image} alt="" style={{ width: 48, height: 48, objectFit: "contain", borderRadius: 4 }} />}
                         </td>
                       )}
-                      <td style={{ padding: "6px 5px", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222", verticalAlign: "top", wordBreak: "break-word", whiteSpace: "normal", fontSize: 11 }}>
-                        <div style={{ fontWeight: 500 }}>{it.name}</div>
+                      <td style={{ padding: "6px 5px", border: "1px solid #000000", verticalAlign: "top", wordBreak: "break-word", whiteSpace: "normal", fontSize: 11 }}>
+                        <span style={{ fontWeight: 500 }}>{it.name}</span>
                         {lang !== "vi" && it.nameEn ? (
-                          <div style={{ fontSize: 10, color: "#555", fontStyle: "italic" }}>{it.nameEn}</div>
+                          <span style={{ fontSize: 10, color: "#555", fontStyle: "italic" }}> / {it.nameEn}</span>
                         ) : null}
                         {printOptions.showNote && it.note && (
-                          <div style={{ fontSize: 10, color: "#666", fontStyle: "italic", marginTop: 2, whiteSpace: "pre-wrap" }}>
-                            <div>{it.note}</div>
+                          <div style={{ fontSize: 10, color: "#666", marginTop: 2, whiteSpace: "pre-wrap" }}>
+                            <span>{it.note}</span>
                             {lang !== "vi" && it.noteEn ? (
-                              <div style={{ color: "#555" }}>{it.noteEn}</div>
+                              <span style={{ color: "#555", fontStyle: "italic" }}> / {it.noteEn}</span>
                             ) : null}
                           </div>
                         )}
@@ -537,40 +541,47 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                   );
                 })}
                 <tr>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", borderRight: "1.5px solid #222", fontSize: 11, borderBottom: "1.5px solid #222" }}>
+                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", border: "1px solid #000000", fontSize: 11 }}>
                     {T.subtotalLabel}
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", fontSize: 11, whiteSpace: "nowrap", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222" }}>
+                  <td style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", fontSize: 11, whiteSpace: "nowrap", border: "1px solid #000000" }}>
                     {fmt(subtotal)}
                   </td>
                 </tr>
                 <tr>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", borderRight: "1.5px solid #222", fontSize: 11, borderBottom: "1.5px solid #222" }}>
+                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", border: "1px solid #000000", fontSize: 11 }}>
                     {T.vatLabel}
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", fontSize: 11, whiteSpace: "nowrap", borderRight: "1.5px solid #222", borderBottom: "1.5px solid #222" }}>
+                  <td style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", fontSize: 11, whiteSpace: "nowrap", border: "1px solid #000000" }}>
                     {fmt(vat)}
                   </td>
                 </tr>
                 <tr style={{ background: "#f8fafc" }}>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 800, color: "#1a2540", padding: "10px 5px", borderRight: "1.5px solid #222", fontSize: 12 }}>
+                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 800, color: "#000000", padding: "10px 5px", border: "1px solid #000000", fontSize: 12 }}>
                     {T.grandTotalLabel}
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 800, color: "#1a2540", padding: "10px 5px", fontSize: 12, whiteSpace: "nowrap" }}>
+                  <td style={{ textAlign: "right", fontWeight: 800, color: "#000000", padding: "10px 5px", fontSize: 12, whiteSpace: "nowrap", border: "1px solid #000000" }}>
                     {fmt(total)} đ
                   </td>
                 </tr>
               </tbody>
             </table>
 
-            {/* Notes & Terms */}
+            {/* Notes & Terms - Single Line Việt / Anh */}
             {localQuote.notes && (
               <div style={{ marginTop: 14, fontSize: 11 }}>
                 <div style={{ fontWeight: 700, color: "#1a2540", marginBottom: 4 }}>{T.notesHeader}</div>
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "#333" }}>{localQuote.notes}</div>
-                {lang !== "vi" && localQuote.notesEn ? (
-                  <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, color: "#555", fontStyle: "italic", marginTop: 4 }}>{localQuote.notesEn}</div>
-                ) : null}
+                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#333" }}>
+                  {(() => {
+                    if (lang === "vi" || !localQuote.notesEn) return localQuote.notes;
+                    const viLines = localQuote.notes.split("\n");
+                    const enLines = localQuote.notesEn.split("\n");
+                    return viLines.map((line, idx) => {
+                      const en = enLines[idx] ? ` / ${enLines[idx]}` : "";
+                      return line + en;
+                    }).join("\n");
+                  })()}
+                </div>
               </div>
             )}
 

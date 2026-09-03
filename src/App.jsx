@@ -4,7 +4,7 @@ import {
   upsertCatalogItems, saveQuotes, exportToJSON, importFromJSON, 
   logout, getLogoUrl, _mem, COMPANY, showToast,
   initLocalFileHandle, getCurrentFileHandle, readFromLocalJsonFile,
-  selectAndBindLocalJsonFile, createAndBindLocalJsonFile
+  selectAndBindLocalJsonFile, createAndBindLocalJsonFile, hasSupabase
 } from './utils/gasStore';
 import { preloadAllExportLibs } from './utils/docxBuilder';
 import { 
@@ -19,7 +19,6 @@ import QuoteModal from './components/QuoteModal';
 import PrintModal from './components/PrintModal';
 import ContractModal from './components/ContractModal';
 import HandoverModal from './components/HandoverModal';
-import DeliveryModal from './components/DeliveryModal';
 import DebtReconciliationModal from './components/DebtReconciliationModal';
 import PaymentRequestModal from './components/PaymentRequestModal';
 
@@ -41,7 +40,6 @@ export default function App() {
   const [contractQuote, setContractQuote] = useState(null);
   const [handoverQuote, setHandoverQuote] = useState(null);
   const [showNewHandover, setShowNewHandover] = useState(false);
-  const [deliveryQuote, setDeliveryQuote] = useState(null);
   const [showDebtRecon, setShowDebtRecon] = useState(false);
   const [showPaymentReq, setShowPaymentReq] = useState(false);
   const [paymentReqData, setPaymentReqData] = useState({});
@@ -83,25 +81,29 @@ export default function App() {
       // 2. Preload ngầm thư viện xuất file
       preloadAllExportLibs();
 
-      // 3. Đồng bộ dữ liệu mới nhất từ GAS ở nền
+      // 3. Đồng bộ dữ liệu mới nhất từ Cloud / Supabase
       try {
         await migrateFromLocalStorage();
-        const data = await doLoad();
-        if (Array.isArray(data)) {
+        const data = await doLoad((progressQuotes) => {
+          if (Array.isArray(progressQuotes) && progressQuotes.length > 0) {
+            setQuotes(progressQuotes);
+          }
+        });
+        if (Array.isArray(data) && data.length > 0) {
           setQuotes(data);
         }
         if (_mem.products.length === 0 && data && data.length) {
           await upsertCatalogItems(data.flatMap(q => q.items || []));
         }
       } catch(e) {
-        console.error("Background GAS load error:", e);
+        console.error("Background load error:", e);
       }
     })();
   }, [authed]);
 
   // ── Tự động lưu mỗi khi quotes thay đổi (debounce) ───────────────────────
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || quotes.length === 0) return;
     saveQuotes(quotes);
   }, [quotes, loaded]);
 
@@ -129,6 +131,23 @@ export default function App() {
       return updated;
     });
     setDeleteConfirm(null);
+  };
+
+  const shareQuoteZalo = (q) => {
+    const { total } = calcItems(q.items, q.vatRate);
+    const text = `📄 BÁO GIÁ PMC - ${COMPANY.short}\n----------------------------\n` +
+      `• Số BG: ${q.quoteNumber}\n` +
+      `• Khách hàng: ${q.customer}\n` +
+      `• Ngày: ${q.date}\n` +
+      `• Tổng tiền: ${fmt(total)} VNĐ\n` +
+      `----------------------------\n` +
+      `Vui lòng xem file PDF đính kèm. Trân trọng!`;
+    if (navigator.share) {
+      navigator.share({ title: `Báo Giá ${q.quoteNumber}`, text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text);
+      showToast("📋 Đã sao chép thông tin báo giá! Bạn có thể dán vào Zalo.", 3000);
+    }
   };
 
   // Filter list: search by quote number, customer, OR item name
@@ -210,7 +229,7 @@ export default function App() {
   if (!loaded) {
     return (
       <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"var(--bg-app)", flexDirection:"column", gap:12 }}>
-        <img src={getLogoUrl()} style={{ width:56, objectFit:"contain" }} alt="PMC" />
+        {getLogoUrl() ? <img src={getLogoUrl()} style={{ width:56, objectFit:"contain" }} alt="PMC" /> : null}
         <div style={{ color:"var(--text-muted)", fontSize:13, fontWeight:500 }}>Đang tải dữ liệu...</div>
       </div>
     );
@@ -241,7 +260,7 @@ export default function App() {
     <div className="app">
       <div className="topbar no-print">
         <div className="topbar-brand">
-          <img src={getLogoUrl()} alt="PMC" />
+          {getLogoUrl() ? <img src={getLogoUrl()} alt="PMC" /> : null}
           <span>Quản Lý Báo Giá – {COMPANY.short}</span>
         </div>
         <div className="topbar-actions">
@@ -274,7 +293,7 @@ export default function App() {
           </div>
           <div className={`sidebar-item ${view==="handover"?"active":""}`} onClick={()=>setView("handover")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/></svg>
-            <span className="sidebar-label">Biên bản</span>
+            <span className="sidebar-label">Biên bản & Giao hàng</span>
           </div>
           <div className={`sidebar-item ${view==="contracts"?"active":""}`} onClick={()=>setView("contracts")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
@@ -412,15 +431,15 @@ export default function App() {
             <div>
               <div style={{marginBottom:20,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                 <div>
-                  <h2 style={{fontSize:18,fontWeight:700,fontFamily:"var(--font-display)",letterSpacing:"-0.02em",color:"var(--primary)",marginBottom:4}}>Biên bản bàn giao & nghiệm thu</h2>
-                  <p style={{color:"var(--text-muted)",fontSize:13}}>Tạo biên bản từ báo giá đã có hoặc tạo mới độc lập</p>
+                  <h2 style={{fontSize:18,fontWeight:700,fontFamily:"var(--font-display)",letterSpacing:"-0.02em",color:"var(--primary)",marginBottom:4}}>Biên bản bàn giao & nghiệm thu (kèm Phiếu giao hàng)</h2>
+                  <p style={{color:"var(--text-muted)",fontSize:13}}>Tạo biên bản nghiệm thu và bàn giao kèm phiếu giao hàng từ báo giá hoặc tạo mới độc lập</p>
                 </div>
-                <button className="btn btn-primary" onClick={()=>setShowNewHandover(true)}>+ Tạo biên bản mới</button>
+                <button className="btn btn-primary" onClick={()=>setShowNewHandover(true)}>+ Tạo BBBG & Phiếu giao hàng mới</button>
               </div>
               <div className="card">
                 <div style={{padding:"16px 20px",borderBottom:"1px solid var(--border-color)"}}>
-                  <div style={{fontSize:13,color:"var(--text-muted)",fontWeight:600}}>Tạo biên bản từ báo giá có sẵn</div>
-                  <div style={{fontSize:12,color:"var(--text-light)",marginTop:3}}>Chọn một báo giá bên dưới để tạo biên bản bàn giao & nghiệm thu từ danh sách hàng hóa đã có</div>
+                  <div style={{fontSize:13,color:"var(--text-muted)",fontWeight:600}}>Tạo từ báo giá có sẵn</div>
+                  <div style={{fontSize:12,color:"var(--text-light)",marginTop:3}}>Chọn một báo giá bên dưới để tạo Biên bản nghiệm thu & bàn giao kèm Phiếu giao hàng từ danh sách hàng hóa</div>
                 </div>
                 <div className="table-wrap">
                   <table>
@@ -457,7 +476,7 @@ export default function App() {
                             <td>
                               <div style={{display:"flex",gap:4,justifyContent:"center"}}>
                                 <button className="btn btn-primary btn-sm" onClick={()=>setHandoverQuote(q)}>
-                                  📋 Tạo biên bản
+                                  📋 Tạo BBBG & Phiếu GH
                                 </button>
                               </div>
                             </td>
@@ -495,128 +514,235 @@ export default function App() {
                     {!search&&!itemSearch&&<button className="btn btn-primary" style={{marginTop:12}} onClick={()=>{setEditQuote(null);setShowModal(true);}}>+ Tạo báo giá đầu tiên</button>}
                   </div>
                 ):(
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Số BG</th>
-                          <th>Khách hàng</th>
-                          <th>Ngày</th>
-                          <th>Hàng hóa</th>
-                          <th style={{textAlign:"right"}}>Tổng tiền</th>
-                          <th>Trạng thái</th>
-                          <th style={{textAlign:"center"}}>Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtered.map(q=>{
-                          const {total}=calcItems(q.items,q.vatRate);
-                          const matchedItems = itemSearch ? q.items.filter(it => it.name.toLowerCase().includes(itemSearch.toLowerCase())) : [];
-                          return (
-                            <tr key={q.id}>
-                              <td style={{fontWeight:600,color:"var(--primary)"}}>
-                                {q.quoteNumber}
-                                {q.versions && q.versions.length > 0 && (
-                                  <span
-                                    title={`Lịch sử ${q.versions.length} phiên bản`}
-                                    style={{ marginLeft: 6, fontSize: 10, background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", padding: "1.5px 6px", borderRadius: 4, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 2, verticalAlign: "middle" }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditQuote(q);
-                                      setShowModal(true);
-                                    }}
-                                  >
-                                    📜 v{q.versions.length + 1}
-                                  </span>
-                                )}
-                                {q.internalNote && <span title={q.internalNote} style={{marginLeft:5,fontSize:11,cursor:"help"}}>🔒</span>}
-                                {q.isJointVenture && (
-                                  <span 
-                                    title={`Liên doanh với ${q.partnerName || "đối tác"}`} 
-                                    style={{marginLeft:6, fontSize:10, background:"var(--danger-bg)", color:"var(--danger-text)", padding:"1.5px 6px", borderRadius:4, fontWeight:600, display:"inline-flex", alignItems:"center", gap:2, verticalAlign:"middle"}}
-                                  >
-                                    🤝 Liên doanh
-                                  </span>
-                                )}
-                              </td>
-                              <td>
-                                {(() => {
-                                  const col = getCustomerColor(q.customer);
-                                  return (
-                                    <div>
-                                      <div style={{
-                                        display:"inline-block",
-                                        background:col.bg, color:col.text,
-                                        borderRadius:6, padding:"3px 9px",
-                                        fontSize:12.5, fontWeight:600,
-                                        marginBottom: q.contact||matchedItems.length>0 ? 3 : 0,
-                                      }}>{q.customer}</div>
-                                      {q.contact&&<div style={{fontSize:11,color:"var(--text-light)"}}>{q.contact}</div>}
-                                      {matchedItems.length>0&&(
-                                        <div style={{fontSize:10,color:"var(--primary)",background:"var(--border-light)",padding:"2px 5px",borderRadius:4,marginTop:3,display:"inline-block"}}>
-                                          📦 {matchedItems.map(i=>i.name).join(", ").substring(0,60)}
+                  <>
+                    {/* Desktop Table View */}
+                    <div className="table-wrap desktop-only">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Số BG</th>
+                            <th>Khách hàng</th>
+                            <th>Ngày</th>
+                            <th>Hàng hóa</th>
+                            <th style={{textAlign:"right"}}>Tổng tiền</th>
+                            <th>Trạng thái</th>
+                            <th style={{textAlign:"center"}}>Thao tác</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map(q=>{
+                            const {total}=calcItems(q.items,q.vatRate);
+                            const matchedItems = itemSearch ? q.items.filter(it => it.name.toLowerCase().includes(itemSearch.toLowerCase())) : [];
+                            return (
+                              <tr key={q.id}>
+                                <td style={{fontWeight:600,color:"var(--primary)"}}>
+                                  {q.quoteNumber}
+                                  {q.versions && q.versions.length > 0 && (
+                                    <span
+                                      title={`Lịch sử ${q.versions.length} phiên bản`}
+                                      style={{ marginLeft: 6, fontSize: 10, background: "#f1f5f9", color: "#475569", border: "1px solid #cbd5e1", padding: "1.5px 6px", borderRadius: 4, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 2, verticalAlign: "middle" }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditQuote(q);
+                                        setShowModal(true);
+                                      }}
+                                    >
+                                      📜 v{q.versions.length + 1}
+                                    </span>
+                                  )}
+                                  {q.internalNote && <span title={q.internalNote} style={{marginLeft:5,fontSize:11,cursor:"help"}}>🔒</span>}
+                                  {q.isJointVenture && (
+                                    <span 
+                                      title={`Liên doanh với ${q.partnerName || "đối tác"}`} 
+                                      style={{marginLeft:6, fontSize:10, background:"var(--danger-bg)", color:"var(--danger-text)", padding:"1.5px 6px", borderRadius:4, fontWeight:600, display:"inline-flex", alignItems:"center", gap:2, verticalAlign:"middle"}}
+                                    >
+                                      🤝 Liên doanh
+                                    </span>
+                                  )}
+                                </td>
+                                <td>
+                                  {(() => {
+                                    const col = getCustomerColor(q.customer);
+                                    const itemNames = (q.items || []).map(i => i.name).filter(Boolean);
+                                    const itemSummary = itemNames.slice(0, 3).join(", ");
+                                    const hasMore = itemNames.length > 3;
+                                    const summaryText = itemSummary ? `📦 ${itemSummary}${hasMore ? '...' : ''}` : '';
+
+                                    return (
+                                      <div 
+                                        style={{ cursor: "pointer" }} 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setPrintQuote(q);
+                                        }}
+                                        title="Click vào tên công ty để xem báo giá"
+                                      >
+                                        <div style={{
+                                          display: "inline-block",
+                                          background: col.bg,
+                                          color: col.text,
+                                          borderRadius: 6,
+                                          padding: "3px 9px",
+                                          fontSize: 12.5,
+                                          fontWeight: 600,
+                                          marginBottom: 3
+                                        }}>
+                                          {q.customer}
                                         </div>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                              <td style={{color:"var(--text-muted)",whiteSpace:"nowrap"}}>{q.date}</td>
-                              <td style={{textAlign:"center",color:"var(--text-muted)"}}>{q.items.length} dòng</td>
-                              <td style={{textAlign:"right",fontWeight:600,color:"var(--primary)"}}>{fmt(total)} đ</td>
-                              <td>
-                                <select className="badge" style={{border:"1px solid var(--border-color)",background:"none",cursor:"pointer",fontSize:11,padding:"3px 6px",borderRadius:4}}
-                                  value={q.status}
-                                  onChange={e=>{
-                                    const val = e.target.value;
-                                    setQuotes(prev => {
-                                      const updated = prev.map(x => x.id === q.id ? { ...x, status: val } : x);
-                                      saveQuotes(updated);
-                                      return updated;
-                                    });
-                                  }}>
-                                  {Object.entries(STATUS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
-                                </select>
-                              </td>
-                              <td>
-                                <div style={{display:"flex",gap:4,justifyContent:"center"}}>
-                                  <button className="btn btn-ghost btn-sm btn-icon" title="Xem & In / Xuất" onClick={()=>setPrintQuote(q)}>🖨️</button>
-                                  <button className="btn btn-ghost btn-sm btn-icon" title="Chỉnh sửa" onClick={()=>{setEditQuote(q);setShowModal(true);}}>✏️</button>
-                                  <button className="btn btn-ghost btn-sm btn-icon" title="Nhân bản" onClick={()=>{
-                                    const copy={...JSON.parse(JSON.stringify(q)),id:generateId(),quoteNumber:generateQuoteNumber([...quotes,q]),date:todayStr(),status:"draft"};
-                                    setQuotes(prev => {
-                                      const updated = [copy, ...prev];
-                                      saveQuotes(updated);
-                                      return updated;
-                                    });
-                                  }}>⧉</button>
-                                  <button
-                                    className="btn btn-ghost btn-sm btn-icon"
-                                    title="Xóa (giữ Shift + click)"
-                                    style={{color:"var(--danger)",opacity:0.6,transition:"opacity 0.15s"}}
-                                    onMouseEnter={e=>e.currentTarget.style.opacity="1"}
-                                    onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}
-                                    onClick={(e)=>{
-                                      if (!e.shiftKey) {
-                                        showToast("⚠️ Giữ phím Shift rồi click để xóa", 2000);
-                                        return;
-                                      }
-                                      setDeleteConfirm(q.id);
-                                    }}
-                                  >🗑️</button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                        {q.contact && (
+                                          <div style={{ fontSize: 11, color: "var(--text-light)", marginBottom: 2 }}>
+                                            👤 {q.contact}
+                                          </div>
+                                        )}
+                                        {summaryText && (
+                                          <div style={{
+                                            fontSize: 10.5,
+                                            color: "#475569",
+                                            background: "#f1f5f9",
+                                            padding: "2px 7px",
+                                            borderRadius: 4,
+                                            marginTop: 2,
+                                            display: "inline-block",
+                                            maxWidth: "320px",
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            border: "1px solid #cbd5e1"
+                                          }}>
+                                            {summaryText}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                <td style={{color:"var(--text-muted)",whiteSpace:"nowrap"}}>{q.date}</td>
+                                <td style={{textAlign:"center",color:"var(--text-muted)"}}>{q.items.length} dòng</td>
+                                <td style={{textAlign:"right",fontWeight:600,color:"var(--primary)"}}>{fmt(total)} đ</td>
+                                <td>
+                                  <select className="badge" style={{border:"1px solid var(--border-color)",background:"none",cursor:"pointer",fontSize:11,padding:"3px 6px",borderRadius:4}}
+                                    value={q.status}
+                                    onChange={e=>{
+                                      const val = e.target.value;
+                                      setQuotes(prev => {
+                                        const updated = prev.map(x => x.id === q.id ? { ...x, status: val } : x);
+                                        saveQuotes(updated);
+                                        return updated;
+                                      });
+                                    }}>
+                                    {Object.entries(STATUS_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}
+                                  </select>
+                                </td>
+                                <td>
+                                  <div style={{display:"flex",gap:4,justifyContent:"center"}}>
+                                    <button className="btn btn-ghost btn-sm btn-icon" title="Xem & In / Xuất" onClick={()=>setPrintQuote(q)}>🖨️</button>
+                                    <button className="btn btn-ghost btn-sm btn-icon" title="Chỉnh sửa" onClick={()=>{setEditQuote(q);setShowModal(true);}}>✏️</button>
+                                    <button className="btn btn-ghost btn-sm btn-icon" title="Nhân bản" onClick={()=>{
+                                      const copy={...JSON.parse(JSON.stringify(q)),id:generateId(),quoteNumber:generateQuoteNumber([...quotes,q]),date:todayStr(),status:"draft"};
+                                      setQuotes(prev => {
+                                        const updated = [copy, ...prev];
+                                        saveQuotes(updated);
+                                        return updated;
+                                      });
+                                    }}>⧉</button>
+                                    <button
+                                      className="btn btn-ghost btn-sm btn-icon"
+                                      title="Xóa (giữ Shift + click)"
+                                      style={{color:"var(--danger)",opacity:0.6,transition:"opacity 0.15s"}}
+                                      onMouseEnter={e=>e.currentTarget.style.opacity="1"}
+                                      onMouseLeave={e=>e.currentTarget.style.opacity="0.5"}
+                                      onClick={(e)=>{
+                                        if (!e.shiftKey) {
+                                          showToast("⚠️ Giữ phím Shift rồi click để xóa", 2000);
+                                          return;
+                                        }
+                                        setDeleteConfirm(q.id);
+                                      }}
+                                    >🗑️</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile High-Touch View & PDF Card Stream */}
+                    <div className="mobile-card-list mobile-only" style={{padding:12}}>
+                      {filtered.map(q => {
+                        const { total } = calcItems(q.items, q.vatRate);
+                        const col = getCustomerColor(q.customer);
+                        const itemNames = (q.items || []).map(i => i.name).filter(Boolean);
+                        const itemSummary = itemNames.slice(0, 3).join(", ");
+                        const hasMore = itemNames.length > 3;
+
+                        return (
+                          <div key={q.id} className="mobile-quote-card" onClick={() => setPrintQuote(q)}>
+                            <div className="mobile-card-header">
+                              <span className="mobile-quote-num">{q.quoteNumber}</span>
+                              <span className={`badge badge-${q.status}`}>{STATUS_LABELS[q.status]}</span>
+                            </div>
+                            <div className="mobile-card-customer">
+                              <div>
+                                <span className="cust-pill" style={{ background: col.bg, color: col.text }}>{q.customer}</span>
+                                {itemSummary && (
+                                  <div style={{ fontSize: 10.5, color: "#475569", marginTop: 4 }}>
+                                    📦 {itemSummary}{hasMore ? '...' : ''}
+                                  </div>
+                                )}
+                              </div>
+                              <span className="mobile-card-date">📅 {q.date}</span>
+                            </div>
+                            <div className="mobile-card-body">
+                              <span className="mobile-item-count">📦 {q.items.length} mặt hàng</span>
+                              <span className="mobile-total-val">{fmt(total)} đ</span>
+                            </div>
+                            <div className="mobile-card-actions" onClick={e => e.stopPropagation()}>
+                              <button className="btn btn-primary btn-sm mobile-act-btn" onClick={() => setPrintQuote(q)}>
+                                🖨️ Xuất PDF / In
+                              </button>
+                              <button className="btn btn-ghost btn-sm mobile-act-btn" onClick={() => shareQuoteZalo(q)}>
+                                📲 Zalo
+                              </button>
+                              <button className="btn btn-ghost btn-sm mobile-act-btn" onClick={() => { setEditQuote(q); setShowModal(true); }}>
+                                ✏️ Sửa
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Sticky Mobile Bottom Navigation Dock */}
+      <div className="mobile-bottom-dock no-print">
+        <button className={`dock-item ${view==="list"?"active":""}`} onClick={()=>setView("list")}>
+          <span className="dock-icon">📋</span>
+          <span className="dock-label">Báo Giá</span>
+        </button>
+        <button className={`dock-item ${view==="contracts"?"active":""}`} onClick={()=>setView("contracts")}>
+          <span className="dock-icon">📄</span>
+          <span className="dock-label">Hợp Đồng</span>
+        </button>
+        <button className={`dock-item ${view==="handover"?"active":""}`} onClick={()=>setView("handover")}>
+          <span className="dock-icon">🚚</span>
+          <span className="dock-label">Biên Bản & GH</span>
+        </button>
+        <button className={`dock-item ${view==="debt_recon"?"active":""}`} onClick={()=>setView("debt_recon")}>
+          <span className="dock-icon">📊</span>
+          <span className="dock-label">Công Nợ</span>
+        </button>
+        <button className={`dock-item ${view==="settings"?"active":""}`} onClick={()=>setView("settings")}>
+          <span className="dock-icon">⚙️</span>
+          <span className="dock-label">Cài Đặt</span>
+        </button>
       </div>
 
       <button className="fab-btn no-print" onClick={()=>{setEditQuote(null);setShowModal(true);}} title="Tạo báo giá mới">＋</button>
@@ -636,7 +762,6 @@ export default function App() {
           onClose={()=>setPrintQuote(null)}
           onCreateContract={(q)=>{setPrintQuote(null);setContractQuote(q);}}
           onHandover={(q)=>{setPrintQuote(null);setHandoverQuote(q);}}
-          onDelivery={(q)=>{setPrintQuote(null);setDeliveryQuote(q);}}
         />
       )}
 
@@ -658,13 +783,6 @@ export default function App() {
         <HandoverModal
           quote={null}
           onClose={()=>setShowNewHandover(false)}
-        />
-      )}
-
-      {deliveryQuote && (
-        <DeliveryModal
-          quote={deliveryQuote}
-          onClose={()=>setDeliveryQuote(null)}
         />
       )}
 

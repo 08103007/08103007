@@ -95,6 +95,9 @@ export default function DeliveryModal({ quote, onClose }) {
   const [saving,        setSaving]        = useState(false);
   const [saveMsg,       setSaveMsg]       = useState("");
 
+  const [includeHandover, setIncludeHandover] = useState(false);
+  const [handoverRefNum,  setHandoverRefNum]  = useState(() => "BBBG-" + (quote?.quoteNumber || generateId().slice(0,6).toUpperCase()));
+
   const storageId = quote ? ("dv_" + quote.id) : null;
 
   const [items, setItems] = useState(() => {
@@ -118,6 +121,8 @@ export default function DeliveryModal({ quote, onClose }) {
       if (saved.receiverName)    setReceiverName(saved.receiverName);
       if (saved.note)            setNote(saved.note);
       if (saved.noteEn)          setNoteEn(saved.noteEn);
+      if (saved.includeHandover !== undefined) setIncludeHandover(saved.includeHandover);
+      if (saved.handoverRefNum)  setHandoverRefNum(saved.handoverRefNum);
 
       if (quote) {
         setReceiverCompany(quote.customer);
@@ -149,7 +154,7 @@ export default function DeliveryModal({ quote, onClose }) {
     if (!storageId) { showToast("⚠️ Cần gắn phiếu vào một báo giá để lưu", 2500); return; }
     setSaving(true);
     try {
-      await saveDelivery(storageId, { lang, refNum, dateStr, delivererName, delivererPhone, receiverName, receiverPhone, receiverCompany, deliveryAddress, note, noteEn, items });
+      await saveDelivery(storageId, { lang, refNum, dateStr, delivererName, delivererPhone, receiverName, receiverPhone, receiverCompany, deliveryAddress, note, noteEn, items, includeHandover, handoverRefNum });
       setSaveMsg("✓ Đã lưu");
       setTimeout(() => setSaveMsg(""), 2000);
     } finally { setSaving(false); }
@@ -180,6 +185,10 @@ export default function DeliveryModal({ quote, onClose }) {
         const transNote = await translateStr(note);
         setNoteEn(transNote);
       }
+      if (deliveryAddress) {
+        const transAddr = await translateStr(deliveryAddress);
+        setDeliveryAddressEn(transAddr);
+      }
 
       const updatedItems = await Promise.all(items.map(async it => {
         if (it.name) {
@@ -189,7 +198,7 @@ export default function DeliveryModal({ quote, onClose }) {
         return it;
       }));
       setItems(updatedItems);
-      showToast("✓ Tự động dịch phiếu giao hàng thành công!", 2000);
+      showToast(`✓ Tự động dịch ${includeHandover ? "Phiếu giao hàng & Biên bản bàn giao" : "Phiếu giao hàng"} thành công!`, 2000);
     } catch(e) {
       showToast("⚠️ Lỗi tự động dịch: " + e.message, 2500);
     } finally {
@@ -200,19 +209,11 @@ export default function DeliveryModal({ quote, onClose }) {
   const handlePrint = () => {
     printElementViaIframe("deliveryPreviewContent", `
       #deliveryPreviewContent * { color:#000 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; font-family:'Plus Jakarta Sans',sans-serif !important; }
-      .handover-items-table { width:100% !important; table-layout:fixed !important; border:1px solid #000 !important; border-collapse:collapse !important; margin:12px 0 !important; }
-      .handover-items-table th, .handover-items-table td { border-right:1px solid #000 !important; border-bottom:1px solid #000 !important; padding:5px 7px !important; }
-      .handover-items-table th { white-space:normal !important; word-break:break-word !important; overflow-wrap:break-word !important; vertical-align:middle !important; line-height:1.25 !important; }
-      .handover-items-table th:nth-child(1), .handover-items-table td:nth-child(1) { width:8% !important; text-align:center !important; }
-      .handover-items-table td:nth-child(1) { white-space:nowrap !important; }
-      .handover-items-table th:nth-child(2), .handover-items-table td:nth-child(2) { width:44% !important; word-break:break-word !important; overflow-wrap:break-word !important; word-wrap:break-word !important; text-align:left !important; }
-      .handover-items-table th:nth-child(3), .handover-items-table td:nth-child(3) { width:15% !important; text-align:center !important; }
-      .handover-items-table td:nth-child(3) { white-space:nowrap !important; }
-      .handover-items-table th:nth-child(4), .handover-items-table td:nth-child(4) { width:11% !important; text-align:center !important; }
-      .handover-items-table td:nth-child(4) { white-space:nowrap !important; }
-      .handover-items-table th:nth-child(5), .handover-items-table td:nth-child(5) { width:22% !important; word-break:break-word !important; overflow-wrap:break-word !important; text-align:center !important; }
-      .handover-items-table th:last-child, .handover-items-table td:last-child { border-right:none !important; }
-      .handover-items-table tr:last-child td { border-bottom:none !important; }
+      .handover-items-table { width:100% !important; table-layout:fixed !important; border:1px solid #000 !important; border-collapse:collapse !important; border-spacing:0 !important; margin:12px 0 !important; }
+      .handover-items-table th, .handover-items-table td { border:1px solid #000 !important; padding:5px 7px !important; box-sizing:border-box !important; }
+      @media print {
+        .handover-note-page { page-break-before: always !important; break-before: page !important; }
+      }
     `);
   };
 
@@ -372,6 +373,26 @@ export default function DeliveryModal({ quote, onClose }) {
                 </div>
               ) : null}
             </div>
+
+            <div className="hw-form-section" style={{ background: "#f8fafc", padding: 12, borderRadius: 8, border: "1px solid #cbd5e1", marginTop: 12 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 12.5, color: "#1e293b", cursor: "pointer", margin: 0 }}>
+                <input 
+                  type="checkbox" 
+                  checked={includeHandover} 
+                  onChange={e => setIncludeHandover(e.target.checked)} 
+                  style={{ width: 16, height: 16, cursor: "pointer" }}
+                />
+                📋 In kèm Biên bản bàn giao
+              </label>
+              {includeHandover && (
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8, fontSize: 11 }}>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 600, color: "#475569", marginBottom: 2, display: "block" }}>Số biên bản bàn giao:</label>
+                    <input className="form-control" style={{ fontSize: 11, padding: "3px 6px", height: 28 }} value={handoverRefNum} onChange={e => setHandoverRefNum(e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Right: Preview */}
@@ -453,9 +474,9 @@ export default function DeliveryModal({ quote, onClose }) {
                     <tr key={it.id}>
                       <td style={{ textAlign:"center", whiteSpace:"nowrap" }}>{i+1}</td>
                       <td style={{ textAlign:"left", wordBreak:"break-word", overflowWrap:"break-word", wordWrap:"break-word" }}>
-                        <div>{it.name}</div>
+                        <span>{it.name}</span>
                         {lang !== "vi" && it.nameEn ? (
-                          <div style={{ fontSize: "0.85em", fontStyle: "italic", color: "#555" }}>{it.nameEn}</div>
+                          <span style={{ fontSize: "0.85em", fontStyle: "italic", color: "#555" }}> / {it.nameEn}</span>
                         ) : null}
                       </td>
                       <td style={{ textAlign:"center", whiteSpace:"nowrap" }}>{it.qty}</td>
@@ -502,6 +523,92 @@ export default function DeliveryModal({ quote, onClose }) {
                   </div>
                 </div>
               </div>
+
+              {/* Optional Appended Handover Minute Page */}
+              {includeHandover && (
+                <div className="handover-note-page" style={{ pageBreakBefore: "always", marginTop: 36, paddingTop: 20, borderTop: "2px dashed #cbd5e1" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", marginBottom:14 }}>
+                    <tbody>
+                      <tr>
+                        <td style={{ width:"55%", verticalAlign:"top", paddingRight:12, borderRight:"2px solid #1a2540" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                            <img src={getLogoUrl()} style={{ width:48, height:48, objectFit:"contain" }} alt="PMC" />
+                            <div>
+                              <div style={{ fontWeight:700, fontSize:13 }}>{COMPANY.name}</div>
+                              <div style={{ fontSize:10, color:"#555" }}>Địa chỉ: {COMPANY.address}</div>
+                              <div style={{ fontSize:10, color:"#555" }}>ĐT: {COMPANY.phone} | Email: {COMPANY.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ textAlign:"center", paddingLeft:12, verticalAlign:"top" }}>
+                          <div style={{ fontWeight:700, fontSize:12 }}>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                          <div style={{ fontWeight:600, fontSize:12 }}>Độc lập – Tự do – Hạnh phúc</div>
+                          <div style={{ fontSize:11, marginTop:4 }}>⸻⸻⸻</div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  <div style={{ textAlign:"center", margin:"14px 0 18px" }}>
+                    <div style={{ fontSize:18, fontWeight:700, color:"#1a2540", textTransform:"uppercase" }}>
+                      {lang === "vi" ? "BIÊN BẢN NGHIỆM THU VÀ BÀN GIAO THIẾT BỊ" : (lang === "vi_en" ? "BIÊN BẢN NGHIỆM THU VÀ BÀN GIAO THIẾT BỊ / EQUIPMENT HANDOVER MINUTES" : "BIÊN BẢN NGHIỆM THU VÀ BÀN GIAO THIẾT BỊ / 设备验收与交接记录")}
+                    </div>
+                    {handoverRefNum && <div style={{ fontSize:11, color:"#666", marginTop:3 }}>Số: <strong>{handoverRefNum}</strong></div>}
+                  </div>
+
+                  <div style={{ fontSize: 12, lineHeight: 1.8 }}>
+                    <p style={{ margin: "4px 0" }}>Hôm nay, {dateStr}, chúng tôi gồm có:</p>
+                    <p style={{ margin: "4px 0" }}><strong>BÊN GIAO:</strong></p>
+                    <p style={{ marginLeft: 20, margin: "2px 0" }}>Ông: <strong>{delivererName}</strong> | Đại diện: <strong>{COMPANY.name}</strong></p>
+                    <p style={{ margin: "4px 0" }}><strong>BÊN NHẬN:</strong></p>
+                    <p style={{ marginLeft: 20, margin: "2px 0" }}>Ông/Bà: <strong>{receiverName || "…………………………"}</strong> | Đại diện: <strong>{receiverCompany || "…………………………………………"}</strong></p>
+
+                    <p style={{ marginTop: 10, marginBottom: 4 }}>– Thiết bị & dịch vụ giao nhận:</p>
+                    <table className="handover-items-table" style={{ width: "100%", tableLayout: "fixed", marginBottom: 14 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: "9%", textAlign: "center" }}>STT</th>
+                          <th style={{ width: "62%", textAlign: "left" }}>HÀNG HÓA / DỊCH VỤ</th>
+                          <th style={{ width: "16%", textAlign: "center" }}>SỐ LƯỢNG</th>
+                          <th style={{ width: "13%", textAlign: "center" }}>ĐVT</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((it, i) => (
+                          <tr key={it.id || i}>
+                            <td style={{ textAlign: "center" }}>{i + 1}</td>
+                            <td style={{ textAlign: "left" }}>
+                              <span>{it.name}</span>
+                              {lang !== "vi" && it.nameEn ? <span style={{ fontSize: "0.85em", fontStyle: "italic", color: "#555" }}> / {it.nameEn}</span> : null}
+                            </td>
+                            <td style={{ textAlign: "center" }}>{it.qty}</td>
+                            <td style={{ textAlign: "center" }}>{it.unit || "Cái"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <p style={{ marginTop: 10, whiteSpace: "pre-line" }}>
+                      Hai bên thống nhất lập Biên bản bàn giao và nghiệm thu theo những nội dung như trên và được lập thành 02 bản giống nhau, mỗi bên giữ một bản có giá trị tương đương nhau.
+                    </p>
+
+                    <div style={{ display: "flex", justifyContext: "space-between", marginTop: 24, fontSize: 12 }}>
+                      <div style={{ textAlign: "center", minWidth: 200 }}>
+                        <div style={{ fontWeight: 700, color: "#1a2540" }}>BÊN GIAO</div>
+                        <div style={{ color: "#666", fontSize: 11 }}>(Ký và ghi rõ họ tên)</div>
+                        <div style={{ height: 60 }} />
+                        <div style={{ fontWeight: 600 }}>{delivererName}</div>
+                      </div>
+                      <div style={{ textAlign: "center", minWidth: 200, marginLeft: "auto" }}>
+                        <div style={{ fontWeight: 700, color: "#1a2540" }}>BÊN NHẬN</div>
+                        <div style={{ color: "#666", fontSize: 11 }}>(Ký và ghi rõ họ tên)</div>
+                        <div style={{ height: 60 }} />
+                        <div style={{ fontWeight: 600 }}>{receiverName || ""}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

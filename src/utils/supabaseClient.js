@@ -6,22 +6,38 @@
 export const LS_SB_URL = "pmc_sb_url_v1";
 export const LS_SB_KEY = "pmc_sb_key_v1";
 
-export const DEFAULT_SB_URL = "https://iwkkkewyjuwnsmmtkdj.supabase.co";
+export const DEFAULT_SB_URL = "https://iwkkkewyjjuwnsmmtkdj.supabase.co";
 
 export function getSupabaseUrl() {
-  return (localStorage.getItem(LS_SB_URL) || DEFAULT_SB_URL).trim();
+  const pfx = localStorage.getItem("pmc_app_prefix") || "default";
+  const custom = localStorage.getItem(LS_SB_URL) 
+    || localStorage.getItem(`${LS_SB_URL}_${pfx}`) 
+    || localStorage.getItem(`${LS_SB_URL}_default`) 
+    || DEFAULT_SB_URL;
+  return (custom || "").trim();
 }
 
 export function setSupabaseUrl(url) {
-  localStorage.setItem(LS_SB_URL, (url || "").trim());
+  const pfx = localStorage.getItem("pmc_app_prefix") || "default";
+  const val = (url || "").trim();
+  localStorage.setItem(LS_SB_URL, val);
+  localStorage.setItem(`${LS_SB_URL}_${pfx}`, val);
 }
 
 export function getSupabaseKey() {
-  return (localStorage.getItem(LS_SB_KEY) || "").trim();
+  const pfx = localStorage.getItem("pmc_app_prefix") || "default";
+  const custom = localStorage.getItem(LS_SB_KEY) 
+    || localStorage.getItem(`${LS_SB_KEY}_${pfx}`) 
+    || localStorage.getItem(`${LS_SB_KEY}_default`) 
+    || "";
+  return (custom || "").trim();
 }
 
 export function setSupabaseKey(key) {
-  localStorage.setItem(LS_SB_KEY, (key || "").trim());
+  const pfx = localStorage.getItem("pmc_app_prefix") || "default";
+  const val = (key || "").trim();
+  localStorage.setItem(LS_SB_KEY, val);
+  localStorage.setItem(`${LS_SB_KEY}_${pfx}`, val);
 }
 
 export function hasSupabase() {
@@ -54,36 +70,106 @@ export async function testSupabaseConnection() {
   return true;
 }
 
+async function fetchWithRetry(url, options = {}, retries = 2, delayMs = 300) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fetch(url, options);
+    } catch (err) {
+      if (i === retries) throw err;
+      await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+}
+
 /**
- * Fetch all quotes from Supabase
+ * Fetch all quotes from Supabase (Fast direct fetch with fallback pagination)
  */
 export async function fetchSupabaseQuotes() {
-  if (!hasSupabase()) return [];
-  try {
-    const url = `${getSupabaseUrl()}/rest/v1/quotes?select=*`;
-    const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return [];
-    const rows = await resp.json();
-    if (!Array.isArray(rows)) return [];
-    return rows.map(r => {
-      if (r.payload && typeof r.payload === "object") {
-        return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber };
-      }
-      return {
-        id: r.id,
-        quoteNumber: r.quote_number,
-        date: r.date,
-        customer: r.customer,
-        status: r.status,
-        total: r.total,
-        items: [],
-        updatedAt: r.updated_at
-      };
-    });
-  } catch (err) {
-    console.warn("Lỗi tải Báo Giá từ Supabase:", err);
+  if (!hasSupabase()) {
+    console.log("ℹ️ Supabase chưa được cấu hình hoặc chưa nhập Key");
     return [];
   }
+
+  console.log("⚡ Supabase: Đang kết nối tải danh sách báo giá...");
+
+  // Cách 1: Tải nhanh trực tiếp 1 request
+  try {
+    const directUrl = `${getSupabaseUrl()}/rest/v1/quotes?select=*`;
+    const resp = await fetchWithRetry(directUrl, { headers: getHeaders() }, 1, 200);
+    if (resp && resp.ok) {
+      const rows = await resp.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        console.log(`⚡ Supabase: Đã tải thành công ${rows.length} báo giá`);
+        return rows.map(r => {
+          if (r.payload && typeof r.payload === "object") {
+            return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber };
+          }
+          return {
+            id: r.id,
+            quoteNumber: r.quote_number,
+            date: r.date,
+            customer: r.customer,
+            status: r.status,
+            total: r.total,
+            items: [],
+            updatedAt: r.updated_at
+          };
+        });
+      }
+    }
+  } catch(err) {
+    console.warn("Direct quotes fetch failed, fallback to chunked pagination:", err.message);
+  }
+
+  // Cách 2: Phân trang theo từng chunk nếu request trực tiếp bị nghẽn gói tin
+  const allRows = [];
+  const limit = 100;
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    try {
+      const url = `${getSupabaseUrl()}/rest/v1/quotes?select=*&limit=${limit}&offset=${offset}`;
+      const resp = await fetchWithRetry(url, { headers: getHeaders() }, 2, 250);
+      if (!resp.ok) {
+        hasMore = false;
+        break;
+      }
+      const rows = await resp.json();
+      if (Array.isArray(rows)) {
+        allRows.push(...rows);
+        if (rows.length < limit) {
+          hasMore = false;
+        } else {
+          offset += limit;
+        }
+      } else {
+        hasMore = false;
+      }
+    } catch (err) {
+      console.warn(`Lỗi chunk offset ${offset}:`, err.message);
+      hasMore = false;
+    }
+  }
+
+  if (allRows.length === 0) return [];
+
+  console.log(`⚡ Supabase (Phân trang): Đã tải thành công ${allRows.length} báo giá`);
+  return allRows.map(r => {
+    if (r.payload && typeof r.payload === "object") {
+      return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber };
+    }
+    return {
+      id: r.id,
+      quoteNumber: r.quote_number,
+      date: r.date,
+      customer: r.customer,
+      status: r.status,
+      total: r.total,
+      items: [],
+      updatedAt: r.updated_at
+    };
+  });
 }
 
 /**
@@ -106,7 +192,7 @@ export async function upsertSupabaseQuotes(quotes, masterData = null) {
         updated_at: new Date().toISOString()
       }));
 
-      const url = `${getSupabaseUrl()}/rest/v1/quotes`;
+      const url = `${getSupabaseUrl()}/rest/v1/quotes?on_conflict=id`;
       const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
@@ -130,7 +216,7 @@ export async function upsertSupabaseQuotes(quotes, masterData = null) {
         payload: masterData,
         updated_at: new Date().toISOString()
       }];
-      const sysUrl = `${getSupabaseUrl()}/rest/v1/quotes`;
+      const sysUrl = `${getSupabaseUrl()}/rest/v1/quotes?on_conflict=id`;
       await fetch(sysUrl, {
         method: "POST",
         headers: getHeaders(),
@@ -234,7 +320,7 @@ export async function upsertSupabaseProducts(products, catalog = [], quotes = []
         updated_at: new Date().toISOString()
       }));
 
-      const url = `${getSupabaseUrl()}/rest/v1/products`;
+      const url = `${getSupabaseUrl()}/rest/v1/products?on_conflict=id`;
       await fetch(url, {
         method: "POST",
         headers: getHeaders(),
@@ -265,7 +351,7 @@ export async function upsertSupabaseDebtRecs(debtRecsMap) {
       payload: d,
       updated_at: new Date().toISOString()
     }));
-    const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations`;
+    const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
     return resp.ok;
   } catch { return false; }
@@ -302,7 +388,7 @@ export async function upsertSupabasePaymentRequests(reqsMap) {
       payload: r,
       updated_at: new Date().toISOString()
     }));
-    const url = `${getSupabaseUrl()}/rest/v1/payment_requests`;
+    const url = `${getSupabaseUrl()}/rest/v1/payment_requests?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
     return resp.ok;
   } catch { return false; }
@@ -339,7 +425,7 @@ export async function upsertSupabaseHandovers(handoversMap) {
       payload: h,
       updated_at: new Date().toISOString()
     }));
-    const url = `${getSupabaseUrl()}/rest/v1/handovers`;
+    const url = `${getSupabaseUrl()}/rest/v1/handovers?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
     return resp.ok;
   } catch { return false; }
@@ -387,7 +473,7 @@ export async function upsertSupabaseSettings(key, value) {
       value: value,
       updated_at: new Date().toISOString()
     }];
-    const url = `${getSupabaseUrl()}/rest/v1/app_settings`;
+    const url = `${getSupabaseUrl()}/rest/v1/app_settings?on_conflict=key`;
     const resp = await fetch(url, {
       method: "POST",
       headers: getHeaders(),
@@ -536,6 +622,35 @@ create table if not exists products (
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+create table if not exists handovers (
+  id text primary key,
+  quote_id text,
+  ref_num text,
+  customer text,
+  date text,
+  payload jsonb,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+create table if not exists debt_reconciliations (
+  id text primary key,
+  ref_num text,
+  buyer_name text,
+  date_str text,
+  amount numeric default 0,
+  payload jsonb,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+create table if not exists payment_requests (
+  id text primary key,
+  req_number text,
+  buyer_name text,
+  amount numeric default 0,
+  payload jsonb,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
 create table if not exists app_settings (
   key text primary key,
   value jsonb,
@@ -544,9 +659,15 @@ create table if not exists app_settings (
 
 alter table quotes enable row level security;
 alter table products enable row level security;
+alter table handovers enable row level security;
+alter table debt_reconciliations enable row level security;
+alter table payment_requests enable row level security;
 alter table app_settings enable row level security;
 
 create policy "Public Access Quotes" on quotes for all using (true) with check (true);
 create policy "Public Access Products" on products for all using (true) with check (true);
+create policy "Public Access Handovers" on handovers for all using (true) with check (true);
+create policy "Public Access DebtRecs" on debt_reconciliations for all using (true) with check (true);
+create policy "Public Access PayReqs" on payment_requests for all using (true) with check (true);
 create policy "Public Access Settings" on app_settings for all using (true) with check (true);
 `;

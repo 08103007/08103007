@@ -234,10 +234,12 @@ export function dxHeaderCell(vi, en, width) {
 
 export function dxRow(cells, opts={}) {
   const trPr = opts.header ? "<w:trPr><w:tblHeader/></w:trPr>" : "";
-  return `<w:tr>${trPr}${cells.join("")}</w:tr>`;
+  const inner = Array.isArray(cells) ? cells.join("") : String(cells || "");
+  return `<w:tr>${trPr}${inner}</w:tr>`;
 }
 
 export function dxTable(rows, totalWidth) {
+  const inner = Array.isArray(rows) ? rows.join("") : String(rows || "");
   return `<w:tbl>
     <w:tblPr>
       <w:tblW w:w="${totalWidth}" w:type="dxa"/>
@@ -251,11 +253,12 @@ export function dxTable(rows, totalWidth) {
       </w:tblBorders>
       <w:tblLayout w:type="fixed"/>
     </w:tblPr>
-    ${rows.join("")}
+    ${inner}
   </w:tbl>`;
 }
 
 export function dxNoBorderTable(rows, totalWidth) {
+  const inner = Array.isArray(rows) ? rows.join("") : String(rows || "");
   return `<w:tbl>
     <w:tblPr>
       <w:tblW w:w="${totalWidth}" w:type="dxa"/>
@@ -269,7 +272,7 @@ export function dxNoBorderTable(rows, totalWidth) {
       </w:tblBorders>
       <w:tblLayout w:type="fixed"/>
     </w:tblPr>
-    ${rows.join("")}
+    ${inner}
   </w:tbl>`;
 }
 
@@ -277,7 +280,7 @@ export function dxNoBorderCell(content, width) {
   const tcPr = `<w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>
     <w:tcBorders><w:top w:val="none" w:sz="0" w:color="auto"/><w:left w:val="none" w:sz="0" w:color="auto"/><w:bottom w:val="none" w:sz="0" w:color="auto"/><w:right w:val="none" w:sz="0" w:color="auto"/></w:tcBorders>
     <w:vAlign w:val="center"/></w:tcPr>`;
-  const inner = Array.isArray(content) ? content.join("") : content;
+  const inner = Array.isArray(content) ? content.join("") : String(content || "");
   return `<w:tc>${tcPr}${inner}</w:tc>`;
 }
 
@@ -299,6 +302,8 @@ export async function buildDocxBlob(bodyXmlParts, imageMap, margins) {
     }
   }
 
+  const innerBody = Array.isArray(bodyXmlParts) ? bodyXmlParts.join("\n") : String(bodyXmlParts || "");
+
   const docXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
   xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
@@ -307,11 +312,11 @@ export async function buildDocxBlob(bodyXmlParts, imageMap, margins) {
   xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
   xmlns:v="urn:schemas-microsoft-com:vml">
   <w:body>
+    ${innerBody}
     <w:sectPr>
       <w:pgSz w:w="11906" w:h="16838"/>
       <w:pgMar w:top="${m.top}" w:right="${m.right}" w:bottom="${m.bottom}" w:left="${m.left}" w:header="${m.header}" w:footer="${m.footer}"/>
     </w:sectPr>
-    ${bodyXmlParts.join("\n")}
   </w:body>
 </w:document>`;
   zip.file("word/document.xml", docXml);
