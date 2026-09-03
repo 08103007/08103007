@@ -73,6 +73,12 @@ const QUOTE_T = {
 };
 
 export default function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }) {
+  // Quote State
+  const [localQuote, setLocalQuote] = useState(quote);
+
+  // Language state
+  const [lang, setLang] = useState(() => quote?.lang || "vi");
+
   // Parse quote date (defaults to today only if quote.date is missing)
   const parseQuoteDate = (dStr) => {
     if (!dStr) return new Date();
@@ -92,7 +98,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
     return new Date();
   };
 
-  const quoteDateObj = parseQuoteDate(localQuote.date || quote.date);
+  const quoteDateObj = parseQuoteDate(localQuote?.date || quote?.date);
   const qDay = String(quoteDateObj.getDate()).padStart(2, "0");
   const qMonth = String(quoteDateObj.getMonth() + 1).padStart(2, "0");
   const qYear = quoteDateObj.getFullYear();
@@ -101,19 +107,15 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
   const [wordLoading, setWordLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
 
-  // Quote State
-  const [localQuote, setLocalQuote] = useState(quote);
-
-  // Language state
-  const [lang, setLang] = useState(() => quote.lang || "vi");
-
   // Print Template Options state
   const [printOptions, setPrintOptions] = useState({
     showStt: true,
-    showImage: localQuote.items.some(it => it.image && it.image.trim()),
+    showImage: (localQuote?.items || []).some(it => it.image && it.image.trim()),
     showNote: true,
     showVat: true,
   });
+
+  const { subtotal, vat, total } = calcItems(localQuote?.items || [], localQuote?.vatRate);
 
   const T = QUOTE_T[lang] || QUOTE_T.vi;
 
