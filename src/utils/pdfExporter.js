@@ -139,60 +139,80 @@ export async function exportElementToPdf(elementId, opts) {
     console.warn("Puppeteer PDF server export failed/unavailable, falling back to html2canvas:", pErr);
   }
 
-  // 2. Fallback: Render PDF bang client-side html2canvas + jsPDF
-  const save = { width: el.style.width, maxWidth: el.style.maxWidth, padding: el.style.padding, margin: el.style.margin, bg: el.style.background };
-  el.style.width = a4Px + "px"; el.style.maxWidth = a4Px + "px";
-  el.style.padding = pad + "px"; el.style.margin = "0"; el.style.background = "#ffffff";
-  el.classList.add("pdf-mono");
+  // 2. Fallback: Render PDF via client-side html2canvas + jsPDF with full-width offscreen clone
+  const container = document.createElement("div");
+  container.style.cssText = `position:fixed;top:0;left:-9999px;width:${a4Px}px;min-width:${a4Px}px;max-width:${a4Px}px;background:#ffffff;z-index:-9999;box-sizing:border-box;`;
+  
+  const clone = el.cloneNode(true);
+  clone.id = elementId + "_pdf_clone";
+  clone.style.width = `${a4Px}px`;
+  clone.style.maxWidth = `${a4Px}px`;
+  clone.style.minWidth = `${a4Px}px`;
+  clone.style.padding = `${pad}px`;
+  clone.style.margin = "0";
+  clone.style.background = "#ffffff";
+  clone.style.boxSizing = "border-box";
+  clone.classList.add("pdf-mono");
 
-  const noCutRanges = [];
-  if (respectNoCut) {
-    el.querySelectorAll("p, h1, h2, h3, h4, h5, h6, table, tr, ul, ol, blockquote, section, header, footer").forEach(elm => {
-      const r = elm.getBoundingClientRect(), p = el.getBoundingClientRect();
-      noCutRanges.push({ top: r.top - p.top, bottom: r.bottom - p.top });
-    });
-  }
+  container.appendChild(clone);
+  document.body.appendChild(container);
 
   try {
     await Promise.all([ensureHtml2Canvas(), ensureJsPdf()]);
     if (!window.html2canvas) {
       throw new Error("html2canvas library is not loaded yet");
     }
-    const canvas = await window.html2canvas(el, { scale, useCORS: true, allowTaint: true, backgroundColor: "#ffffff", logging: false, width: a4Px, height: el.scrollHeight, windowWidth: a4Px, imageTimeout: 0 });
+
+    // Wait a tick for layout and images to settle in clone
+    await new Promise(r => setTimeout(r, 60));
+
+    const canvas = await window.html2canvas(clone, { 
+      scale: Math.min(scale, 3), 
+      useCORS: true, 
+      allowTaint: true, 
+      backgroundColor: "#ffffff", 
+      logging: false, 
+      width: a4Px, 
+      windowWidth: a4Px, 
+      imageTimeout: 0 
+    });
     
     if (!window.jspdf) {
       throw new Error("jsPDF library is not loaded yet");
     }
     const { jsPDF } = window.jspdf;
-    const MARGIN = 10, printW = 210 - MARGIN * 2, printH = 297 - MARGIN * 2;
-    const realW = canvas.width / scale, realH = canvas.height / scale;
-    const mmPerPx = printW / realW, pxPerPage = printH / mmPerPx;
+    const MARGIN = 8, printW = 210 - MARGIN * 2, printH = 297 - MARGIN * 2;
+    const canvasScale = canvas.width / a4Px;
+    const totalHeightPx = canvas.height / canvasScale;
+    const mmPerPx = printW / a4Px;
+    const pxPerPage = printH / mmPerPx;
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
     let srcY = 0, page = 0;
-    while (srcY < realH) {
+    while (srcY < totalHeightPx) {
       if (page > 0) doc.addPage();
-      let slicePx = Math.min(pxPerPage, realH - srcY);
-      if (respectNoCut && srcY + slicePx < realH) {
-        for (const rng of noCutRanges) {
-          if ((srcY + slicePx) > rng.top + 0.5 && (srcY + slicePx) < rng.bottom - 0.5) {
-            const adj = rng.top - srcY; if (adj > 0) slicePx = adj; break;
-          }
-        }
-      }
+      const slicePx = Math.min(pxPerPage, totalHeightPx - srcY);
       const sliceMm = slicePx * mmPerPx;
       const slice = document.createElement("canvas");
-      slice.width = canvas.width; slice.height = Math.ceil(slicePx * scale);
+      slice.width = canvas.width;
+      slice.height = Math.ceil(slicePx * canvasScale);
       const ctx = slice.getContext("2d");
-      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, slice.width, slice.height);
-      ctx.drawImage(canvas, 0, Math.floor(srcY * scale), canvas.width, Math.ceil(slicePx * scale), 0, 0, slice.width, slice.height);
-      doc.addImage(slice.toDataURL("image/jpeg", 0.92), "JPEG", MARGIN, MARGIN, printW, sliceMm);
-      srcY += slicePx; page++;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(
+        canvas,
+        0, Math.floor(srcY * canvasScale), canvas.width, Math.ceil(slicePx * canvasScale),
+        0, 0, slice.width, slice.height
+      );
+      doc.addImage(slice.toDataURL("image/jpeg", 0.95), "JPEG", MARGIN, MARGIN, printW, sliceMm);
+      srcY += slicePx;
+      page++;
     }
     doc.save(filename);
   } finally {
-    el.style.width = save.width; el.style.maxWidth = save.maxWidth;
-    el.style.padding = save.padding; el.style.margin = save.margin; el.style.background = save.bg;
-    el.classList.remove("pdf-mono");
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
   }
 }
 

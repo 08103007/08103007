@@ -341,7 +341,10 @@ export default function HandoverModal({ quote, onClose }) {
   };
 
   const handlePrint = () => {
-    printElementViaIframe("handoverPreviewContent");
+    printElementViaIframe("handoverPreviewContent", `
+      #handoverPreviewContent { width:100% !important; max-width:100% !important; padding:0 !important; margin:0 !important; font-family:'Plus Jakarta Sans',sans-serif !important; }
+      table { width:100% !important; border-collapse:collapse !important; }
+    `);
   };
 
   const handlePDF = async () => {
@@ -772,10 +775,10 @@ export default function HandoverModal({ quote, onClose }) {
                   {T.sec1Title}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12, width: "100%", boxSizing: "border-box" }}>
                   
                   {/* Party A Box */}
-                  <div style={{ border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10.5 }}>
+                  <div style={{ flex: 1, border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10.5, boxSizing: "border-box" }}>
                     <div style={{ fontWeight: 800, color: "#1e293b", textTransform: "uppercase", marginBottom: 5, fontSize: 10.5 }}>
                       {T.partyATitle}
                     </div>
@@ -787,7 +790,7 @@ export default function HandoverModal({ quote, onClose }) {
                   </div>
 
                   {/* Party B Box */}
-                  <div style={{ border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10.5 }}>
+                  <div style={{ flex: 1, border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10.5, boxSizing: "border-box" }}>
                     <div style={{ fontWeight: 800, color: "#1e293b", textTransform: "uppercase", marginBottom: 5, fontSize: 10.5 }}>
                       {T.partyBTitle}
                     </div>
@@ -810,22 +813,22 @@ export default function HandoverModal({ quote, onClose }) {
                   {T.sec2Title}
                 </div>
 
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, textAlign: "left" }}>
+                <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 10, textAlign: "left", boxSizing: "border-box" }}>
                   <thead>
                     <tr style={{ background: "#1e3a8a", color: "#ffffff", textAlign: "center", fontWeight: 700 }}>
-                      <th style={{ border: "1px solid #1e3a8a", padding: "5px 4px", width: 34, whiteSpace: "pre-line" }}>{T.colStt}</th>
-                      <th style={{ border: "1px solid #1e3a8a", padding: "5px 8px", whiteSpace: "pre-line" }}>{T.colName}</th>
-                      <th style={{ border: "1px solid #1e3a8a", padding: "5px 4px", width: 50, whiteSpace: "pre-line" }}>{T.colUnit}</th>
-                      <th style={{ border: "1px solid #1e3a8a", padding: "5px 4px", width: 40, whiteSpace: "pre-line" }}>{T.colQty}</th>
-                      <th style={{ border: "1px solid #1e3a8a", padding: "5px 6px", width: 90, whiteSpace: "pre-line" }}>{T.colSerial}</th>
-                      <th style={{ border: "1px solid #1e3a8a", padding: "5px 6px", width: 85, whiteSpace: "pre-line" }}>{T.colNote}</th>
+                      <th style={{ border: "1px solid #1e3a8a", padding: "6px 4px", width: "6%", whiteSpace: "pre-line" }}>{T.colStt}</th>
+                      <th style={{ border: "1px solid #1e3a8a", padding: "6px 8px", width: "48%", whiteSpace: "pre-line" }}>{T.colName}</th>
+                      <th style={{ border: "1px solid #1e3a8a", padding: "6px 4px", width: "8%", whiteSpace: "pre-line" }}>{T.colUnit}</th>
+                      <th style={{ border: "1px solid #1e3a8a", padding: "6px 4px", width: "7%", whiteSpace: "pre-line" }}>{T.colQty}</th>
+                      <th style={{ border: "1px solid #1e3a8a", padding: "6px 6px", width: "16%", whiteSpace: "pre-line" }}>{T.colSerial}</th>
+                      <th style={{ border: "1px solid #1e3a8a", padding: "6px 6px", width: "15%", whiteSpace: "pre-line" }}>{T.colNote}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.map((it, idx) => (
                       <tr key={it.id || idx}>
                         <td style={{ border: "1px solid #94a3b8", padding: "5px 4px", textAlign: "center" }}>{idx + 1}</td>
-                        <td style={{ border: "1px solid #94a3b8", padding: "5px 8px" }}>
+                        <td style={{ border: "1px solid #94a3b8", padding: "5px 8px", wordBreak: "break-word" }}>
                           <div style={{ fontWeight: 700, color: "#111827", whiteSpace: "pre-line" }}>{it.name}</div>
                           {lang !== "vi" && it.nameEn ? (
                             <div style={{ fontSize: 9, fontStyle: "italic", color: "#4b5563", marginTop: 2, whiteSpace: "pre-line" }}>
@@ -860,11 +863,11 @@ export default function HandoverModal({ quote, onClose }) {
                   {T.sec3Title}
                 </div>
 
-                <div style={{ border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10 }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10, boxSizing: "border-box" }}>
+                  <div style={{ display: "flex", gap: 12, width: "100%", boxSizing: "border-box" }}>
                     
                     {/* Left criteria */}
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, marginBottom: 2 }}>{T.crit1Title}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                         <span style={{ fontWeight: 800, color: crit1 === "pass" ? "#16a34a" : "#6b7280" }}>{crit1 === "pass" ? "[X]" : "[  ]"}</span>
@@ -887,7 +890,7 @@ export default function HandoverModal({ quote, onClose }) {
                     </div>
 
                     {/* Right criteria */}
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700, marginBottom: 2 }}>{T.crit2Title}</div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                         <span style={{ fontWeight: 800, color: crit2 === "pass" ? "#16a34a" : "#6b7280" }}>{crit2 === "pass" ? "[X]" : "[  ]"}</span>
@@ -918,8 +921,8 @@ export default function HandoverModal({ quote, onClose }) {
               </div>
 
               {/* Signatures */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", textAlign: "center", marginTop: 10 }}>
-                <div>
+              <div style={{ display: "flex", width: "100%", justifyContent: "space-between", textAlign: "center", marginTop: 10 }}>
+                <div style={{ flex: 1, textAlign: "center" }}>
                   <div style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 11, color: "#111827" }}>
                     {T.signReceiver}
                   </div>
@@ -932,7 +935,7 @@ export default function HandoverModal({ quote, onClose }) {
                   </div>
                 </div>
 
-                <div>
+                <div style={{ flex: 1, textAlign: "center" }}>
                   <div style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 11, color: "#111827" }}>
                     {T.signDeliverer}
                   </div>
