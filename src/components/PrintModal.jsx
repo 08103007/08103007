@@ -12,6 +12,9 @@ const QUOTE_T = {
     title: "BẢNG BÁO GIÁ",
     ref: "Số",
     to: "Kính gửi:",
+    taxId: "MST:",
+    address: "Địa chỉ:",
+    phone: "SĐT:",
     contact: "Người liên hệ:",
     content: "Nội dung:",
     colStt: "STT",
@@ -33,6 +36,9 @@ const QUOTE_T = {
     titleB: "QUOTATION",
     ref: "Số / No",
     to: "Kính gửi / To:",
+    taxId: "MST / Tax ID:",
+    address: "Địa chỉ / Address:",
+    phone: "SĐT / Phone:",
     contact: "Người liên hệ / Attn:",
     content: "Nội dung / Subject:",
     colStt: "STT",
@@ -54,6 +60,9 @@ const QUOTE_T = {
     titleB: "报价单",
     ref: "Số / 编号",
     to: "Kính gửi / 致:",
+    taxId: "MST / 税号:",
+    address: "Địa chỉ / 地址:",
+    phone: "SĐT / 电话:",
     contact: "Người liên hệ / 联系人:",
     content: "Nội dung / 主题:",
     colStt: "STT",
@@ -291,13 +300,16 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
       const titleBPara = (lang !== "vi" && T.titleB) ? dxPara([{ text: T.titleB, italic: true, color: "555555" }], { align: "center", size: 22, spaceAfter: 40 }) : "";
       const quoteNumPara = dxPara([{ text: `${T.ref}: ${localQuote.quoteNumber}`, color: "555555" }], { align: "center", size: 20, spaceAfter: 160 });
 
-      const recipPara = dxPara([{ text: `${T.to} `, bold: true }, { text: localQuote.customer }], { size: 20, spaceAfter: 40 });
-      const contactPara = localQuote.contact ? dxPara([{ text: `${T.contact} `, bold: true }, { text: localQuote.contact }], { size: 20, spaceAfter: 40 }) : "";
-      const workPara = localQuote.workContent ? dxPara([
+      const recipPara = dxPara([{ text: `${T.to} `, bold: true }, { text: localQuote.customer }], { size: 20, spaceAfter: 30 });
+      const taxIdPara = (localQuote.taxId && localQuote.taxId.trim()) ? dxPara([{ text: `${T.taxId} `, bold: true }, { text: localQuote.taxId }], { size: 19, spaceAfter: 30 }) : "";
+      const addressPara = (localQuote.address && localQuote.address.trim()) ? dxPara([{ text: `${T.address} `, bold: true }, { text: localQuote.address }], { size: 19, spaceAfter: 30 }) : "";
+      const phonePara = (localQuote.phone && localQuote.phone.trim()) ? dxPara([{ text: `${T.phone} `, bold: true }, { text: localQuote.phone }], { size: 19, spaceAfter: 30 }) : "";
+      const contactPara = (localQuote.contact && localQuote.contact.trim()) ? dxPara([{ text: `${T.contact} `, bold: true }, { text: localQuote.contact }], { size: 19, spaceAfter: 30 }) : "";
+      const workPara = (localQuote.workContent && localQuote.workContent.trim()) ? dxPara([
         { text: `${T.content} `, bold: true },
         { text: localQuote.workContent },
         ...(lang !== "vi" && localQuote.workContentEn ? [{ text: ` / ${localQuote.workContentEn}`, italic: true, color: "555555" }] : [])
-      ], { size: 20, spaceAfter: 120 }) : "";
+      ], { size: 19, spaceAfter: 100 }) : "";
 
       const viNotesLines = (localQuote.notes || "").split("\n");
       const enNotesLines = (localQuote.notesEn || "").split("\n");
@@ -323,7 +335,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
       const docBody = [
         headerCompTable,
         titlePara, titleBPara, quoteNumPara,
-        recipPara, contactPara, workPara,
+        recipPara, taxIdPara, addressPara, phonePara, contactPara, workPara,
         mainTable,
         ...notesBlock,
         signBlock
@@ -495,15 +507,26 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             </div>
             <div className="quote-recipient">
               <div><strong>{T.to}</strong> {localQuote.customer}</div>
-              {localQuote.contact && <div style={{ marginTop: 4 }}><strong>{T.contact}</strong> {localQuote.contact}</div>}
-              {localQuote.workContent && (
-                <div style={{ marginTop: 6, color: "#333" }}>
+              {localQuote.taxId && localQuote.taxId.trim() ? (
+                <div style={{ marginTop: 2 }}><strong>{T.taxId}</strong> {localQuote.taxId}</div>
+              ) : null}
+              {localQuote.address && localQuote.address.trim() ? (
+                <div style={{ marginTop: 2 }}><strong>{T.address}</strong> {localQuote.address}</div>
+              ) : null}
+              {localQuote.phone && localQuote.phone.trim() ? (
+                <div style={{ marginTop: 2 }}><strong>{T.phone}</strong> {localQuote.phone}</div>
+              ) : null}
+              {localQuote.contact && localQuote.contact.trim() ? (
+                <div style={{ marginTop: 2 }}><strong>{T.contact}</strong> {localQuote.contact}</div>
+              ) : null}
+              {localQuote.workContent && localQuote.workContent.trim() ? (
+                <div style={{ marginTop: 5, color: "#333" }}>
                   <strong>{T.content}</strong> {localQuote.workContent}
                   {lang !== "vi" && localQuote.workContentEn ? (
                     <span style={{ fontStyle: "italic", color: "#555" }}> / {localQuote.workContentEn}</span>
                   ) : null}
                 </div>
-              )}
+              ) : null}
             </div>
 
             <table className="quote-items-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12, fontSize: 11, border: "1px solid #000000", tableLayout: "fixed" }}>
