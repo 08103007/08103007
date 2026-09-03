@@ -73,8 +73,30 @@ const QUOTE_T = {
 };
 
 export default function PrintModal({ quote, onClose, onCreateContract, onHandover, onDelivery }) {
-  const { subtotal, vat, total } = calcItems(quote.items, quote.vatRate);
-  const today = new Date();
+  // Parse quote date (defaults to today only if quote.date is missing)
+  const parseQuoteDate = (dStr) => {
+    if (!dStr) return new Date();
+    if (dStr instanceof Date && !isNaN(dStr)) return dStr;
+    if (typeof dStr === 'string' && dStr.includes('/')) {
+      const parts = dStr.split('/');
+      if (parts.length === 3) {
+        const d = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const y = parseInt(parts[2], 10);
+        const dt = new Date(y, m, d);
+        if (!isNaN(dt)) return dt;
+      }
+    }
+    const dt = new Date(dStr);
+    if (!isNaN(dt)) return dt;
+    return new Date();
+  };
+
+  const quoteDateObj = parseQuoteDate(localQuote.date || quote.date);
+  const qDay = String(quoteDateObj.getDate()).padStart(2, "0");
+  const qMonth = String(quoteDateObj.getMonth() + 1).padStart(2, "0");
+  const qYear = quoteDateObj.getFullYear();
+
   const [pdfLoading, setPdfLoading] = useState(false);
   const [wordLoading, setWordLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
@@ -289,7 +311,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
         dxRow([
           dxNoBorderCell("<w:p/>", 5000),
           dxNoBorderCell([
-            dxPara(`Phú Mỹ, ngày ${String(today.getDate()).padStart(2, "0")} tháng ${String(today.getMonth() + 1).padStart(2, "0")} năm ${today.getFullYear()}`, { align: "center", size: 18, italic: true, spaceAfter: 40 }),
+            dxPara(`Phú Mỹ, ngày ${qDay} tháng ${qMonth} năm ${qYear}`, { align: "center", size: 18, italic: true, spaceAfter: 40 }),
             dxPara(T.signTitle, { align: "center", bold: true, size: 20, spaceAfter: 600 }),
             dxPara(COMPANY.representative || "Trần Văn Thịnh", { align: "center", bold: true, size: 20 })
           ], 3900)
@@ -595,7 +617,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               </div>
               <div style={{ textAlign: "center", minWidth: 200 }}>
                 <div style={{ color: "#555", fontStyle: "italic", marginBottom: 4 }}>
-                  Phú Mỹ, ngày {String(today.getDate()).padStart(2, "0")} tháng {String(today.getMonth() + 1).padStart(2, "0")} năm {today.getFullYear()}
+                  Phú Mỹ, ngày {qDay} tháng {qMonth} năm {qYear}
                 </div>
                 <div style={{ fontWeight: 700, color: "#1a2540" }}>{T.signTitle}</div>
                 <div style={{ color: "#666", fontSize: 10 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
