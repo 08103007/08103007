@@ -26,6 +26,7 @@ import TasksView from './views/TasksView';
 import SettingsView from './views/SettingsView';
 import NotesView from './views/NotesView';
 import ContractsView from './views/ContractsView';
+import CustomersView from './views/CustomersView';
 
 export default function App() {
   const [quotes, setQuotes] = useState([]);
@@ -291,6 +292,11 @@ export default function App() {
             <span className="sidebar-label">Báo giá</span>
             <span className="sidebar-badge">{quotes.length}</span>
           </div>
+          <div className={`sidebar-item ${view==="customers"?"active":""}`} onClick={()=>setView("customers")}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span className="sidebar-label">Khách hàng</span>
+            <span className="sidebar-badge">{(_mem.customers || []).length}</span>
+          </div>
           <div className={`sidebar-item ${view==="handover"?"active":""}`} onClick={()=>setView("handover")}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/></svg>
             <span className="sidebar-label">Biên bản & Giao hàng</span>
@@ -421,6 +427,30 @@ export default function App() {
 
           {view === "notes" && (
             <NotesView />
+          )}
+
+          {view === "customers" && (
+            <CustomersView 
+              quotes={quotes}
+              onCreateQuoteForCustomer={(cust) => {
+                setEditQuote({
+                  id: generateId(),
+                  quoteNumber: generateQuoteNumber(quotes),
+                  date: todayStr(),
+                  customer: cust.customer || "",
+                  customerShort: cust.shortName || "",
+                  contact: cust.contact || "",
+                  address: cust.address || "",
+                  taxId: cust.taxId || "",
+                  phone: cust.phone || "",
+                  workContent: "",
+                  status: "draft",
+                  vatRate: 8,
+                  items: [{ id: generateId(), name: "", note: "", qty: 1, unit: "Cái", price: 0, cost: 0, costNoVat: 0, image: "", vatRate: 8 }]
+                });
+                setShowModal(true);
+              }}
+            />
           )}
 
           {view === "contracts" && (

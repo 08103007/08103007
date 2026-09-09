@@ -1,5 +1,5 @@
 import React from 'react';
-import { STATUS_LABELS } from '../../utils/helpers';
+import { STATUS_LABELS, generateCustomerShortName } from '../../utils/helpers';
 
 export default function QuoteGeneralForm({
   form,
@@ -24,23 +24,25 @@ export default function QuoteGeneralForm({
           />
         </div>
         <div className="form-group">
-          <label>Ngày</label>
+          <label>Ngày báo giá</label>
           <input
+            type="text"
             className="form-control"
+            placeholder="DD/MM/YYYY"
             value={form.date || ""}
             onChange={e => setField("date", e.target.value)}
           />
         </div>
         <div className="form-group">
-          <label>Ngôn ngữ hiển thị</label>
+          <label>Ngôn ngữ báo giá</label>
           <select
             className="form-control"
             value={form.lang || "vi"}
             onChange={e => setField("lang", e.target.value)}
           >
-            <option value="vi">🇻🇳 Chỉ Tiếng Việt (Mặc định)</option>
-            <option value="vi_en">🇻🇳 🇬🇧 Song ngữ Việt - Anh</option>
-            <option value="vi_zh">🇻🇳 🇨🇳 Song ngữ Việt - Trung</option>
+            <option value="vi">Tiếng Việt (Mặc định)</option>
+            <option value="vi_en">Song ngữ: Việt – Anh (VI-EN)</option>
+            <option value="vi_zh">Song ngữ: Việt – Trung (VI-ZH)</option>
           </select>
         </div>
         <div className="form-group">
@@ -59,7 +61,7 @@ export default function QuoteGeneralForm({
 
       <div className="form-row form-row-2" style={{ marginBottom: 16 }}>
         <div className="form-group">
-          <label>Tên khách hàng *</label>
+          <label>Tên khách hàng / Đơn vị *</label>
           <div className="item-search-wrap">
             <input
               className="form-control"
@@ -73,7 +75,14 @@ export default function QuoteGeneralForm({
               <div className="item-search-dropdown">
                 {custSearchResults.map((c, i) => (
                   <div key={i} className="item-search-option" onMouseDown={() => selectCustomer(c)}>
-                    <div>{c.customer}</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 600 }}>{c.customer}</span>
+                      {(c.shortName || c.customerShort) && (
+                        <span style={{ fontSize: 10, background: "#e0e7ff", color: "#3730a3", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                          {c.shortName || c.customerShort}
+                        </span>
+                      )}
+                    </div>
                     {(c.contact || c.address) && (
                       <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 2 }}>
                         {c.contact}{c.contact && c.address ? " · " : ""}{c.address}
@@ -85,6 +94,33 @@ export default function QuoteGeneralForm({
             )}
           </div>
         </div>
+
+        <div className="form-group">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+            <label style={{ fontWeight: 700, color: "#1e40af" }}>
+              Tên viết tắt (companyname) *
+            </label>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => setField("customerShort", generateCustomerShortName(form.customer || ""))}
+              style={{ fontSize: 10, color: "#2563eb", padding: "1px 5px", height: "auto" }}
+              title="Tự động tạo mã viết tắt từ tên khách hàng"
+            >
+              ⚡ Gợi ý viết tắt
+            </button>
+          </div>
+          <input
+            className="form-control"
+            placeholder="VD: HOAPHAT, VANDAT, PMC..."
+            value={form.customerShort || ""}
+            onChange={e => setField("customerShort", e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
+            style={{ fontWeight: 700, letterSpacing: "0.04em", color: "#1e3a8a", textTransform: "uppercase" }}
+          />
+        </div>
+      </div>
+
+      <div className="form-row form-row-4" style={{ marginBottom: 16 }}>
         <div className="form-group">
           <label>Người liên hệ</label>
           <input
@@ -94,16 +130,13 @@ export default function QuoteGeneralForm({
             onChange={e => setField("contact", e.target.value)}
           />
         </div>
-      </div>
-
-      <div className="form-row form-row-3" style={{ marginBottom: 16 }}>
         <div className="form-group">
-          <label>Địa chỉ</label>
+          <label>Điện thoại</label>
           <input
             className="form-control"
-            placeholder="Địa chỉ khách hàng"
-            value={form.address || ""}
-            onChange={e => setField("address", e.target.value)}
+            placeholder="SĐT"
+            value={form.phone || ""}
+            onChange={e => setField("phone", e.target.value)}
           />
         </div>
         <div className="form-group">
@@ -116,12 +149,12 @@ export default function QuoteGeneralForm({
           />
         </div>
         <div className="form-group">
-          <label>Điện thoại</label>
+          <label>Địa chỉ</label>
           <input
             className="form-control"
-            placeholder="SĐT"
-            value={form.phone || ""}
-            onChange={e => setField("phone", e.target.value)}
+            placeholder="Địa chỉ khách hàng"
+            value={form.address || ""}
+            onChange={e => setField("address", e.target.value)}
           />
         </div>
       </div>

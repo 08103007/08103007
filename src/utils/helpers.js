@@ -35,6 +35,23 @@ export function todayStr() {
   return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
 }
 
+export function generateCustomerShortName(customerName) {
+  if (!customerName || !customerName.trim()) return "";
+  let clean = removeAccents(customerName.trim()).toUpperCase();
+  // Strip common Vietnamese company prefixes
+  clean = clean.replace(/^(CONG TY TNHH MTV|CONG TY TNHH|CONG TY CP|CONG TY CO PHAN|DOANH NGHIEP TU NHAN|DNTN|HO KINH DOANH|HKD|CTY TNHH MTV|CTY TNHH|CTY CP|CTY|VAN PHONG|VP)\s+/i, "");
+  // Remove non-alphanumeric chars except spaces
+  clean = clean.replace(/[^A-Z0-9\s]/g, " ").trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "KH";
+  if (words.length === 1) return words[0].slice(0, 10);
+  const joined = words.join("");
+  if (joined.length <= 10) return joined;
+  const firstTwo = words.slice(0, 2).join("");
+  if (firstTwo.length <= 10) return firstTwo;
+  return words.map(w => w[0]).join("").slice(0, 8);
+}
+
 export function parseInvoiceXml(xmlText) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, "application/xml");

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { COMPANY, getLogoUrl, showToast } from '../utils/gasStore';
-import { calcItems, fmt } from '../utils/helpers';
+import { COMPANY, getLogoUrl, showToast, _mem } from '../utils/gasStore';
+import { calcItems, fmt, generateCustomerShortName } from '../utils/helpers';
 import { printElementViaIframe, exportElementToPdf } from '../utils/pdfExporter';
 import { 
   buildDocxBlob, dxPara, dxHeaderCell, dxRow, dxTable, 
@@ -341,9 +341,24 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
         signBlock
       ].join("");
 
+      const getCustomerShortName = () => {
+        if (localQuote.customerShort && localQuote.customerShort.trim()) {
+          return localQuote.customerShort.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+        }
+        const found = (_mem.customers || []).find(c => c.customer === localQuote.customer || (localQuote.taxId && c.taxId === localQuote.taxId));
+        if (found && found.shortName && found.shortName.trim()) {
+          return found.shortName.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+        }
+        if (localQuote.customer) {
+          return generateCustomerShortName(localQuote.customer);
+        }
+        return "KHACHHANG";
+      };
+
+      const compShort = getCustomerShortName();
       const versionNum = (localQuote.versions && localQuote.versions.length > 0) ? localQuote.versions.length + 1 : 1;
-      const versionSuffix = `_v${versionNum}`;
-      const baseFilename = `BaoGia_${localQuote.quoteNumber}${versionSuffix}`;
+      const versionSuffix = (localQuote.versions && localQuote.versions.length > 0) ? `_v${versionNum}` : "";
+      const baseFilename = `${localQuote.quoteNumber || "BG"}_${compShort}${versionSuffix}`;
 
       const blob = await buildDocxBlob(docBody, imageMap);
       downloadBlob(blob, `${baseFilename}.docx`);
@@ -354,9 +369,24 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
     }
   };
 
+  const getCustomerShortName = () => {
+    if (localQuote.customerShort && localQuote.customerShort.trim()) {
+      return localQuote.customerShort.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+    }
+    const found = (_mem.customers || []).find(c => c.customer === localQuote.customer || (localQuote.taxId && c.taxId === localQuote.taxId));
+    if (found && found.shortName && found.shortName.trim()) {
+      return found.shortName.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+    }
+    if (localQuote.customer) {
+      return generateCustomerShortName(localQuote.customer);
+    }
+    return "KHACHHANG";
+  };
+
+  const compShort = getCustomerShortName();
   const versionNum = (localQuote.versions && localQuote.versions.length > 0) ? localQuote.versions.length + 1 : 1;
-  const versionSuffix = `_v${versionNum}`;
-  const baseFilename = `BaoGia_${localQuote.quoteNumber}${versionSuffix}`;
+  const versionSuffix = (localQuote.versions && localQuote.versions.length > 0) ? `_v${versionNum}` : "";
+  const baseFilename = `${localQuote.quoteNumber || "BG"}_${compShort}${versionSuffix}`;
 
   const handlePrint = () => {
     printElementViaIframe("quotePreviewContent", baseFilename);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { loadCustomerCatalog, upsertCatalogItems, upsertCatalogCustomer, showToast } from '../../utils/gasStore';
-import { generateId, generateQuoteNumber, todayStr, calcItems, removeAccents } from '../../utils/helpers';
+import { generateId, generateQuoteNumber, todayStr, calcItems, removeAccents, generateCustomerShortName } from '../../utils/helpers';
 import QuoteGeneralForm from './QuoteGeneralForm';
 import QuoteItemsTable from './QuoteItemsTable';
 import QuoteProfitJVCard from './QuoteProfitJVCard';
@@ -16,6 +16,7 @@ export default function QuoteModal({ quote, allQuotes, onSave, onClose }) {
       quoteNumber: generateQuoteNumber(allQuotes),
       date: todayStr(),
       customer: "",
+      customerShort: "",
       contact: "",
       address: "",
       taxId: "",
@@ -81,15 +82,23 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
   const setField = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
   const handleCustomerChange = (val) => {
-    setField("customer", val);
+    setForm(p => {
+      const updated = { ...p, customer: val };
+      if (!p.customerShort || p.customerShort === generateCustomerShortName(p.customer)) {
+        updated.customerShort = generateCustomerShortName(val);
+      }
+      return updated;
+    });
+
     const cleanVal = removeAccents(val.trim());
     if (cleanVal.length >= 1) {
       const results = custCatalog.filter(c => {
         const nameClean = removeAccents(c.customer);
+        const shortClean = removeAccents(c.shortName || "");
         const contactClean = removeAccents(c.contact);
         const taxClean = removeAccents(c.taxId);
         const phoneClean = removeAccents(c.phone);
-        return nameClean.includes(cleanVal) || contactClean.includes(cleanVal) || taxClean.includes(cleanVal) || phoneClean.includes(cleanVal);
+        return nameClean.includes(cleanVal) || shortClean.includes(cleanVal) || contactClean.includes(cleanVal) || taxClean.includes(cleanVal) || phoneClean.includes(cleanVal);
       });
       setCustSearchResults(results.slice(0, 20));
       setShowCustSearch(results.length > 0);
@@ -103,6 +112,7 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
     setForm(p => ({
       ...p,
       customer: c.customer,
+      customerShort: c.shortName || c.customerShort || generateCustomerShortName(c.customer),
       contact: c.contact || "",
       address: c.address || "",
       taxId: c.taxId || "",
@@ -222,6 +232,7 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
     if (form.items.every(it => !it.name.trim())) { alert("Vui lòng nhập ít nhất 1 mặt hàng."); return; }
     setSaving(true);
     try {
+      const cleanShortName = (form.customerShort || generateCustomerShortName(form.customer)).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
       // Save current version snapshot into history before updating
       const snapshot = {
         versionId: generateId(),
@@ -231,10 +242,17 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
         items: JSON.parse(JSON.stringify(form.items))
       };
       const updatedVersions = [snapshot, ...(form.versions || [])].slice(0, 15);
-      const finalForm = { ...form, versions: updatedVersions };
+      const finalForm = { ...form, customerShort: cleanShortName, versions: updatedVersions };
 
       await upsertCatalogItems(finalForm.items);
-      await upsertCatalogCustomer(finalForm);
+      await upsertCatalogCustomer({
+        customer: finalForm.customer,
+        shortName: cleanShortName,
+        contact: finalForm.contact,
+        address: finalForm.address,
+        taxId: finalForm.taxId,
+        phone: finalForm.phone
+      });
       onSave(finalForm);
     } finally {
       setSaving(false);

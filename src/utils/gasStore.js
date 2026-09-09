@@ -525,17 +525,50 @@ export async function upsertProductImage(name, image, extra = {}) {
   _scheduleSave();
 }
 
-export function loadCustomerCatalog() { return Promise.resolve(_mem.customers); }
-export function saveCustomerCatalog(catalog) { _mem.customers = catalog; _scheduleSave(); return Promise.resolve(); }
+export function loadCustomerCatalog() { return Promise.resolve(_mem.customers || []); }
+
+export function saveCustomerCatalog(catalog) { 
+  _mem.customers = Array.isArray(catalog) ? catalog : []; 
+  _flushToLocalStorage();
+  _scheduleSave(); 
+  return Promise.resolve(_mem.customers); 
+}
 
 export async function upsertCatalogCustomer(cust) {
-  if (!cust.customer || !cust.customer.trim()) return;
-  const byName = new Map(_mem.customers.map(c => [c.customer, c]));
-  byName.set(cust.customer, {
-    customer: cust.customer, contact: cust.contact || "",
-    address: cust.address || "", taxId: cust.taxId || "", phone: cust.phone || "",
-  });
-  _mem.customers = [...byName.values()];
+  if (!cust || !cust.customer || !cust.customer.trim()) return;
+  const name = cust.customer.trim();
+  const list = [...(_mem.customers || [])];
+  const idx = list.findIndex(c => c.customer === name || (cust.id && c.id === cust.id));
+  
+  const existing = idx >= 0 ? list[idx] : {};
+  const updatedItem = {
+    id: cust.id || existing.id || ("c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4)),
+    customer: name,
+    shortName: (cust.shortName || cust.customerShort || existing.shortName || "").trim().toUpperCase(),
+    contact: cust.contact !== undefined ? cust.contact : (existing.contact || ""),
+    address: cust.address !== undefined ? cust.address : (existing.address || ""),
+    taxId: cust.taxId !== undefined ? cust.taxId : (existing.taxId || ""),
+    phone: cust.phone !== undefined ? cust.phone : (existing.phone || ""),
+    email: cust.email !== undefined ? cust.email : (existing.email || ""),
+    notes: cust.notes !== undefined ? cust.notes : (existing.notes || ""),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (idx >= 0) {
+    list[idx] = { ...existing, ...updatedItem };
+  } else {
+    list.unshift(updatedItem);
+  }
+  _mem.customers = list;
+  _flushToLocalStorage();
+  _scheduleSave();
+  return updatedItem;
+}
+
+export async function deleteCatalogCustomer(idOrName) {
+  if (!idOrName) return;
+  _mem.customers = (_mem.customers || []).filter(c => c.id !== idOrName && c.customer !== idOrName);
+  _flushToLocalStorage();
   _scheduleSave();
 }
 
