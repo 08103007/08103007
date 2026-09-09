@@ -8,6 +8,7 @@ import { generateId, generateCustomerShortName, removeAccents, getCustomerColor 
 export default function CustomersView({ quotes = [], onCreateQuoteForCustomer }) {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("quotes_desc"); // 'quotes_desc' | 'quotes_asc' | 'name_asc' | 'name_desc' | 'short_asc'
   const [showModal, setShowModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [form, setForm] = useState({
@@ -52,19 +53,47 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
     return map;
   }, [quotes]);
 
-  const filteredCustomers = useMemo(() => {
-    if (!search.trim()) return customers;
-    const s = removeAccents(search.trim()).toLowerCase();
-    return customers.filter(c => {
-      const name = removeAccents(c.customer || "").toLowerCase();
-      const short = removeAccents(c.shortName || "").toLowerCase();
-      const tax = (c.taxId || "").toLowerCase();
-      const phone = (c.phone || "").toLowerCase();
-      const contact = removeAccents(c.contact || "").toLowerCase();
-      const address = removeAccents(c.address || "").toLowerCase();
-      return name.includes(s) || short.includes(s) || tax.includes(s) || phone.includes(s) || contact.includes(s) || address.includes(s);
+  const filteredAndSortedCustomers = useMemo(() => {
+    let list = customers;
+    if (search.trim()) {
+      const s = removeAccents(search.trim()).toLowerCase();
+      list = list.filter(c => {
+        const name = removeAccents(c.customer || "").toLowerCase();
+        const short = removeAccents(c.shortName || "").toLowerCase();
+        const tax = (c.taxId || "").toLowerCase();
+        const phone = (c.phone || "").toLowerCase();
+        const contact = removeAccents(c.contact || "").toLowerCase();
+        const address = removeAccents(c.address || "").toLowerCase();
+        return name.includes(s) || short.includes(s) || tax.includes(s) || phone.includes(s) || contact.includes(s) || address.includes(s);
+      });
+    }
+
+    return [...list].sort((a, b) => {
+      const statsA = customerStats.get((a.customer || "").trim())?.count || 0;
+      const statsB = customerStats.get((b.customer || "").trim())?.count || 0;
+
+      if (sortBy === "quotes_desc") {
+        if (statsB !== statsA) return statsB - statsA;
+        return (a.customer || "").localeCompare(b.customer || "", "vi");
+      }
+      if (sortBy === "quotes_asc") {
+        if (statsA !== statsB) return statsA - statsB;
+        return (a.customer || "").localeCompare(b.customer || "", "vi");
+      }
+      if (sortBy === "name_asc") {
+        return (a.customer || "").localeCompare(b.customer || "", "vi");
+      }
+      if (sortBy === "name_desc") {
+        return (b.customer || "").localeCompare(a.customer || "", "vi");
+      }
+      if (sortBy === "short_asc") {
+        const sA = a.shortName || generateCustomerShortName(a.customer);
+        const sB = b.shortName || generateCustomerShortName(b.customer);
+        return sA.localeCompare(sB, "vi");
+      }
+      return 0;
     });
-  }, [customers, search]);
+  }, [customers, search, customerStats, sortBy]);
 
   const handleOpenAdd = () => {
     setEditingCustomer(null);
@@ -162,28 +191,54 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
       showToast("Không có báo giá nào để quét!", 2500);
       return;
     }
-    let addedCount = 0;
-    const existingNames = new Set(customers.map(c => (c.customer || "").trim()));
+    setSaving(true);
+    showToast("⏳ Đang quét báo giá và đồng bộ lên Database...", 2000);
+    try {
+      const existingMap = new Map();
+      (customers || []).forEach(c => {
+        if (c && c.customer && c.customer.trim()) {
+          existingMap.set(c.customer.trim(), { ...c });
+        }
+      });
 
-    for (const q of quotes) {
-      if (q && q.customer && q.customer.trim()) {
-        const name = q.customer.trim();
-        if (!existingNames.has(name)) {
-          existingNames.add(name);
-          await upsertCatalogCustomer({
-            customer: name,
-            shortName: q.customerShort || generateCustomerShortName(name),
-            contact: q.contact || "",
-            address: q.address || "",
-            taxId: q.taxId || "",
-            phone: q.phone || ""
-          });
-          addedCount++;
+      let addedCount = 0;
+      for (const q of quotes) {
+        if (q && q.customer && q.customer.trim()) {
+          const name = q.customer.trim();
+          if (!existingMap.has(name)) {
+            const shortName = (q.customerShort || generateCustomerShortName(name)).trim().toUpperCase();
+            existingMap.set(name, {
+              id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+              customer: name,
+              shortName: shortName,
+              contact: q.contact || "",
+              address: q.address || "",
+              taxId: q.taxId || "",
+              phone: q.phone || "",
+              email: "",
+              notes: "",
+              updatedAt: new Date().toISOString()
+            });
+            addedCount++;
+          }
         }
       }
+
+      const mergedList = Array.from(existingMap.values());
+      await saveCustomerCatalog(mergedList);
+      setCustomers(mergedList);
+
+      if (addedCount > 0) {
+        showToast(`✓ Đã quét & lưu thành công ${addedCount} khách hàng mới lên Database!`, 3500);
+      } else {
+        showToast("Tất cả khách hàng từ danh sách báo giá đã được lưu trên Database!", 3000);
+      }
+    } catch (err) {
+      showToast("⚠️ Lỗi khi lưu lên Database: " + err.message, 3000);
+    } finally {
+      setSaving(false);
+      loadData();
     }
-    loadData();
-    showToast(addedCount > 0 ? `✓ Đã quét và nạp ${addedCount} khách hàng từ danh sách báo giá!` : "Tất cả khách hàng từ báo giá đã có trong danh mục!", 3000);
   };
 
   return (
@@ -228,18 +283,34 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
         </div>
       </div>
 
-      {/* Filter & Search */}
-      <div className="filter-bar" style={{ marginBottom: 16 }}>
+      {/* Filter & Search & Sort */}
+      <div className="filter-bar" style={{ marginBottom: 16, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
         <input 
           className="search-input" 
+          style={{ flex: 1, minWidth: 260 }}
           placeholder="🔍 Tìm theo Tên công ty, Tên viết tắt (companyname), MST, Số ĐT, Người liên hệ..." 
           value={search} 
           onChange={e => setSearch(e.target.value)} 
         />
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "#64748b", whiteSpace: "nowrap" }}>Sắp xếp:</label>
+          <select 
+            className="form-control" 
+            style={{ width: "auto", fontSize: 12, height: 36, padding: "4px 8px" }}
+            value={sortBy} 
+            onChange={e => setSortBy(e.target.value)}
+          >
+            <option value="quotes_desc">📊 Tổng số báo giá: Nhiều nhất → Ít nhất</option>
+            <option value="quotes_asc">📊 Tổng số báo giá: Ít nhất → Nhiều nhất</option>
+            <option value="name_asc">🔤 Tên khách hàng: A → Z</option>
+            <option value="name_desc">🔤 Tên khách hàng: Z → A</option>
+            <option value="short_asc">🏷️ Tên viết tắt: A → Z</option>
+          </select>
+        </div>
       </div>
 
       {/* Customer List Table */}
-      {filteredCustomers.length === 0 ? (
+      {filteredAndSortedCustomers.length === 0 ? (
         <div className="empty-state">
           <div style={{ fontSize: 40 }}>👥</div>
           <h3>{search ? "Không tìm thấy khách hàng phù hợp" : "Chưa có khách hàng nào"}</h3>
@@ -253,18 +324,36 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={{ width: 140 }}>Tên viết tắt (File)</th>
-                  <th>Tên khách hàng / Đơn vị</th>
+                  <th 
+                    style={{ width: 140, cursor: "pointer", userSelect: "none" }}
+                    onClick={() => setSortBy(sortBy === "short_asc" ? "quotes_desc" : "short_asc")}
+                    title="Bấm để sắp xếp theo Tên viết tắt"
+                  >
+                    Tên viết tắt (File) {sortBy === "short_asc" ? "▲" : ""}
+                  </th>
+                  <th 
+                    style={{ cursor: "pointer", userSelect: "none" }}
+                    onClick={() => setSortBy(sortBy === "name_asc" ? "name_desc" : "name_asc")}
+                    title="Bấm để sắp xếp theo Tên khách hàng"
+                  >
+                    Tên khách hàng / Đơn vị {sortBy === "name_asc" ? "▲" : sortBy === "name_desc" ? "▼" : ""}
+                  </th>
                   <th style={{ width: 130 }}>Mã số thuế</th>
                   <th style={{ width: 150 }}>Người liên hệ</th>
                   <th style={{ width: 140 }}>Số điện thoại</th>
                   <th>Địa chỉ</th>
-                  <th style={{ textAlign: "center", width: 90 }}>Số báo giá</th>
+                  <th 
+                    style={{ textAlign: "center", width: 110, cursor: "pointer", userSelect: "none", background: sortBy.startsWith("quotes") ? "#f1f5f9" : "transparent" }}
+                    onClick={() => setSortBy(sortBy === "quotes_desc" ? "quotes_asc" : "quotes_desc")}
+                    title="Bấm để đảo chiều sắp xếp theo Tổng số báo giá"
+                  >
+                    Số báo giá {sortBy === "quotes_desc" ? "▼" : sortBy === "quotes_asc" ? "▲" : "⇅"}
+                  </th>
                   <th style={{ textAlign: "center", width: 160 }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredCustomers.map(cust => {
+                {filteredAndSortedCustomers.map(cust => {
                   const stats = customerStats.get((cust.customer || "").trim()) || { count: 0 };
                   const col = getCustomerColor(cust.customer || "");
                   const shortName = cust.shortName || generateCustomerShortName(cust.customer);
@@ -316,7 +405,7 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
                         </div>
                       </td>
                       <td style={{ textAlign: "center" }}>
-                        <span className="badge" style={{ background: stats.count > 0 ? "#dcfce7" : "#f1f5f9", color: stats.count > 0 ? "#166534" : "#64748b" }}>
+                        <span className="badge" style={{ background: stats.count > 0 ? "#dcfce7" : "#f1f5f9", color: stats.count > 0 ? "#166534" : "#64748b", fontWeight: 700 }}>
                           {stats.count}
                         </span>
                       </td>
@@ -357,15 +446,23 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
         </div>
       )}
 
-      {/* Add / Edit Modal */}
+      {/* Add / Edit Modal - ONLY closes on clicking X or Hủy */}
       {showModal && (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
-          <div className="modal" style={{ maxWidth: 580 }}>
-            <div className="modal-header">
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: 580 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span className="modal-title">
                 {editingCustomer ? "✏️ Chỉnh sửa Khách hàng" : "➕ Thêm Khách hàng Mới"}
               </span>
-              <button className="btn-close" onClick={() => setShowModal(false)}>✕</button>
+              <button 
+                type="button" 
+                className="close-btn" 
+                onClick={() => setShowModal(false)}
+                title="Đóng cửa sổ"
+                style={{ fontSize: 20, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+              >
+                ✕
+              </button>
             </div>
             <form onSubmit={handleSave}>
               <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 12 }}>

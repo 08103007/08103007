@@ -357,8 +357,7 @@ export async function doLoad(onProgress) {
         if (sbSettings.paymentRequests && typeof sbSettings.paymentRequests === "object") _mem.paymentRequests = { ..._mem.paymentRequests, ...sbSettings.paymentRequests };
         if (sbSettings.handovers && typeof sbSettings.handovers === "object") _mem.handovers = { ..._mem.handovers, ...sbSettings.handovers };
         if (sbSettings.contracts && typeof sbSettings.contracts === "object") _mem.contracts = { ..._mem.contracts, ...sbSettings.contracts };
-        if (sbSettings.deliveries && typeof sbSettings.deliveries === "object") _mem.deliveries = { ..._mem.deliveries, ...sbSettings.deliveries };
-        if (Array.isArray(sbSettings.customers) && sbSettings.customers.length) _mem.customers = data.customers || sbSettings.customers;
+        if (Array.isArray(sbSettings.customers) && sbSettings.customers.length) _mem.customers = sbSettings.customers;
         if (Array.isArray(sbSettings.tasks) && sbSettings.tasks.length) _mem.tasks = sbSettings.tasks;
         if (Array.isArray(sbSettings.notes) && sbSettings.notes.length) _mem.notes = sbSettings.notes;
       }
@@ -531,6 +530,9 @@ export function saveCustomerCatalog(catalog) {
   _mem.customers = Array.isArray(catalog) ? catalog : []; 
   _flushToLocalStorage();
   _scheduleSave(); 
+  if (hasSupabase()) {
+    _flushToGAS();
+  }
   return Promise.resolve(_mem.customers); 
 }
 
@@ -562,6 +564,9 @@ export async function upsertCatalogCustomer(cust) {
   _mem.customers = list;
   _flushToLocalStorage();
   _scheduleSave();
+  if (hasSupabase()) {
+    _flushToGAS();
+  }
   return updatedItem;
 }
 
@@ -570,6 +575,9 @@ export async function deleteCatalogCustomer(idOrName) {
   _mem.customers = (_mem.customers || []).filter(c => c.id !== idOrName && c.customer !== idOrName);
   _flushToLocalStorage();
   _scheduleSave();
+  if (hasSupabase()) {
+    _flushToGAS();
+  }
 }
 
 export function generateContractNumber(dateObj = new Date(), currentQuoteId = null) {
