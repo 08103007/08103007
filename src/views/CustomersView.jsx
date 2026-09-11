@@ -3,7 +3,7 @@ import {
   loadCustomerCatalog, saveCustomerCatalog, upsertCatalogCustomer, 
   deleteCatalogCustomer, _mem, showToast 
 } from '../utils/gasStore';
-import { generateId, generateCustomerShortName, removeAccents, getCustomerColor } from '../utils/helpers';
+import { generateId, generateCustomerShortName, removeAccents, getCustomerColor, lookupTaxInfo } from '../utils/helpers';
 
 export default function CustomersView({ quotes = [], onCreateQuoteForCustomer }) {
   const [customers, setCustomers] = useState([]);
@@ -11,6 +11,7 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
   const [sortBy, setSortBy] = useState("quotes_desc"); // 'quotes_desc' | 'quotes_asc' | 'name_asc' | 'name_desc' | 'short_asc'
   const [showModal, setShowModal] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
+  const [lookingUpTax, setLookingUpTax] = useState(false);
   const [form, setForm] = useState({
     id: "",
     customer: "",
@@ -22,8 +23,40 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
     email: "",
     notes: ""
   });
-  const [errorMsg, setErrorMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const handleTaxLookup = async (taxCode) => {
+    const raw = (taxCode !== undefined ? taxCode : form.taxId || "").trim();
+    const code = raw.replace(/[^0-9-]/g, "");
+    if (!code || code.length < 10) {
+      showToast("⚠️ Vui lòng nhập mã số thuế hợp lệ (10 hoặc 13 số)", 2500);
+      return;
+    }
+    setLookingUpTax(true);
+    try {
+      const data = await lookupTaxInfo(code);
+      if (data && data.name) {
+        setForm(prev => {
+          const short = (data.shortName && data.shortName.length <= 12)
+            ? generateCustomerShortName(data.shortName)
+            : generateCustomerShortName(data.name);
+          return {
+            ...prev,
+            customer: data.name,
+            address: data.address || prev.address,
+            taxId: data.taxId || prev.taxId,
+            shortName: short || prev.shortName || generateCustomerShortName(data.name)
+          };
+        });
+        showToast(`✓ Đã tự động lấy: ${data.name}`, 3000);
+      }
+    } catch (err) {
+      showToast("⚠️ " + (err.message || "Không tìm thấy thông tin MST"), 3000);
+    } finally {
+      setLookingUpTax(false);
+    }
+  };
 
   const loadData = () => {
     loadCustomerCatalog().then(list => {
@@ -514,12 +547,31 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
 
                 <div className="form-row form-row-2">
                   <div className="form-group">
-                    <label>Mã số thuế (MST)</label>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                      <label>Mã số thuế (MST)</label>
+                      <button 
+                        type="button" 
+                        className="btn btn-ghost btn-xs" 
+                        onClick={() => handleTaxLookup()}
+                        disabled={lookingUpTax}
+                        style={{ fontSize: 10, color: "#2563eb", padding: "1px 6px" }}
+                        title="Tự động lấy tên công ty và địa chỉ từ mã số thuế"
+                      >
+                        {lookingUpTax ? "⏳ Đang tra..." : "🔍 Tra cứu MST"}
+                      </button>
+                    </div>
                     <input 
                       className="form-control" 
                       placeholder="VD: 0312345678" 
                       value={form.taxId} 
-                      onChange={e => setForm({ ...form, taxId: e.target.value })}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setForm(prev => ({ ...prev, taxId: val }));
+                        const clean = val.trim().replace(/[^0-9-]/g, "");
+                        if ((clean.length === 10 || clean.length === 13 || clean.length === 14) && !form.customer) {
+                          handleTaxLookup(clean);
+                        }
+                      }} 
                     />
                   </div>
                   <div className="form-group">

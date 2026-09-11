@@ -325,3 +325,25 @@ export const STATUS_LABELS = {
   rejected: "Từ chối",
 };
 
+export async function lookupTaxInfo(taxId) {
+  if (!taxId) throw new Error("Vui lòng nhập mã số thuế");
+  const cleanTax = String(taxId).trim().replace(/[^0-9-]/g, "");
+  if (cleanTax.length < 10) throw new Error("Mã số thuế phải có từ 10 đến 14 số");
+
+  const res = await fetch(`https://api.vietqr.io/v2/business/${cleanTax}`);
+  if (!res.ok) throw new Error("Không thể kết nối máy chủ tra cứu thuế");
+  const json = await res.json();
+  if (json.code === "00" && json.data) {
+    return {
+      taxId: cleanTax,
+      name: json.data.name || "",
+      shortName: json.data.shortName || "",
+      address: json.data.address || "",
+      internationalName: json.data.internationalName || "",
+      status: json.data.status || ""
+    };
+  } else {
+    throw new Error(json.desc || "Không tìm thấy thông tin doanh nghiệp cho mã số thuế này");
+  }
+}
+
