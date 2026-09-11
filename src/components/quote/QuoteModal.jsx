@@ -79,14 +79,22 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
       const catalogList = [...byName.values()];
       setCustCatalog(catalogList);
 
-      // Auto-populate customerShort from catalog if quote doesn't have it or matches
+      // Auto-populate customerShort, taxId, address, contact, phone from catalog if quote matches
       setForm(prev => {
         if (prev.customer) {
-          const match = catalogList.find(c => c.customer.trim().toLowerCase() === prev.customer.trim().toLowerCase());
-          if (match && (match.shortName || match.customerShort)) {
-            if (!prev.customerShort || prev.customerShort !== (match.shortName || match.customerShort)) {
-              return { ...prev, customerShort: match.shortName || match.customerShort };
+          const match = catalogList.find(c => c.customer && c.customer.trim().toLowerCase() === prev.customer.trim().toLowerCase());
+          if (match) {
+            const updated = { ...prev };
+            if (!updated.customerShort && (match.shortName || match.customerShort)) {
+              updated.customerShort = match.shortName || match.customerShort;
+            } else if (!updated.customerShort) {
+              updated.customerShort = generateCustomerShortName(prev.customer);
             }
+            if (!updated.taxId && match.taxId) updated.taxId = match.taxId;
+            if (!updated.address && match.address) updated.address = match.address;
+            if (!updated.contact && match.contact) updated.contact = match.contact;
+            if (!updated.phone && match.phone) updated.phone = match.phone;
+            return updated;
           } else if (!prev.customerShort) {
             return { ...prev, customerShort: generateCustomerShortName(prev.customer) };
           }
@@ -99,11 +107,16 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
   const setField = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
   const handleCustomerChange = (val) => {
-    const matched = custCatalog.find(c => c.customer.trim().toLowerCase() === val.trim().toLowerCase());
+    const clean = val.trim().toLowerCase();
+    const matched = custCatalog.find(c => c.customer && c.customer.trim().toLowerCase() === clean);
     setForm(p => {
       const updated = { ...p, customer: val };
-      if (matched && (matched.shortName || matched.customerShort)) {
-        updated.customerShort = matched.shortName || matched.customerShort;
+      if (matched) {
+        updated.customerShort = matched.shortName || matched.customerShort || generateCustomerShortName(matched.customer);
+        if (matched.taxId) updated.taxId = matched.taxId;
+        if (matched.address) updated.address = matched.address;
+        if (matched.contact) updated.contact = matched.contact;
+        if (matched.phone) updated.phone = matched.phone;
       } else if (!p.customerShort || p.customerShort === generateCustomerShortName(p.customer)) {
         updated.customerShort = generateCustomerShortName(val);
       }
@@ -131,12 +144,12 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
   const selectCustomer = (c) => {
     setForm(p => ({
       ...p,
-      customer: c.customer,
-      customerShort: c.shortName || c.customerShort || generateCustomerShortName(c.customer),
-      contact: c.contact || "",
-      address: c.address || "",
-      taxId: c.taxId || "",
-      phone: c.phone || ""
+      customer: c.customer || "",
+      customerShort: c.shortName || c.customerShort || generateCustomerShortName(c.customer || ""),
+      taxId: c.taxId || p.taxId || "",
+      address: c.address || p.address || "",
+      contact: c.contact || p.contact || "",
+      phone: c.phone || p.phone || ""
     }));
     setShowCustSearch(false);
   };

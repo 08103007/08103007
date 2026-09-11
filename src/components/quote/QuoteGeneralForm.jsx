@@ -104,9 +104,11 @@ export default function QuoteGeneralForm({
                         </span>
                       )}
                     </div>
-                    {(c.contact || c.address) && (
+                    {(c.taxId || c.contact || c.address) && (
                       <div style={{ fontSize: 11, color: "var(--text-light)", marginTop: 2 }}>
-                        {c.contact}{c.contact && c.address ? " · " : ""}{c.address}
+                        {c.taxId ? <span style={{ fontWeight: 600, color: "#1e40af" }}>MST: {c.taxId} · </span> : null}
+                        {c.contact ? <span>{c.contact} · </span> : null}
+                        {c.address}
                       </div>
                     )}
                   </div>
