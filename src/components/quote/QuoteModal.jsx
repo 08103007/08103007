@@ -68,6 +68,7 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
         if (q && q.customer && q.customer.trim() && !byName.has(q.customer.trim())) {
           byName.set(q.customer.trim(), {
             customer: q.customer.trim(),
+            shortName: q.customerShort || "",
             contact: q.contact || "",
             address: q.address || "",
             taxId: q.taxId || "",
@@ -75,16 +76,35 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
           });
         }
       });
-      setCustCatalog([...byName.values()]);
+      const catalogList = [...byName.values()];
+      setCustCatalog(catalogList);
+
+      // Auto-populate customerShort from catalog if quote doesn't have it or matches
+      setForm(prev => {
+        if (prev.customer) {
+          const match = catalogList.find(c => c.customer.trim().toLowerCase() === prev.customer.trim().toLowerCase());
+          if (match && (match.shortName || match.customerShort)) {
+            if (!prev.customerShort || prev.customerShort !== (match.shortName || match.customerShort)) {
+              return { ...prev, customerShort: match.shortName || match.customerShort };
+            }
+          } else if (!prev.customerShort) {
+            return { ...prev, customerShort: generateCustomerShortName(prev.customer) };
+          }
+        }
+        return prev;
+      });
     }).catch(() => {});
   }, [allQuotes]);
 
   const setField = (f, v) => setForm(p => ({ ...p, [f]: v }));
 
   const handleCustomerChange = (val) => {
+    const matched = custCatalog.find(c => c.customer.trim().toLowerCase() === val.trim().toLowerCase());
     setForm(p => {
       const updated = { ...p, customer: val };
-      if (!p.customerShort || p.customerShort === generateCustomerShortName(p.customer)) {
+      if (matched && (matched.shortName || matched.customerShort)) {
+        updated.customerShort = matched.shortName || matched.customerShort;
+      } else if (!p.customerShort || p.customerShort === generateCustomerShortName(p.customer)) {
         updated.customerShort = generateCustomerShortName(val);
       }
       return updated;
@@ -328,7 +348,7 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
     <div className="modal-overlay" style={{ padding: 0, background: "var(--bg-app)", backdropFilter: "none" }}>
       <div className="modal" style={{ maxWidth: "100%", maxHeight: "100vh", height: "100vh", borderRadius: 0, border: "none" }}>
         <div className="modal-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span className="modal-title">{isNew ? "Tạo báo giá mới" : "Chỉnh sửa báo giá"}</span>
             {form.versions && form.versions.length > 0 && (
               <button
@@ -348,7 +368,44 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
               {translating ? "⏳ Đang dịch..." : `🌐 Tự động dịch → ${form.lang === "vi_zh" ? "中文" : "EN"}`}
             </button>
           </div>
-          <button className="close-btn" onClick={onClose}>×</button>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 13, color: "var(--text-light)", whiteSpace: "nowrap", fontWeight: 500 }}>
+                Ngôn ngữ báo giá:
+              </span>
+              <select
+                className="form-control"
+                style={{ width: "auto", padding: "4px 8px", fontSize: 13, height: 32 }}
+                value={form.lang || "vi"}
+                onChange={e => setField("lang", e.target.value)}
+              >
+                <option value="vi">Tiếng Việt</option>
+                <option value="vi_en">Song ngữ Việt - Anh</option>
+                <option value="vi_zh">Song ngữ Việt - Trung</option>
+              </select>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 13, color: "var(--text-light)", whiteSpace: "nowrap", fontWeight: 500 }}>
+                Trạng thái:
+              </span>
+              <select
+                className="form-control"
+                style={{ width: "auto", padding: "4px 8px", fontSize: 13, height: 32 }}
+                value={form.status || "draft"}
+                onChange={e => setField("status", e.target.value)}
+              >
+                <option value="draft">Bản nháp</option>
+                <option value="sent">Đã gửi</option>
+                <option value="confirmed">Đã chốt</option>
+                <option value="completed">Hoàn thành</option>
+                <option value="cancelled">Đã hủy</option>
+              </select>
+            </div>
+
+            <button className="close-btn" onClick={onClose} title="Đóng">×</button>
+          </div>
         </div>
         <div className="modal-body">
           <QuoteGeneralForm
