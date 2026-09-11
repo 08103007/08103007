@@ -54,13 +54,9 @@ export function getLS(key) {
 }
 
 export function setLS(key, val) {
-  // ONLY allow storing connection credentials (Supabase URL, Anon Key, Session Token, App Prefix)
-  const allowedKeys = [LS_GAS_URL, LS_TOKEN, "pmc_app_prefix", "pmc_sb_url_v1", "pmc_sb_key_v1"];
-  if (allowedKeys.includes(key)) {
-    try {
-      localStorage.setItem(getLSKey(key), val);
-    } catch (e) {}
-  }
+  try {
+    localStorage.setItem(getLSKey(key), val);
+  } catch (e) {}
 }
 
 export function removeLS(key) {
@@ -71,20 +67,13 @@ export function removeLS(key) {
 }
 
 export function _flushToLocalStorage() {
-  // Purge any legacy data keys from localStorage to ensure 0% storage footprint in browser
   try {
-    const legacyKeys = [
-      LS_QUOTES, LS_PRODUCTS, LS_CUSTOMERS, LS_CONTRACTS, LS_HANDOVERS,
-      LS_DELIVERIES, LS_DEBTRECS, LS_TASKS, LS_NOTES, LS_COMPANY,
-      LS_CONTRACTS_DF, LS_CATALOG, "pmc_quotes_emergency_backup",
-      "pmc_quotes_v4", "pmc_quotes_v3", "pmc_quotes_v2", "pmc_quotes_v1", "pmc_quotes"
-    ];
-    legacyKeys.forEach(k => {
-      try {
-        localStorage.removeItem(getLSKey(k));
-        localStorage.removeItem(k);
-      } catch {}
-    });
+    if (Array.isArray(_mem.customers) && _mem.customers.length > 0) {
+      setLS(LS_CUSTOMERS, JSON.stringify(_mem.customers));
+    }
+    if (Array.isArray(_mem.quotes) && _mem.quotes.length > 0) {
+      setLS(LS_QUOTES, JSON.stringify(_mem.quotes));
+    }
   } catch (e) {}
 }
 
@@ -225,6 +214,7 @@ export async function _flushToGAS() {
         _lastSyncedPayloadJson = payloadJson;
         console.log("⚡ Đã đồng bộ Supabase Cloud Database & Master Payload thành công");
       }
+      upsertSupabaseSettings("master_settings", payload).catch(() => {});
     } catch(err) {
       console.warn("Lỗi lưu Supabase:", err);
     }
@@ -298,13 +288,16 @@ export async function doLoad(onProgress) {
       if (Array.isArray(sbQuotes) && sbQuotes.length > 0) {
         sbQuotes.forEach(q => {
           if (q.id === "sys_master_payload" || q.quoteNumber === "SYS_MASTER_PAYLOAD") {
-            const data = q.payload || {};
+            const data = (q.payload && typeof q.payload === "object") ? q.payload : q;
             if (data.debtRecs && typeof data.debtRecs === "object") _mem.debtRecs = { ..._mem.debtRecs, ...data.debtRecs };
             if (data.paymentRequests && typeof data.paymentRequests === "object") _mem.paymentRequests = { ..._mem.paymentRequests, ...data.paymentRequests };
             if (data.handovers && typeof data.handovers === "object") _mem.handovers = { ..._mem.handovers, ...data.handovers };
             if (data.contracts && typeof data.contracts === "object") _mem.contracts = { ..._mem.contracts, ...data.contracts };
             if (data.deliveries && typeof data.deliveries === "object") _mem.deliveries = { ..._mem.deliveries, ...data.deliveries };
-            if (Array.isArray(data.customers) && data.customers.length) _mem.customers = data.customers;
+            if (Array.isArray(data.customers) && data.customers.length) {
+              _mem.customers = data.customers;
+              _flushToLocalStorage();
+            }
             if (Array.isArray(data.tasks) && data.tasks.length) _mem.tasks = data.tasks;
             if (Array.isArray(data.notes) && data.notes.length) _mem.notes = data.notes;
             if (data.company && typeof data.company === "object") Object.assign(COMPANY, data.company);
@@ -524,7 +517,22 @@ export async function upsertProductImage(name, image, extra = {}) {
   _scheduleSave();
 }
 
-export function loadCustomerCatalog() { return Promise.resolve(_mem.customers || []); }
+export function loadCustomerCatalog() { 
+  if (Array.isArray(_mem.customers) && _mem.customers.length > 0) {
+    return Promise.resolve(_mem.customers);
+  }
+  try {
+    const raw = getLS(LS_CUSTOMERS);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list) && list.length > 0) {
+        _mem.customers = list;
+        return Promise.resolve(_mem.customers);
+      }
+    }
+  } catch (e) {}
+  return Promise.resolve(_mem.customers || []); 
+}
 
 export function saveCustomerCatalog(catalog) { 
   _mem.customers = Array.isArray(catalog) ? catalog : []; 

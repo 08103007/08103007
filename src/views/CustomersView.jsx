@@ -60,7 +60,34 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
 
   const loadData = () => {
     loadCustomerCatalog().then(list => {
-      setCustomers(list || []);
+      let currentList = Array.isArray(list) ? list : [];
+      if (currentList.length === 0 && Array.isArray(quotes) && quotes.length > 0) {
+        const existingMap = new Map();
+        quotes.forEach(q => {
+          if (q && q.customer && q.customer.trim()) {
+            const name = q.customer.trim();
+            if (!existingMap.has(name)) {
+              existingMap.set(name, {
+                id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+                customer: name,
+                shortName: (q.customerShort || generateCustomerShortName(name)).trim().toUpperCase(),
+                contact: q.contact || "",
+                address: q.address || "",
+                taxId: q.taxId || "",
+                phone: q.phone || "",
+                email: "",
+                notes: "",
+                updatedAt: new Date().toISOString()
+              });
+            }
+          }
+        });
+        if (existingMap.size > 0) {
+          currentList = Array.from(existingMap.values());
+          saveCustomerCatalog(currentList);
+        }
+      }
+      setCustomers(currentList);
     });
   };
 
@@ -68,7 +95,7 @@ export default function CustomersView({ quotes = [], onCreateQuoteForCustomer })
     loadData();
     const interval = setInterval(loadData, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [quotes]);
 
   // Compute quote count per customer
   const customerStats = useMemo(() => {

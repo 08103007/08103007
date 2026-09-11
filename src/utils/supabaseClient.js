@@ -102,7 +102,7 @@ export async function fetchSupabaseQuotes() {
         console.log(`⚡ Supabase: Đã tải thành công ${rows.length} báo giá`);
         return rows.map(r => {
           if (r.payload && typeof r.payload === "object") {
-            return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber };
+            return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber, payload: r.payload };
           }
           return {
             id: r.id,
@@ -157,7 +157,7 @@ export async function fetchSupabaseQuotes() {
   console.log(`⚡ Supabase (Phân trang): Đã tải thành công ${allRows.length} báo giá`);
   return allRows.map(r => {
     if (r.payload && typeof r.payload === "object") {
-      return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber };
+      return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber, payload: r.payload };
     }
     return {
       id: r.id,
