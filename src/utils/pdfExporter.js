@@ -1,5 +1,5 @@
 import { ensureHtml2Canvas, ensureJsPdf } from './docxBuilder';
-import { COMPANY, getLogoUrl, getStampUrl, showToast } from './gasStore';
+import { COMPANY, getLogoUrl, getStampUrl, makeSquareStampImage, showToast } from './gasStore';
 import { calcItems, fmt, generateCustomerShortName } from './helpers';
 
 export function buildPrintHtml(elementId, extraCss) {
@@ -408,14 +408,22 @@ export function buildQuoteHtmlString(quote, options = {}) {
 }
 
 export async function generateQuotePdfBlob(quote, options = {}) {
+  let stampUrl = options.stampUrl || getStampUrl();
+  if (stampUrl) {
+    try {
+      stampUrl = await makeSquareStampImage(stampUrl);
+    } catch (_) {}
+  }
+  const optsWithSquare = { ...options, stampUrl };
+
   const container = document.createElement("div");
   container.id = "_temp_quote_wrap";
   container.style.cssText = "position:fixed;top:0;left:-9999px;z-index:-9999;";
-  container.innerHTML = buildQuoteHtmlString(quote, options);
+  container.innerHTML = buildQuoteHtmlString(quote, optsWithSquare);
   document.body.appendChild(container);
 
   try {
-    const res = await generateElementPdfBlob("_offscreen_quote_preview", options);
+    const res = await generateElementPdfBlob("_offscreen_quote_preview", optsWithSquare);
     return res;
   } finally {
     if (document.body.contains(container)) {
