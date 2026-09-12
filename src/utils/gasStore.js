@@ -10,7 +10,7 @@ import {
 export { hasSupabase };
 
 // Cache keys (localStorage – backup offline)
-export const LS_GAS_URL   = "pmc_gas_url_v1"; 
+export const LS_APP_PW   = "pmc_app_password";
 export const LS_QUOTES    = "pmc_quotes_v4";
 export const LS_PRODUCTS  = "pmc_products_v4";
 export const LS_CUSTOMERS = "pmc_customers_v4";
@@ -118,25 +118,15 @@ export const PRODUCT_CATALOG = [ ...DEFAULT_COMPANY.productCatalog ];
 
 export function getLogoUrl() {
   if (COMPANY.logo && COMPANY.logo.length > 15) {
-    let l = COMPANY.logo.replace(/[\r\n\s]+/g, "");
-    if (l.includes("drive.google.com/file/d/")) {
-      const match = l.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) return `https://lh3.googleusercontent.com/d/${match[1]}`;
-    }
-    return l;
+    return COMPANY.logo.replace(/[\r\n\s]+/g, "");
   }
   return DEFAULT_LOGO_URI;
 }
 
 export function getStampUrl() {
-  const s = COMPANY.stamp || (COMPANY.digitalSign && COMPANY.digitalSign.stampImg) || "";
+  const s = COMPANY.stamp || "";
   if (s && s.length > 15) {
-    let l = s.replace(/[\r\n\s]+/g, "");
-    if (l.includes("drive.google.com/file/d/")) {
-      const match = l.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (match && match[1]) return `https://lh3.googleusercontent.com/d/${match[1]}`;
-    }
-    return l;
+    return s.replace(/[\r\n\s]+/g, "");
   }
   return "";
 }
@@ -155,10 +145,7 @@ export const _mem = {
   notes:      [],
 };
 
-// GAS_URL getter/setter
-export function getGasUrl() { return getLS(LS_GAS_URL) || ""; }
-export function setGasUrl(url) { setLS(LS_GAS_URL, url.trim()); }
-export function hasGasUrl() { const u = getGasUrl(); return (!!u && u !== "PASTE_GAS_URL_HERE") || hasSupabase(); }
+export function hasGasUrl() { return false; }
 
 // Toast implementation
 export function showToast(msg, duration = 3000) {
@@ -169,14 +156,13 @@ export function showToast(msg, duration = 3000) {
   setTimeout(() => t.remove(), duration);
 }
 
-
 // Debounce save timer
 let _saveTimer = null;
 const SAVE_DELAY = 1500; 
 
 export function _scheduleSave() {
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(_flushToGAS, SAVE_DELAY);
+  _saveTimer = setTimeout(_flushToCloud, SAVE_DELAY);
 }
 
 // Flush immediately when tab is hidden or closed
@@ -185,7 +171,7 @@ window.addEventListener("visibilitychange", () => {
     _flushToLocalStorage();
     if (_saveTimer) {
       clearTimeout(_saveTimer);
-      _flushToGAS();
+      _flushToCloud();
     }
   }
 });
@@ -194,7 +180,7 @@ window.addEventListener("beforeunload", () => {
   _flushToLocalStorage();
   if (_saveTimer) {
     clearTimeout(_saveTimer);
-    _flushToGAS();
+    _flushToCloud();
   }
 });
 
@@ -214,14 +200,14 @@ function _buildSyncPayload() {
   };
 }
 
-export async function _flushToGAS() {
+export async function _flushToCloud() {
   const payload = _buildSyncPayload();
   const payloadJson = JSON.stringify(payload);
   if (payloadJson === _lastSyncedPayloadJson) return; 
 
   _flushToLocalStorage();
 
-  // 1. Primary Cloud Storage: Supabase PostgreSQL (~30-80ms)
+  // Primary Cloud Storage: Supabase PostgreSQL (~30-80ms)
   if (hasSupabase()) {
     try {
       const ok = await upsertSupabaseQuotes(_mem.quotes || [], payload);
@@ -234,38 +220,8 @@ export async function _flushToGAS() {
       console.warn("Lỗi lưu Supabase:", err);
     }
   }
-
-  // 2. Secondary Background Backup: GAS Google Drive (Non-blocking worker)
-  if (hasGasUrl()) {
-    (async () => {
-      try {
-        const token = getLS(LS_TOKEN) || "";
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
-        const resp = await fetch(getGasUrl(), {
-          method: "POST",
-          redirect: "follow",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({
-            token: token,
-            action: "save_all",
-            payload: payload,
-          }),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-        const rawText = await resp.text();
-        const data = JSON.parse(rawText);
-        if (data && data.ok) {
-          _lastSyncedPayloadJson = payloadJson;
-          console.log("💾 Đã sao lưu dự phòng lên Google Drive (GAS) thành công");
-        }
-      } catch(e) {
-        console.warn("GAS background backup:", e.message || e);
-      }
-    })();
-  }
 }
+export const _flushToGAS = _flushToCloud;
 
 
 
@@ -374,54 +330,8 @@ export async function doLoad(onProgress) {
     }
   }
 
-  // 2. Fetch from GAS Google Drive Backup (Chạy ngầm với timeout tối đa 3.5s để không bao giờ làm treo UI)
-  if (hasGasUrl()) {
-    try {
-      const token = getLS(LS_TOKEN) || "";
-      const url = `${getGasUrl()}?action=load&token=${encodeURIComponent(token)}`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const resp = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      const rawText = await resp.text();
-      let data;
-      try {
-        data = JSON.parse(rawText);
-      } catch(parseErr) {
-        console.error("GAS load response not JSON:", rawText.slice(0, 300));
-        throw new Error("GAS did not respond with valid JSON");
-      }
-      if (data && data.ok) {
-        const gasQuotes = Array.isArray(data.quotes) ? data.quotes : [];
-        gasQuotes.forEach(addOrMergeQuote);
-
-        _mem.products  = Array.isArray(data.products) && data.products.length ? data.products : _mem.products;
-        _mem.customers = Array.isArray(data.customers) && data.customers.length ? data.customers : _mem.customers;
-        _mem.contracts  = (data.contracts  && typeof data.contracts  === "object") ? { ..._mem.contracts, ...data.contracts } : _mem.contracts;
-        _mem.handovers  = (data.handovers   && typeof data.handovers   === "object") ? { ..._mem.handovers, ...data.handovers } : _mem.handovers;
-        _mem.deliveries = (data.deliveries  && typeof data.deliveries  === "object") ? { ..._mem.deliveries, ...data.deliveries } : _mem.deliveries;
-        _mem.debtRecs   = (data.debtRecs    && typeof data.debtRecs    === "object") ? { ..._mem.debtRecs, ...data.debtRecs } : _mem.debtRecs;
-        _mem.tasks      = Array.isArray(data.tasks) && data.tasks.length ? data.tasks : _mem.tasks;
-        _mem.notes      = Array.isArray(data.notes) && data.notes.length ? data.notes : _mem.notes;
-        
-        if (data.company)          Object.assign(COMPANY, data.company);
-        if (data.contractDefaults) Object.assign(CONTRACT_DEFAULTS, data.contractDefaults);
-        if (Array.isArray(data.productCatalog) && data.productCatalog.length) {
-          PRODUCT_CATALOG.splice(0, PRODUCT_CATALOG.length, ...data.productCatalog);
-        }
-      }
-    } catch(e) {
-      console.warn("GAS load backup timeout/failed, using local/supabase cache:", e);
-    }
-  }
-
   _mem.quotes = Array.from(quoteMap.values());
   _flushToLocalStorage();
-  if (hasSupabase()) {
-    setTimeout(() => {
-      _flushToGAS();
-    }, 500);
-  }
   _scheduleSave();
   return _mem.quotes ?? [];
 }
@@ -811,9 +721,15 @@ export async function doLogin(password) {
   const p = (password || "").trim();
   if (!p) throw new Error("Vui lòng nhập mật khẩu");
 
-  // 1. Check Supabase Master Settings Password if available
+  // 1. Check custom password in localStorage
   let valid = false;
-  if (hasSupabase()) {
+  const customLocalPw = getLS(LS_APP_PW);
+  if (customLocalPw && p === customLocalPw) {
+    valid = true;
+  }
+
+  // 2. Check Supabase Master Settings Password if available
+  if (!valid && hasSupabase()) {
     try {
       const sbSettings = await fetchSupabaseSettings("master_settings");
       if (sbSettings && sbSettings.appPassword) {
@@ -822,27 +738,11 @@ export async function doLogin(password) {
     } catch {}
   }
 
-  // 2. Standard master PMC password check
+  // 3. Standard master PMC password check
   if (!valid) {
     if (p === "pmc123" || p === "PMC123" || p === "123456" || p === "pmc@2024") {
       valid = true;
     }
-  }
-
-  // 3. Fallback: Quick GAS password verification (timeout 3.5s)
-  if (!valid && hasGasUrl()) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3500);
-      const url = `${getGasUrl()}?action=login&password=${encodeURIComponent(p)}`;
-      const resp = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      const data = JSON.parse(await resp.text());
-      if (data && data.ok) {
-        setSessionToken(data.token);
-        return data.token;
-      }
-    } catch {}
   }
 
   if (valid) {
@@ -856,19 +756,9 @@ export async function doLogin(password) {
 
 export async function logout() {
   clearTimeout(_saveTimer);          
-  try { await _flushToGAS(); } catch {} 
-  const token = getLS(LS_TOKEN);
+  try { await _flushToCloud(); } catch {} 
   removeLS(LS_TOKEN);
-  if (token && hasGasUrl()) {
-    try { await fetch(`${getGasUrl()}?action=logout&token=${encodeURIComponent(token)}`); } catch {}
-  }
   location.reload();
-}
-
-function _onGASUnauthorized() {
-  removeLS(LS_TOKEN);
-  window.dispatchEvent(new CustomEvent("gas_unauthorized"));
-  showToast("⛔ Phiên đăng nhập hết hạn — vui lòng đăng nhập lại", 4000);
 }
 
 // --- File System Access API for Direct PC Local JSON File Storage ---
@@ -1033,122 +923,6 @@ export async function disconnectLocalJsonFile() {
   _currentFileHandle = null;
   await setStoredFileHandle(null);
   showToast("🔌 Đã hủy kết nối file JSON local", 2000);
-}
-
-/**
- * Compare local quotes vs Google Apps Script / Google Drive quotes
- * Returns detailed comparison report & master merged quotes
- */
-export async function compareLocalAndGAS() {
-  if (!hasGasUrl()) {
-    throw new Error("Chưa kết nối Google Apps Script (GAS URL)");
-  }
-
-  // 1. Get all local quotes
-  const localQuotes = mergeAllLocalStorageSources();
-  const localMap = new Map();
-  localQuotes.forEach(q => {
-    if (q && q.id) localMap.set(q.id, q);
-    if (q && q.quoteNumber) localMap.set(q.quoteNumber, q);
-  });
-
-  // 2. Fetch remote quotes from GAS
-  const token = getLS(LS_TOKEN) || "";
-  const url = `${getGasUrl()}?action=load&token=${encodeURIComponent(token)}`;
-  const resp = await fetch(url);
-  const rawText = await resp.text();
-  let data;
-  try {
-    data = JSON.parse(rawText);
-  } catch (err) {
-    throw new Error("GAS did not respond with valid JSON");
-  }
-
-  if (!data.ok) {
-    throw new Error(data.error || "Không thể tải dữ liệu từ GAS");
-  }
-
-  const gasQuotes = Array.isArray(data.quotes) ? data.quotes : [];
-  const gasMap = new Map();
-  gasQuotes.forEach(q => {
-    if (q && q.id) gasMap.set(q.id, q);
-    if (q && q.quoteNumber) gasMap.set(q.quoteNumber, q);
-  });
-
-  const localOnly = [];
-  const gasOnly = [];
-  const mismatches = [];
-  const synced = [];
-  const processedKeys = new Set();
-
-  localQuotes.forEach(lq => {
-    const key = lq.id || lq.quoteNumber;
-    if (!key || processedKeys.has(key)) return;
-    processedKeys.add(key);
-
-    const gq = (lq.id ? gasMap.get(lq.id) : null) || (lq.quoteNumber ? gasMap.get(lq.quoteNumber) : null);
-    if (!gq) {
-      localOnly.push(lq);
-    } else {
-      const lLen = (lq.items && Array.isArray(lq.items)) ? lq.items.length : 0;
-      const gLen = (gq.items && Array.isArray(gq.items)) ? gq.items.length : 0;
-      if (lLen !== gLen || lq.customer !== gq.customer || lq.status !== gq.status) {
-        mismatches.push({ local: lq, gas: gq });
-      } else {
-        synced.push(lq);
-      }
-    }
-  });
-
-  gasQuotes.forEach(gq => {
-    const key = gq.id || gq.quoteNumber;
-    if (!key || processedKeys.has(key)) return;
-    const lq = (gq.id ? localMap.get(gq.id) : null) || (gq.quoteNumber ? localMap.get(gq.quoteNumber) : null);
-    if (!lq) {
-      gasOnly.push(gq);
-    }
-  });
-
-  // Build Master Merged Dataset
-  const masterMap = new Map();
-  localQuotes.forEach(q => {
-    const k = q.id || q.quoteNumber;
-    if (k) masterMap.set(k, q);
-  });
-  gasQuotes.forEach(gq => {
-    const k = gq.id || gq.quoteNumber;
-    if (!k) return;
-    const existing = masterMap.get(k);
-    if (!existing) {
-      masterMap.set(k, gq);
-    } else {
-      const eLen = (existing.items && Array.isArray(existing.items)) ? existing.items.length : 0;
-      const gLen = (gq.items && Array.isArray(gq.items)) ? gq.items.length : 0;
-      if (gLen > eLen) {
-        masterMap.set(k, gq);
-      }
-    }
-  });
-  const masterQuotes = Array.from(masterMap.values());
-
-  return {
-    localCount: localQuotes.length,
-    gasCount: gasQuotes.length,
-    masterCount: masterQuotes.length,
-    localOnly,
-    gasOnly,
-    mismatches,
-    syncedCount: synced.length,
-    masterQuotes
-  };
-}
-
-export async function applyReconciledQuotes(masterQuotes) {
-  _mem.quotes = masterQuotes;
-  _flushToLocalStorage();
-  await _flushToGAS();
-  showToast(`✅ Đã đồng bộ & hợp nhất hoàn toàn ${masterQuotes.length} báo giá!`, 4000);
-  return masterQuotes;
 }
 
 // Khởi chạy đồng bộ để nạp cache (bao gồm cả COMPANY và logo) ngay lập tức khi load script

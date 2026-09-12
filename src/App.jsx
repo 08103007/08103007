@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  isAuthenticated, hasGasUrl, migrateFromLocalStorage, doLoad, _initFromLocalStorage,
+  isAuthenticated, migrateFromLocalStorage, doLoad, _initFromLocalStorage,
   upsertCatalogItems, saveQuotes, exportToJSON, importFromJSON, 
   logout, getLogoUrl, _mem, COMPANY, showToast,
   initLocalFileHandle, getCurrentFileHandle, readFromLocalJsonFile,
@@ -13,7 +13,6 @@ import {
 } from './utils/helpers';
 
 // Components & Views
-import SetupScreen from './components/SetupScreen';
 import LoginScreen from './components/LoginScreen';
 import QuoteModal from './components/QuoteModal';
 import PrintModal from './components/PrintModal';
@@ -32,7 +31,6 @@ export default function App() {
   const [quotes, setQuotes] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [authed, setAuthed]       = useState(() => isAuthenticated());
-  const [gasReady, setGasReady]   = useState(() => hasGasUrl() || hasSupabase());
 
   const [view, setView] = useState("list");
   const [showModal, setShowModal] = useState(false);
@@ -49,13 +47,6 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [companyVersion, setCompanyVersion] = useState(0);
-
-  // Lắng nghe GAS Unauthorized event → chuyển về màn đăng nhập ngay
-  useEffect(() => {
-    const handler = () => setAuthed(false);
-    window.addEventListener("gas_unauthorized", handler);
-    return () => window.removeEventListener("gas_unauthorized", handler);
-  }, []);
 
   const [fileHandle, setFileHandle] = useState(getCurrentFileHandle());
 
@@ -218,10 +209,6 @@ export default function App() {
     totalValue: quotes.reduce((s,q)=>s+calcItems(q.items,q.vatRate).total,0),
     acceptedValue: quotes.filter(q=>q.status==="accepted").reduce((s,q)=>s+calcItems(q.items,q.vatRate).total,0),
   }), [quotes, statusCounts]);
-
-  if (!gasReady) {
-    return <SetupScreen onDone={() => setGasReady(true)} />;
-  }
 
   if (!authed) {
     return <LoginScreen onLogin={() => setAuthed(true)} />;

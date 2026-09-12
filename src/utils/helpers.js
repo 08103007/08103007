@@ -1,4 +1,3 @@
-import { hasGasUrl, getGasUrl, LS_TOKEN, getLS } from './gasStore';
 
 export function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
@@ -157,25 +156,7 @@ export function calcItems(items, quoteVatRate) {
 const _wordsCache = new Map();
 
 export async function numberToWords(num, lang="vi") {
-  const key = lang + "_" + Math.round(num);
-  if (_wordsCache.has(key)) return _wordsCache.get(key);
-
-  if (!hasGasUrl()) {
-    return new Intl.NumberFormat("vi-VN").format(num) + " đồng";
-  }
-
-  try {
-    const token = getLS(LS_TOKEN) || "";
-    const url = `${getGasUrl()}?action=words&num=${num}&lang=${lang}&token=${encodeURIComponent(token)}`;
-    const resp = await fetch(url);
-    const data = JSON.parse(await resp.text());
-    if (data.ok) {
-      _wordsCache.set(key, data.words);
-      setTimeout(() => _wordsCache.delete(key), 60000);
-      return data.words;
-    }
-  } catch(e) { }
-  return new Intl.NumberFormat("vi-VN").format(num) + " đồng";
+  return numberToWordsVN(num);
 }
 
 export function numberToWordsVN(n) {
