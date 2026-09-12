@@ -278,7 +278,14 @@ export function buildQuoteHtmlString(quote, options = {}) {
   const qMonth = String(dt.getMonth() + 1).padStart(2, "0");
   const qYear = dt.getFullYear();
 
-  const visibleCols = 1 + (showStt ? 1 : 0) + (showImage ? 1 : 0) + 3 + (showVat ? 1 : 0);
+  const visibleCols = (showStt ? 1 : 0) +
+    (showImage ? 1 : 0) +
+    1 + // Hàng hóa
+    1 + // SL
+    1 + // ĐVT
+    1 + // Đơn giá
+    (showVat ? 1 : 0) +
+    1;  // Thành tiền
 
   const rows = (quote.items || []).map((it, idx) => {
     const lineTotal = (it.qty || 0) * (it.price || 0);
