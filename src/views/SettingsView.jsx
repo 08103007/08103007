@@ -9,8 +9,6 @@ import {
   getLS, removeLS, getAppPrefix, setAppPrefix,
   compareLocalAndGAS, applyReconciledQuotes, showToast
 } from '../utils/gasStore';
-import { parseX509Certificate } from '../utils/certParser';
-import { checkPluginStatus, readCertificatesFromPlugin } from '../utils/icaSigner';
 import { 
   getSupabaseUrl, setSupabaseUrl, getSupabaseKey, setSupabaseKey, 
   testSupabaseConnection, migrateAllLocalDataToSupabase, SUPABASE_SQL_SCHEMA 
@@ -68,13 +66,8 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
   const [stampPreview, setStampPreview] = useState(getStampUrl());
   const fileRef = useRef(null);
   const stampFileRef = useRef(null);
-  const certFileRef = useRef(null);
 
   const setC = (k, v) => setCompany(prev => ({ ...prev, [k]: v }));
-  const setDS = (k, v) => setCompany(prev => ({ 
-    ...prev, 
-    digitalSign: { ...(prev.digitalSign || {}), [k]: v } 
-  }));
 
   const handleStampUpload = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -82,104 +75,9 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     const reader = new FileReader();
     reader.onload = (ev) => { 
       setStampPreview(ev.target.result); 
-      setDS("stampImg", ev.target.result); 
+      setC("stamp", ev.target.result); 
     };
     reader.readAsDataURL(file);
-  };
-
-  const handleCertUpload = async (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    try {
-      const buffer = await file.arrayBuffer();
-      const parsed = parseX509Certificate(buffer);
-      
-      setCompany(prev => {
-        const next = { ...prev };
-        if (parsed.mst) next.mst = parsed.mst;
-        if (parsed.signerName && (!next.name || next.name === DEFAULT_COMPANY.name)) next.name = parsed.signerName;
-        
-        next.digitalSign = {
-          ...(next.digitalSign || {}),
-          signerName: parsed.signerName || next.digitalSign?.signerName || next.name,
-          province: parsed.province || next.digitalSign?.province || "Bà Rịa - Vũng Tàu",
-          location: parsed.location || next.digitalSign?.location || "Bà Rịa - Vũng Tàu",
-          caProvider: parsed.caProvider || "I-CA (I-CA Public CA)",
-          serialNumber: parsed.serialNumber || "",
-          validFrom: parsed.validFrom || "",
-          validTo: parsed.validTo || "",
-          daysRemaining: parsed.daysRemaining,
-          isExpired: parsed.isExpired,
-          dnString: parsed.dnString,
-          mst: parsed.mst || next.mst
-        };
-        return next;
-      });
-
-      showToast(`✅ Đã nạp thành công chứng thư số: ${parsed.signerName} (${parsed.caProvider})`, 4000);
-    } catch (err) {
-      alert("❌ Lỗi đọc file chứng thư số: " + err.message);
-    } finally {
-      if (e.target) e.target.value = "";
-    }
-  };
-
-  const [pluginStatus, setPluginStatus] = useState({ checked: false, ok: false, message: "" });
-  const [pluginLoading, setPluginLoading] = useState(false);
-
-  const handleTestPlugin = async () => {
-    setPluginLoading(true);
-    setPluginStatus({ checked: false, ok: false, message: "⏳ Đang kiểm tra kết nối tới I-CA Plugin..." });
-    try {
-      const port = company.digitalSign?.pluginPort || 15888;
-      const res = await checkPluginStatus(port);
-      setPluginStatus({ checked: true, ok: res.ok, port: res.port, message: res.message });
-      if (res.ok) {
-        showToast(`🟢 ${res.message}`, 3000);
-      } else {
-        showToast("⚠️ Chưa kết nối được I-CA Web Plugin", 3000);
-      }
-    } catch (e) {
-      setPluginStatus({ checked: true, ok: false, message: "❌ Lỗi: " + e.message });
-    } finally {
-      setPluginLoading(false);
-    }
-  };
-
-  const handleReadTokenDirect = async () => {
-    setPluginLoading(true);
-    try {
-      const port = company.digitalSign?.pluginPort || 15888;
-      const res = await readCertificatesFromPlugin(port);
-      if (res.ok && res.cert) {
-        const parsed = res.cert;
-        setCompany(prev => ({
-          ...prev,
-          mst: parsed.mst || prev.mst,
-          digitalSign: {
-            ...(prev.digitalSign || {}),
-            signerName: parsed.signerName || prev.digitalSign?.signerName || prev.name,
-            province: parsed.province || prev.digitalSign?.province || "Bà Rịa - Vũng Tàu",
-            location: parsed.location || prev.digitalSign?.location || "Bà Rịa - Vũng Tàu",
-            caProvider: parsed.caProvider || "I-CA (I-CA Public CA)",
-            serialNumber: parsed.serialNumber || "",
-            validFrom: parsed.validFrom || "",
-            validTo: parsed.validTo || "",
-            daysRemaining: parsed.daysRemaining,
-            isExpired: parsed.isExpired,
-            dnString: parsed.dnString,
-            mst: parsed.mst || prev.mst
-          }
-        }));
-        showToast(`✅ Đã đọc thành công chứng thư số trực tiếp từ USB Token I-CA!`, 4000);
-      } else {
-        alert("⚠️ " + (res.error || "Không tìm thấy chứng thư trên USB Token I-CA. Vui lòng đảm bảo Token đã cắm và I-CA Plugin đang chạy."));
-      }
-    } catch (err) {
-      alert("❌ Lỗi: " + err.message);
-    } finally {
-      setPluginLoading(false);
-    }
   };
 
   const cd = (CONTRACT_DEFAULTS && CONTRACT_DEFAULTS.vi_en) || {};
@@ -501,71 +399,42 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
         </div>
       </div>
 
-      {/* Digital Signature & Stamp Card */}
-      <div className="card" style={{ marginBottom:16, borderColor: "#dc2626" }}>
-        <div className="card-header" style={{ background: "#fef2f2", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <span style={{ fontWeight: 600, color: "#dc2626" }}>🖋️ Chữ ký số & Con dấu điện tử (Ký số Báo giá & Hợp đồng)</span>
+      {/* Scanned Stamp & Signature Card */}
+      <div className="card" style={{ marginBottom:16, borderColor: "#e2e8f0" }}>
+        <div className="card-header" style={{ background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <span style={{ fontWeight: 600, color: "#1e293b" }}>💮 Con dấu &amp; Chữ ký scan doanh nghiệp</span>
           <label style={{ fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
             <input
               type="checkbox"
-              checked={company.digitalSign?.enabled !== false}
-              onChange={e => setDS("enabled", e.target.checked)}
-              style={{ width: 16, height: 16, accentColor: "#dc2626" }}
+              checked={company.showStamp !== false}
+              onChange={e => setC("showStamp", e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: "var(--accent)" }}
             />
-            <span style={{ fontWeight: 600, color: "#991b1b" }}>Bật Ký Số Điện Tử Mặc Định</span>
+            <span style={{ fontWeight: 600, color: "#475569" }}>Mặc định hiển thị con dấu trên Báo giá</span>
           </label>
         </div>
         <div className="card-body">
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
-            <div style={{ width: 90, height: 90, border: "2px dashed #fca5a5", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff5f5", overflow: "hidden", flexShrink: 0, position: "relative" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 90, height: 90, border: "2px dashed #cbd5e1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", overflow: "hidden", flexShrink: 0, position: "relative" }}>
               {stampPreview ? (
                 <img src={stampPreview} alt="Con dấu" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               ) : (
-                <span style={{ fontSize: 32, color: "#fca5a5" }}>💮</span>
+                <span style={{ fontSize: 32, color: "#94a3b8" }}>💮</span>
               )}
             </div>
             <div>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ color: "#dc2626", borderColor: "#fca5a5" }} onClick={() => stampFileRef.current && stampFileRef.current.click()}>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ color: "#0f172a", borderColor: "#cbd5e1" }} onClick={() => stampFileRef.current && stampFileRef.current.click()}>
                 📁 Tải lên ảnh Con dấu / Chữ ký
               </button>
               {stampPreview && (
-                <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 8, color: "#991b1b" }} onClick={() => { setStampPreview(""); setDS("stampImg", ""); }}>
+                <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 8, color: "#dc2626" }} onClick={() => { setStampPreview(""); setC("stamp", ""); }}>
                   ✕ Xóa con dấu
                 </button>
               )}
-              <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>
-                Khuyên dùng: Ảnh con dấu tròn hoặc dấu kèm chữ ký nền trong suốt (PNG) để đóng dấu trực tiếp lên báo giá.
+              <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
+                Khuyên dùng: Ảnh con dấu tròn hoặc dấu kèm chữ ký nền trong suốt (PNG) để tự động đóng dấu lên phần chữ ký báo giá.
               </div>
               <input ref={stampFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleStampUpload} />
-            </div>
-          </div>
-
-          <div className="form-row form-row-2" style={{ marginBottom: 12 }}>
-            <div className="form-group">
-              <label>Tên đơn vị ký số</label>
-              <input 
-                className="form-control" 
-                value={company.digitalSign?.signerName !== undefined ? company.digitalSign.signerName : company.name} 
-                onChange={e => setDS("signerName", e.target.value)} 
-                placeholder={company.name || "CÔNG TY TNHH MÁY TÍNH PHÚ MỸ"} 
-              />
-            </div>
-            <div className="form-group">
-              <label>Nhà cung cấp chứng thư số (CA)</label>
-              <select 
-                className="form-control" 
-                value={company.digitalSign?.caProvider || "Viettel-CA"} 
-                onChange={e => setDS("caProvider", e.target.value)}
-              >
-                <option value="Viettel-CA">Viettel-CA (Tập đoàn Công nghiệp - Viễn thông Quân đội)</option>
-                <option value="VNPT-CA">VNPT-CA (Tập đoàn Bưu chính Viễn thông Việt Nam)</option>
-                <option value="FPT-CA">FPT-CA (Công ty Cổ phần Viễn thông FPT)</option>
-                <option value="BKAV-CA">BKAV-CA (Tập đoàn Công nghệ BKAV)</option>
-                <option value="MISA eSign">MISA eSign (Công ty Cổ phần MISA)</option>
-                <option value="EasyCA">EasyCA (Softdreams)</option>
-                <option value="SmartSign">SmartSign (VINA-CA)</option>
-                <option value="CA Doanh Nghiệp">Chứng thư số Doanh Nghiệp Hợp lệ</option>
-              </select>
             </div>
           </div>
         </div>
@@ -667,268 +536,6 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
         </div>
       </div>
 
-      {/* Digital Signature & USB Token Card */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontWeight: 600 }}>🖋️ Cấu hình Chữ ký số USB Token & Con dấu điện tử</span>
-          <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: 600, color: "#059669" }}>
-            <input 
-              type="checkbox" 
-              checked={company.digitalSign ? company.digitalSign.enabled !== false : true} 
-              onChange={e => setDS("enabled", e.target.checked)} 
-              style={{ width: 16, height: 16, accentColor: "#059669" }}
-            />
-            Bật ký số trên báo giá
-          </label>
-        </div>
-        <div className="card-body">
-          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
-            Cấu hình các trường thông tin chứng thư số X.509 hiển thị trên khối ký số báo giá (chuẩn Foxit / PKCS#7) và mã PIN xác thực USB Token.
-          </div>
-
-          {/* Certificate Import Banner */}
-          <div style={{
-            background: "#f0fdf4",
-            border: "1px solid #bbf7d0",
-            borderRadius: 8,
-            padding: "14px 16px",
-            marginBottom: 16,
-            display: "flex",
-            flexDirection: "column",
-            gap: 10
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 13, color: "#166534", display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>📂</span>
-                  <span>Nhập thông tin tự động từ File Chứng thư số (.cer / .crt / .pem)</span>
-                </div>
-                <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>
-                  Xuất file <code>.cer</code> từ Token I-CA / USB Token và tải lên để tự động nhận diện Chủ thể, MST, CA và Thời hạn.
-                </div>
-              </div>
-
-              <div>
-                <input 
-                  type="file" 
-                  ref={certFileRef} 
-                  accept=".cer,.crt,.pem,.der" 
-                  style={{ display: "none" }} 
-                  onChange={handleCertUpload} 
-                />
-                <button 
-                  type="button" 
-                  className="btn btn-primary btn-sm" 
-                  onClick={() => certFileRef.current && certFileRef.current.click()}
-                  style={{ background: "#16a34a", borderColor: "#15803d", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}
-                >
-                  📥 Chọn File Chứng thư (.cer / .crt)
-                </button>
-              </div>
-            </div>
-
-            {/* Display active certificate status if present */}
-            {company.digitalSign?.serialNumber && (
-              <div style={{ background: "#ffffff", border: "1px solid #86efac", borderRadius: 6, padding: "10px 12px", fontSize: 11, lineHeight: 1.5 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px dashed #dcfce7", paddingBottom: 4, marginBottom: 6 }}>
-                  <span style={{ fontWeight: 700, color: "#166534" }}>🛡️ Chứng thư số đang kích hoạt:</span>
-                  <span style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "2px 8px",
-                    borderRadius: 10,
-                    background: company.digitalSign?.isExpired ? "#fee2e2" : "#dcfce7",
-                    color: company.digitalSign?.isExpired ? "#dc2626" : "#166534"
-                  }}>
-                    {company.digitalSign?.isExpired ? "❌ Đã hết hạn" : `✅ Hợp lệ (Còn ${company.digitalSign?.daysRemaining || 0} ngày)`}
-                  </span>
-                </div>
-                <div style={{ color: "#334155" }}>
-                  <div><strong>Chủ thể:</strong> {company.digitalSign?.signerName || company.name}</div>
-                  <div><strong>Nhà cung cấp (Issuer):</strong> {company.digitalSign?.caProvider}</div>
-                  <div><strong>Số Serial:</strong> <code>{company.digitalSign?.serialNumber}</code></div>
-                  <div><strong>Thời hạn hiệu lực:</strong> {company.digitalSign?.validFrom} đến {company.digitalSign?.validTo}</div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* I-CA Web Signer Plugin Connection Card */}
-          <div style={{
-            background: "#f8fafc",
-            border: "1px solid #cbd5e1",
-            borderRadius: 8,
-            padding: "14px 16px",
-            marginBottom: 16
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-              <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b", display: "flex", alignItems: "center", gap: 6 }}>
-                <span>🔌</span>
-                <span>Kết nối trực tiếp I-CA Web Signer Plugin (Localhost)</span>
-              </div>
-              {pluginStatus.checked && (
-                <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  padding: "3px 10px",
-                  borderRadius: 12,
-                  background: pluginStatus.ok ? "#dcfce7" : "#fee2e2",
-                  color: pluginStatus.ok ? "#166534" : "#dc2626"
-                }}>
-                  {pluginStatus.ok ? "🟢 Đã kết nối I-CA Plugin" : "🔴 Chưa kết nối được Plugin"}
-                </span>
-              )}
-            </div>
-
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12, lineHeight: 1.5 }}>
-              Nếu máy tính có cài đặt & chạy <strong>I-CA Web Signer Plugin</strong> (dịch vụ ký số trung gian), bạn có thể đọc chứng thư và ký số trực tiếp qua cổng kết nối nội bộ mà không cần tải file thủ công.
-            </div>
-
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Cổng Plugin:</label>
-                <input 
-                  className="form-control" 
-                  style={{ width: 90, height: 32, fontSize: 12, padding: "2px 8px" }} 
-                  value={company.digitalSign?.pluginPort || "15888"} 
-                  onChange={e => setDS("pluginPort", e.target.value)} 
-                  placeholder="15888" 
-                />
-              </div>
-
-              <button 
-                type="button" 
-                className="btn btn-secondary btn-sm" 
-                onClick={handleTestPlugin}
-                disabled={pluginLoading}
-                style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
-              >
-                {pluginLoading ? "⏳ Đang kiểm tra..." : "🔍 Kiểm tra kết nối Plugin"}
-              </button>
-
-              <button 
-                type="button" 
-                className="btn btn-ghost btn-sm" 
-                onClick={handleReadTokenDirect}
-                disabled={pluginLoading}
-                style={{ fontSize: 12, color: "#2563eb", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}
-              >
-                ⚡ Đọc chứng thư trực tiếp từ Token USB
-              </button>
-            </div>
-
-            {pluginStatus.message && (
-              <div style={{ fontSize: 11, marginTop: 8, color: pluginStatus.ok ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
-                {pluginStatus.message}
-              </div>
-            )}
-          </div>
-
-          <div className="form-row form-row-2" style={{ marginBottom: 12 }}>
-            <div className="form-group">
-              <label>Chủ thể chứng thư số (CN, O):</label>
-              <input 
-                className="form-control" 
-                value={company.digitalSign?.signerName || company.name || ""} 
-                onChange={e => setDS("signerName", e.target.value)} 
-                placeholder="CÔNG TY TNHH MÁY TÍNH PHÚ MỸ" 
-              />
-            </div>
-            <div className="form-group">
-              <label>Mã PIN USB Token (xác thực ký):</label>
-              <input 
-                className="form-control" 
-                type="password"
-                value={company.digitalSign?.pin || "12345678"} 
-                onChange={e => setDS("pin", e.target.value)} 
-                placeholder="12345678" 
-              />
-            </div>
-          </div>
-
-          <div className="form-row form-row-3" style={{ marginBottom: 12 }}>
-            <div className="form-group">
-              <label>Tỉnh / Thành phố (S):</label>
-              <input 
-                className="form-control" 
-                value={company.digitalSign?.province || "Bà Rịa - Vũng Tàu"} 
-                onChange={e => setDS("province", e.target.value)} 
-                placeholder="Bà Rịa - Vũng Tàu" 
-              />
-            </div>
-            <div className="form-group">
-              <label>Địa điểm ký (Location):</label>
-              <input 
-                className="form-control" 
-                value={company.digitalSign?.location || "Bà Rịa - Vũng Tàu"} 
-                onChange={e => setDS("location", e.target.value)} 
-                placeholder="Bà Rịa - Vũng Tàu" 
-              />
-            </div>
-            <div className="form-group">
-              <label>Đơn vị CA / Ứng dụng ký:</label>
-              <input 
-                className="form-control" 
-                value={company.digitalSign?.caProvider || "I-CA (I-CA Public CA)"} 
-                onChange={e => setDS("caProvider", e.target.value)} 
-                placeholder="I-CA (I-CA Public CA)" 
-              />
-            </div>
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 14 }}>
-            <label>Lý do ký chứng từ (Reason):</label>
-            <input 
-              className="form-control" 
-              value={company.digitalSign?.reason || "I am approving this document with my legally binding signature"} 
-              onChange={e => setDS("reason", e.target.value)} 
-              placeholder="I am approving this document with my legally binding signature" 
-            />
-          </div>
-
-          <div className="form-group">
-            <label style={{ display: "block", marginBottom: 6 }}>Con dấu doanh nghiệp (Hình tròn/vuông PNG trong suốt):</label>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              {stampPreview ? (
-                <img 
-                  src={stampPreview} 
-                  alt="Stamp preview" 
-                  style={{ width: 80, height: 80, objectFit: "contain", border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc", padding: 4 }} 
-                />
-              ) : (
-                <div style={{ width: 80, height: 80, border: "1px dashed #cbd5e1", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 4 }}>
-                  Chưa có con dấu
-                </div>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <input 
-                  type="file" 
-                  ref={stampFileRef} 
-                  accept="image/*" 
-                  style={{ display: "none" }} 
-                  onChange={handleStampUpload} 
-                />
-                <button 
-                  type="button" 
-                  className="btn btn-secondary btn-sm" 
-                  onClick={() => stampFileRef.current && stampFileRef.current.click()}
-                >
-                  📁 Tải lên con dấu (PNG)
-                </button>
-                {stampPreview && (
-                  <button 
-                    type="button" 
-                    className="btn btn-danger btn-sm" 
-                    onClick={() => { setStampPreview(""); setDS("stampImg", ""); }}
-                  >
-                    🗑️ Xóa con dấu
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div className="card" style={{ marginBottom:16 }}>
         <div className="card-header"><span style={{fontWeight:600}}>📃 Điều khoản hợp đồng mặc định</span></div>

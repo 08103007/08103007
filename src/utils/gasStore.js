@@ -95,19 +95,8 @@ export const DEFAULT_COMPANY = {
   bankName: "Ngân hàng TMCP Quân Đội - MB BANK",
   bankNameEn: "Military Commercial Joint Stock Bank - MB BANK",
   logo: DEFAULT_LOGO_URI,
-  digitalSign: {
-    enabled: true,
-    signerName: "CÔNG TY TNHH MÁY TÍNH PHÚ MỸ",
-    signerTitle: "Người đại diện theo pháp luật",
-    province: "Bà Rịa - Vũng Tàu",
-    location: "Bà Rịa - Vũng Tàu",
-    reason: "I am approving this document with my legally binding signature",
-    caProvider: "I-CA (I-CA Public CA)",
-    pin: "12345678",
-    stampImg: "",
-    showStamp: true,
-    showCertInfo: true
-  },
+  stamp: "",
+  showStamp: true,
   contractDefaults: {
     paymentTerm: "thanh toán 100% giá trị hợp đồng sau khi bàn giao và lắp đặt thiết bị.",
     paymentTermEn: "Pay 100% of the contract value after handover and installation of the equipment."
@@ -140,8 +129,9 @@ export function getLogoUrl() {
 }
 
 export function getStampUrl() {
-  if (COMPANY.digitalSign && COMPANY.digitalSign.stampImg && COMPANY.digitalSign.stampImg.length > 15) {
-    let l = COMPANY.digitalSign.stampImg.replace(/[\r\n\s]+/g, "");
+  const s = COMPANY.stamp || (COMPANY.digitalSign && COMPANY.digitalSign.stampImg) || "";
+  if (s && s.length > 15) {
+    let l = s.replace(/[\r\n\s]+/g, "");
     if (l.includes("drive.google.com/file/d/")) {
       const match = l.match(/\/d\/([a-zA-Z0-9_-]+)/);
       if (match && match[1]) return `https://lh3.googleusercontent.com/d/${match[1]}`;

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { COMPANY, getLogoUrl, getStampUrl, showToast, _mem } from '../utils/gasStore';
 import { calcItems, fmt, generateCustomerShortName } from '../utils/helpers';
 import { printElementViaIframe, exportElementToPdf } from '../utils/pdfExporter';
-import { signWithPlugin } from '../utils/icaSigner';
 import { 
   buildDocxBlob, dxPara, dxHeaderCell, dxRow, dxTable, 
   dxNoBorderTable, dxNoBorderCell, dxImage, downloadBlob
@@ -117,122 +116,14 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
   const [wordLoading, setWordLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
 
-  // Format Foxit-style digital signature timestamp
-  const getFormattedSignDate = (dt = new Date()) => {
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, "0");
-    const d = String(dt.getDate()).padStart(2, "0");
-    const hh = String(dt.getHours()).padStart(2, "0");
-    const mm = String(dt.getMinutes()).padStart(2, "0");
-    const ss = String(dt.getSeconds()).padStart(2, "0");
-    return `${y}.${m}.${d} ${hh}:${mm}:${ss}+07'00'`;
-  };
-
-  // Digital signature state
-  const [signedDate, setSignedDate] = useState(() => {
-    if (localQuote?.signedAt) return localQuote.signedAt;
-    return getFormattedSignDate(new Date());
-  });
-
-  const [isSigned, setIsSigned] = useState(() => {
-    return localQuote?.isSigned !== undefined ? localQuote.isSigned : (COMPANY.digitalSign ? COMPANY.digitalSign.enabled !== false : true);
-  });
-
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
-  const [showPinText, setShowPinText] = useState(false);
-
   // Print Template Options state
   const [printOptions, setPrintOptions] = useState({
     showStt: true,
     showImage: (localQuote?.items || []).some(it => it.image && it.image.trim()),
     showNote: true,
     showVat: true,
-    showDigitalSign: COMPANY.digitalSign ? COMPANY.digitalSign.enabled !== false : true,
+    showStamp: COMPANY.showStamp !== false,
   });
-
-  const handleOpenSignModal = () => {
-    if (isSigned && printOptions.showDigitalSign) {
-      if (confirm("Chứng từ báo giá đã được ký số điện tử. Bạn có muốn ký lại (cập nhật thời gian) hay gỡ chữ ký số?\n\n- Bấm OK để NHẬP MÃ PIN KÝ LẠI\n- Bấm CANCEL để GỠ CHỮ KÝ SỐ")) {
-        setPinInput("");
-        setPinError("");
-        setShowPinModal(true);
-      } else {
-        setIsSigned(false);
-        setPrintOptions(p => ({ ...p, showDigitalSign: false }));
-        setLocalQuote(prev => ({ ...prev, isSigned: false }));
-        showToast("Đã gỡ chữ ký số khỏi báo giá", 2000);
-      }
-    } else {
-      setPinInput("");
-      setPinError("");
-      setShowPinModal(true);
-    }
-  };
-
-  const handleConfirmPinSign = (e) => {
-    if (e) e.preventDefault();
-    const correctPin = (COMPANY.digitalSign?.pin || "12345678").trim();
-    if (!pinInput || !pinInput.trim()) {
-      setPinError("Vui lòng nhập mã PIN của USB Token");
-      return;
-    }
-    if (pinInput.trim() !== correctPin && pinInput.trim() !== "12345678" && pinInput.trim() !== "123456") {
-      setPinError(`Mã PIN không đúng. (Mã PIN mặc định: ${correctPin || '12345678'})`);
-      return;
-    }
-    
-    const newSignedStr = getFormattedSignDate(new Date());
-    setSignedDate(newSignedStr);
-    setIsSigned(true);
-    setPrintOptions(p => ({ ...p, showDigitalSign: true }));
-    setLocalQuote(prev => ({
-      ...prev,
-      isSigned: true,
-      signedAt: newSignedStr
-    }));
-    setShowPinModal(false);
-    setPinInput("");
-    setPinError("");
-    showToast("🛡️ Đã xác thực mã PIN & Ký số USB Token thành công!", 3000);
-  };
-
-  const [pluginSigning, setPluginSigning] = useState(false);
-
-  const handleSignViaPlugin = async () => {
-    setPluginSigning(true);
-    setPinError("");
-    try {
-      const port = COMPANY.digitalSign?.pluginPort || 15888;
-      const res = await signWithPlugin({
-        quoteNumber: localQuote.quoteNumber,
-        total,
-        date: localQuote.date,
-        signer: COMPANY.digitalSign?.signerName || COMPANY.name
-      }, port);
-
-      if (res.ok) {
-        const newSignedStr = getFormattedSignDate(new Date());
-        setSignedDate(newSignedStr);
-        setIsSigned(true);
-        setPrintOptions(p => ({ ...p, showDigitalSign: true }));
-        setLocalQuote(prev => ({
-          ...prev,
-          isSigned: true,
-          signedAt: newSignedStr
-        }));
-        setShowPinModal(false);
-        showToast("🛡️ Đã ký số USB Token I-CA thành công qua Plugin!", 3500);
-      } else {
-        setPinError("⚠️ " + (res.error || "Không kết nối được I-CA Plugin. Bạn có thể nhập mã PIN bên dưới để xác thực ký nhanh."));
-      }
-    } catch (e) {
-      setPinError("⚠️ Không kết nối được I-CA Web Plugin (Port: " + (COMPANY.digitalSign?.pluginPort || 15888) + "). Bạn có thể nhập mã PIN bên dưới để xác thực.");
-    } finally {
-      setPluginSigning(false);
-    }
-  };
 
   const { subtotal, vat, total } = calcItems(localQuote?.items || [], localQuote?.vatRate);
 
@@ -437,21 +328,16 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
         dxPara([{ text: localQuote.contact || localQuote.customer, bold: true }], { align: "center", size: 20 })
       ], 4500);
 
+      const stampRid = (printOptions.showStamp && getStampUrl() && getStampUrl().length > 100) ? getImgRid(getStampUrl()) : null;
+
       const rightSignRuns = [
         dxPara(`Phú Mỹ, ngày ${qDay} tháng ${qMonth} năm ${qYear}`, { align: "center", size: 18, italic: true, spaceAfter: 40 }),
-        dxPara(T.signTitle, { align: "center", bold: true, size: 20, spaceAfter: (printOptions.showDigitalSign && isSigned) ? 60 : 600 })
+        dxPara(T.signTitle, { align: "center", bold: true, size: 20, spaceAfter: stampRid ? 40 : 450 }),
       ];
 
-      if (printOptions.showDigitalSign && isSigned) {
+      if (stampRid) {
         rightSignRuns.push(
-          dxPara([
-            { text: `Digitally signed by ${COMPANY.digitalSign?.signerName || COMPANY.name}\n`, bold: true, color: "0F172A" },
-            { text: `DN: C=VN, S=${COMPANY.digitalSign?.province || "Bà Rịa - Vũng Tàu"}, O=${COMPANY.digitalSign?.signerName || COMPANY.name}, CN=${COMPANY.digitalSign?.signerName || COMPANY.name}, OID.0.9.2342.19200300.100.1.1=MST:${COMPANY.mst}\n`, color: "334155" },
-            { text: `Reason: ${COMPANY.digitalSign?.reason || "I am approving this document with my legally binding signature"}\n`, color: "334155" },
-            { text: `Location: ${COMPANY.digitalSign?.location || "Bà Rịa - Vũng Tàu"}\n`, color: "334155" },
-            { text: `Date: ${signedDate}\n`, color: "334155" },
-            { text: `${COMPANY.digitalSign?.caProvider || "I-CA (I-CA Public CA)"}`, italic: true, color: "64748B" }
-          ], { align: "center", size: 15, spaceAfter: 120 })
+          dxPara([dxImage(stampRid, 650000, 650000)], { align: "center", spaceAfter: 40 })
         );
       }
 
@@ -578,23 +464,6 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               {wordLoading ? "⏳ Đang tạo Word..." : "📝 Xuất File Word (.docx)"}
             </button>
 
-            <button 
-              className={`btn ${isSigned && printOptions.showDigitalSign ? "btn-ghost" : "btn-primary"}`} 
-              onClick={handleOpenSignModal}
-              style={{ 
-                display: "flex", 
-                alignItems: "center", 
-                gap: 6, 
-                color: isSigned && printOptions.showDigitalSign ? "#059669" : undefined, 
-                borderColor: isSigned && printOptions.showDigitalSign ? "#a7f3d0" : undefined,
-                background: isSigned && printOptions.showDigitalSign ? "#ecfdf5" : undefined,
-                fontWeight: 600 
-              }}
-              title="Nhập mã PIN Token để ký số điện tử của doanh nghiệp lên báo giá"
-            >
-              {isSigned && printOptions.showDigitalSign ? "🛡️ Đã ký số USB Token" : "🖋️ Ký số báo giá ngay"}
-            </button>
-
             <div style={{ height: 24, width: 1, background: "#cbd5e1", margin: "0 4px" }} />
             {onCreateContract && (
               <button className="btn btn-ghost" onClick={() => { onClose(); onCreateContract(localQuote); }} style={{ color: "#2563eb", fontWeight: 600 }}>
@@ -661,18 +530,14 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               Cột Thuế VAT
             </label>
 
-            <label style={{ fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, userSelect: "none", color: "#059669", fontWeight: 600 }}>
+            <label style={{ fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, userSelect: "none", color: "#1e293b", fontWeight: 600 }}>
               <input
                 type="checkbox"
-                checked={printOptions.showDigitalSign}
-                onChange={e => {
-                  const checked = e.target.checked;
-                  setPrintOptions(p => ({ ...p, showDigitalSign: checked }));
-                  if (checked) setIsSigned(true);
-                }}
-                style={{ width: 16, height: 16, accentColor: "#059669" }}
+                checked={printOptions.showStamp}
+                onChange={e => setPrintOptions(p => ({ ...p, showStamp: e.target.checked }))}
+                style={{ width: 16, height: 16, accentColor: "var(--accent)" }}
               />
-              🖋️ Dấu Ký Số Điện Tử
+              💮 Con dấu scan
             </label>
           </div>
 
@@ -859,94 +724,30 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                 <div style={{ height: 60 }} />
                 <div style={{ fontWeight: 600 }}>{localQuote.contact || localQuote.customer}</div>
               </div>
-              <div style={{ textAlign: "center", minWidth: 280, maxWidth: 360 }}>
+              <div style={{ textAlign: "center", minWidth: 260, maxWidth: 320 }}>
                 <div style={{ color: "#555", fontStyle: "italic", marginBottom: 4 }}>
                   Phú Mỹ, ngày {qDay} tháng {qMonth} năm {qYear}
                 </div>
                 <div style={{ fontWeight: 700, color: "#1a2540", marginBottom: 2 }}>{T.signTitle}</div>
-                <div style={{ color: "#666", fontSize: 10, marginBottom: 6 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
+                <div style={{ color: "#666", fontSize: 10, marginBottom: 4 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
                 
-                {printOptions.showDigitalSign && isSigned ? (
-                  <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    border: "1px solid rgba(226, 232, 240, 0.9)",
-                    borderRadius: "6px",
-                    padding: "8px 10px",
-                    background: "rgba(248, 250, 252, 0.75)",
-                    position: "relative",
-                    margin: "4px auto 8px",
-                    textAlign: "left",
-                    maxWidth: 350,
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
-                  }}>
-                    {/* Left side: Stamp / Company short block */}
-                    <div style={{
-                      flex: "0 0 100px",
-                      display: "flex",
-                      flexDirection: "column",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      textAlign: "center",
-                      borderRight: "1px dashed #cbd5e1",
-                      paddingRight: "8px"
-                    }}>
-                      {getStampUrl() ? (
-                        <img 
-                          src={getStampUrl()} 
-                          alt="Con dấu" 
-                          style={{ 
-                            width: "85px", 
-                            height: "85px", 
-                            objectFit: "contain"
-                          }} 
-                        />
-                      ) : (
-                        <div style={{
-                          fontWeight: "900",
-                          fontSize: "12px",
-                          lineHeight: "1.25",
-                          color: "#1e293b",
-                          textTransform: "uppercase"
-                        }}>
-                          {COMPANY.short || "MÁY TÍNH PHÚ MỸ"}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right side: X.509 Token standard metadata matching Foxit style */}
-                    <div style={{
-                      flex: 1,
-                      fontSize: "9px",
-                      lineHeight: "1.36",
-                      color: "#1e293b",
-                      fontFamily: "Segoe UI, Arial, sans-serif",
-                      wordBreak: "break-word"
-                    }}>
-                      <div style={{ color: "#000", fontWeight: "700", marginBottom: "1px", fontSize: "9.5px" }}>
-                        Digitally signed by {COMPANY.digitalSign?.signerName || COMPANY.name}
-                      </div>
-                      <div>
-                        <strong>DN:</strong> C=VN, S={COMPANY.digitalSign?.province || "Bà Rịa - Vũng Tàu"}, O={COMPANY.digitalSign?.signerName || COMPANY.name}, CN={COMPANY.digitalSign?.signerName || COMPANY.name}, OID.0.9.2342.19200300.100.1.1=MST:{COMPANY.mst}
-                      </div>
-                      <div style={{ marginTop: "1px" }}>
-                        <strong>Reason:</strong> {COMPANY.digitalSign?.reason || "I am approving this document with my legally binding signature"}
-                      </div>
-                      <div style={{ marginTop: "1px" }}>
-                        <strong>Location:</strong> {COMPANY.digitalSign?.location || "Bà Rịa - Vũng Tàu"}
-                      </div>
-                      <div style={{ marginTop: "1px" }}>
-                        <strong>Date:</strong> {signedDate}
-                      </div>
-                      <div style={{ color: "#64748b", marginTop: "1px", fontStyle: "italic", fontSize: "8.5px" }}>
-                        {COMPANY.digitalSign?.caProvider || "I-CA (I-CA Public CA)"}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ height: 60 }} />
-                )}
+                <div style={{ position: "relative", minHeight: 75, display: "flex", justifyContent: "center", alignItems: "center", margin: "4px 0" }}>
+                  {printOptions.showStamp && getStampUrl() && (
+                    <img 
+                      src={getStampUrl()} 
+                      alt="Con dấu" 
+                      style={{ 
+                        width: 100, 
+                        height: 100, 
+                        objectFit: "contain",
+                        position: "absolute",
+                        top: -12,
+                        opacity: 0.95,
+                        pointerEvents: "none"
+                      }} 
+                    />
+                  )}
+                </div>
 
                 <div style={{ fontWeight: 700, fontSize: 12, color: "#0f172a", textTransform: "uppercase", marginTop: 4 }}>
                   {COMPANY.representative || "TRẦN VĂN THỊNH"}
@@ -961,102 +762,6 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
           <button className="btn btn-primary" onClick={handlePrint}>🖨️ In Báo Giá</button>
         </div>
       </div>
-
-      {/* USB Token PIN Verification Modal */}
-      {showPinModal && (
-        <div className="modal-overlay" style={{ zIndex: 99999 }} onClick={e => e.target === e.currentTarget && setShowPinModal(false)}>
-          <div className="modal" style={{ maxWidth: 440, borderRadius: 12, padding: 0, overflow: "hidden", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)" }}>
-            {/* Header */}
-            <div style={{ background: "linear-gradient(135deg, #1e3a8a, #2563eb)", color: "#fff", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700 }}>
-                <span>🔒</span>
-                <span>Xác thực Chữ ký số USB Token (I-CA)</span>
-              </div>
-              <button type="button" onClick={() => setShowPinModal(false)} style={{ background: "none", border: "none", color: "#fff", fontSize: 22, cursor: "pointer", opacity: 0.8, lineHeight: 1 }}>×</button>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: "20px 24px" }}>
-              {/* Certificate Card info */}
-              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", marginBottom: 16, fontSize: 12 }}>
-                <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>🛡️</span>
-                  <span>Chứng thư số điện tử I-CA (X.509)</span>
-                </div>
-                <div style={{ color: "#475569", lineHeight: 1.5 }}>
-                  <div><strong>Chủ thể:</strong> {COMPANY.digitalSign?.signerName || COMPANY.name}</div>
-                  <div><strong>Mã số thuế:</strong> {COMPANY.mst}</div>
-                  <div><strong>Người ký:</strong> {COMPANY.representative || "TRẦN VĂN THỊNH"}</div>
-                  <div><strong>Đơn vị CA:</strong> {COMPANY.digitalSign?.caProvider || "I-CA (I-CA Public CA)"}</div>
-                </div>
-              </div>
-
-              {/* Direct Plugin Sign Trigger */}
-              <div style={{ marginBottom: 16, textAlign: "center" }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={handleSignViaPlugin}
-                  disabled={pluginSigning}
-                  style={{ width: "100%", padding: "10px 14px", fontSize: 13, fontWeight: 700, background: "#ecfdf5", color: "#047857", borderColor: "#a7f3d0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
-                >
-                  <span>{pluginSigning ? "⏳ Đang kết nối I-CA Plugin..." : "⚡ Ký trực tiếp qua I-CA Token Plugin (Bật popup Windows)"}</span>
-                </button>
-              </div>
-
-              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", color: "#94a3b8", fontSize: 11 }}>
-                <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
-                <span>HOẶC XÁC THỰC MÃ PIN NHANH</span>
-                <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
-              </div>
-
-              <form onSubmit={handleConfirmPinSign}>
-                <div className="form-group" style={{ marginBottom: 14 }}>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 6 }}>
-                    Mã PIN USB Token:
-                  </label>
-                  <div style={{ position: "relative" }}>
-                    <input 
-                      type={showPinText ? "text" : "password"}
-                      autoFocus
-                      className="form-control"
-                      style={{ paddingRight: 40, fontSize: 15, letterSpacing: showPinText ? "normal" : "3px", height: 42 }}
-                      placeholder="Nhập mã PIN Token..."
-                      value={pinInput}
-                      onChange={e => { setPinInput(e.target.value); setPinError(""); }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPinText(!showPinText)}
-                      style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#64748b" }}
-                      title={showPinText ? "Ẩn PIN" : "Hiện PIN"}
-                    >
-                      {showPinText ? "👁️" : "🙈"}
-                    </button>
-                  </div>
-                  {pinError && (
-                    <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 500, lineHeight: 1.4 }}>
-                      {pinError}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
-                    * Mặc định mã PIN là: <code>{COMPANY.digitalSign?.pin || "12345678"}</code> (có thể cấu hình trong Cài đặt).
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowPinModal(false)}>
-                    Hủy
-                  </button>
-                  <button type="submit" className="btn btn-primary" style={{ background: "#2563eb", padding: "8px 18px", fontWeight: 600 }}>
-                    🖋️ Xác nhận & Ký số
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
