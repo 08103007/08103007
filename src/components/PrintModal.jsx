@@ -543,6 +543,55 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
 
           {/* Live Preview */}
           <div className="quote-preview" id="quotePreviewContent">
+            <style>{`
+              #quotePreviewContent {
+                background: #ffffff !important;
+                color: #000000 !important;
+                font-family: 'Plus Jakarta Sans', Arial, sans-serif !important;
+              }
+              #quotePreviewContent * {
+                color: #000000 !important;
+                box-sizing: border-box !important;
+              }
+              #quotePreviewContent table.quote-items-table,
+              #quotePreviewContent table.quote-table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                border-spacing: 0 !important;
+                border: 1px solid #000000 !important;
+                margin-top: 10px !important;
+                margin-bottom: 12px !important;
+                background: #ffffff !important;
+              }
+              #quotePreviewContent table.quote-items-table th,
+              #quotePreviewContent table.quote-table th {
+                border: 1px solid #000000 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                font-weight: 700 !important;
+                text-align: center !important;
+                padding: 6px 4px !important;
+                font-size: 11.5px !important;
+                vertical-align: middle !important;
+              }
+              #quotePreviewContent table.quote-items-table td,
+              #quotePreviewContent table.quote-table td {
+                border: 1px solid #000000 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 6px 4px !important;
+                font-size: 11.5px !important;
+                vertical-align: middle !important;
+              }
+              #quotePreviewContent table.quote-items-table tfoot td,
+              #quotePreviewContent table.quote-table tfoot td {
+                border: 1px solid #000000 !important;
+                background: #ffffff !important;
+                color: #000000 !important;
+                padding: 6px 6px !important;
+                font-size: 12px !important;
+              }
+            `}</style>
             <div className="quote-company-header">
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                 <img src={getLogoUrl()} className="company-logo-img" alt="PMC Logo" />

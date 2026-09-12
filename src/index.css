@@ -1490,16 +1490,19 @@ input[type=number] {
   border-collapse: collapse !important;
   border-spacing: 0 !important;
   width: 100% !important;
+  background: #ffffff !important;
 }
-.quote-items-table th, .quote-items-table td,
-.quote-table th, .quote-table td,
-.handover-items-table th, .handover-items-table td,
-.debt-items-table th, .debt-items-table td,
-.contract-table th, .contract-table td,
-.payreq-table th, .payreq-table td {
+.quote-items-table th, .quote-items-table td, .quote-items-table tfoot td,
+.quote-table th, .quote-table td, .quote-table tfoot td,
+.handover-items-table th, .handover-items-table td, .handover-items-table tfoot td,
+.debt-items-table th, .debt-items-table td, .debt-items-table tfoot td,
+.contract-table th, .contract-table td, .contract-table tfoot td,
+.payreq-table th, .payreq-table td, .payreq-table tfoot td {
   border: 1px solid #000000 !important;
   box-sizing: border-box !important;
-  padding: 6px 6px;
+  padding: 6px 6px !important;
+  background: #ffffff !important;
+  color: #000000 !important;
 }
 
 /* 5. Document Previews structural styles */

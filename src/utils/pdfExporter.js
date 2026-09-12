@@ -26,16 +26,19 @@ export function buildPrintHtml(elementId, extraCss) {
         border-spacing: 0 !important;
         border: 1px solid #000000 !important;
         width: 100% !important;
+        background: #ffffff !important;
       }
-      table.quote-table th, table.quote-table td,
-      table.quote-items-table th, table.quote-items-table td,
-      table.handover-items-table th, table.handover-items-table td,
-      table.debt-items-table th, table.debt-items-table td,
-      table.contract-table th, table.contract-table td,
-      table.payreq-table th, table.payreq-table td,
-      table.print-table th, table.print-table td {
+      table.quote-table th, table.quote-table td, table.quote-table tfoot td,
+      table.quote-items-table th, table.quote-items-table td, table.quote-items-table tfoot td,
+      table.handover-items-table th, table.handover-items-table td, table.handover-items-table tfoot td,
+      table.debt-items-table th, table.debt-items-table td, table.debt-items-table tfoot td,
+      table.contract-table th, table.contract-table td, table.contract-table tfoot td,
+      table.payreq-table th, table.payreq-table td, table.payreq-table tfoot td,
+      table.print-table th, table.print-table td, table.print-table tfoot td {
         border: 1px solid #000000 !important;
         box-sizing: border-box !important;
+        background: #ffffff !important;
+        color: #000000 !important;
       }
       ${extraCss || ""}
     </style>
