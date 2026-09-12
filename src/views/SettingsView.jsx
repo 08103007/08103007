@@ -7,8 +7,9 @@ import {
   createAndBindLocalJsonFile, disconnectLocalJsonFile, readFromLocalJsonFile,
   writeToLocalJsonFile, _mem,
   getLS, removeLS, getAppPrefix, setAppPrefix,
-  compareLocalAndGAS, applyReconciledQuotes
+  compareLocalAndGAS, applyReconciledQuotes, showToast
 } from '../utils/gasStore';
+import { parseX509Certificate } from '../utils/certParser';
 import { 
   getSupabaseUrl, setSupabaseUrl, getSupabaseKey, setSupabaseKey, 
   testSupabaseConnection, migrateAllLocalDataToSupabase, SUPABASE_SQL_SCHEMA 
@@ -66,6 +67,7 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
   const [stampPreview, setStampPreview] = useState(getStampUrl());
   const fileRef = useRef(null);
   const stampFileRef = useRef(null);
+  const certFileRef = useRef(null);
 
   const setC = (k, v) => setCompany(prev => ({ ...prev, [k]: v }));
   const setDS = (k, v) => setCompany(prev => ({ 
@@ -82,6 +84,43 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
       setDS("stampImg", ev.target.result); 
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleCertUpload = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      const buffer = await file.arrayBuffer();
+      const parsed = parseX509Certificate(buffer);
+      
+      setCompany(prev => {
+        const next = { ...prev };
+        if (parsed.mst) next.mst = parsed.mst;
+        if (parsed.signerName && (!next.name || next.name === DEFAULT_COMPANY.name)) next.name = parsed.signerName;
+        
+        next.digitalSign = {
+          ...(next.digitalSign || {}),
+          signerName: parsed.signerName || next.digitalSign?.signerName || next.name,
+          province: parsed.province || next.digitalSign?.province || "Bà Rịa - Vũng Tàu",
+          location: parsed.location || next.digitalSign?.location || "Bà Rịa - Vũng Tàu",
+          caProvider: parsed.caProvider || "I-CA (I-CA Public CA)",
+          serialNumber: parsed.serialNumber || "",
+          validFrom: parsed.validFrom || "",
+          validTo: parsed.validTo || "",
+          daysRemaining: parsed.daysRemaining,
+          isExpired: parsed.isExpired,
+          dnString: parsed.dnString,
+          mst: parsed.mst || next.mst
+        };
+        return next;
+      });
+
+      showToast(`✅ Đã nạp thành công chứng thư số: ${parsed.signerName} (${parsed.caProvider})`, 4000);
+    } catch (err) {
+      alert("❌ Lỗi đọc file chứng thư số: " + err.message);
+    } finally {
+      if (e.target) e.target.value = "";
+    }
   };
 
   const cd = (CONTRACT_DEFAULTS && CONTRACT_DEFAULTS.vi_en) || {};
@@ -586,6 +625,73 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
         <div className="card-body">
           <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
             Cấu hình các trường thông tin chứng thư số X.509 hiển thị trên khối ký số báo giá (chuẩn Foxit / PKCS#7) và mã PIN xác thực USB Token.
+          </div>
+
+          {/* Certificate Import Banner */}
+          <div style={{
+            background: "#f0fdf4",
+            border: "1px solid #bbf7d0",
+            borderRadius: 8,
+            padding: "14px 16px",
+            marginBottom: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 10
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#166534", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>📂</span>
+                  <span>Nhập thông tin tự động từ File Chứng thư số (.cer / .crt / .pem)</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#15803d", marginTop: 2 }}>
+                  Xuất file <code>.cer</code> từ Token I-CA / USB Token và tải lên để tự động nhận diện Chủ thể, MST, CA và Thời hạn.
+                </div>
+              </div>
+
+              <div>
+                <input 
+                  type="file" 
+                  ref={certFileRef} 
+                  accept=".cer,.crt,.pem,.der" 
+                  style={{ display: "none" }} 
+                  onChange={handleCertUpload} 
+                />
+                <button 
+                  type="button" 
+                  className="btn btn-primary btn-sm" 
+                  onClick={() => certFileRef.current && certFileRef.current.click()}
+                  style={{ background: "#16a34a", borderColor: "#15803d", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}
+                >
+                  📥 Chọn File Chứng thư (.cer / .crt)
+                </button>
+              </div>
+            </div>
+
+            {/* Display active certificate status if present */}
+            {company.digitalSign?.serialNumber && (
+              <div style={{ background: "#ffffff", border: "1px solid #86efac", borderRadius: 6, padding: "10px 12px", fontSize: 11, lineHeight: 1.5 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px dashed #dcfce7", paddingBottom: 4, marginBottom: 6 }}>
+                  <span style={{ fontWeight: 700, color: "#166534" }}>🛡️ Chứng thư số đang kích hoạt:</span>
+                  <span style={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    padding: "2px 8px",
+                    borderRadius: 10,
+                    background: company.digitalSign?.isExpired ? "#fee2e2" : "#dcfce7",
+                    color: company.digitalSign?.isExpired ? "#dc2626" : "#166534"
+                  }}>
+                    {company.digitalSign?.isExpired ? "❌ Đã hết hạn" : `✅ Hợp lệ (Còn ${company.digitalSign?.daysRemaining || 0} ngày)`}
+                  </span>
+                </div>
+                <div style={{ color: "#334155" }}>
+                  <div><strong>Chủ thể:</strong> {company.digitalSign?.signerName || company.name}</div>
+                  <div><strong>Nhà cung cấp (Issuer):</strong> {company.digitalSign?.caProvider}</div>
+                  <div><strong>Số Serial:</strong> <code>{company.digitalSign?.serialNumber}</code></div>
+                  <div><strong>Thời hạn hiệu lực:</strong> {company.digitalSign?.validFrom} đến {company.digitalSign?.validTo}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="form-row form-row-2" style={{ marginBottom: 12 }}>
