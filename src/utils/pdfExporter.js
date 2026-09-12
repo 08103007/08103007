@@ -40,6 +40,14 @@ export function buildPrintHtml(elementId, extraCss) {
         background: #ffffff !important;
         color: #000000 !important;
       }
+      img.company-stamp-img {
+        width: 40mm !important;
+        height: 40mm !important;
+        max-width: 40mm !important;
+        max-height: 40mm !important;
+        object-fit: contain !important;
+        aspect-ratio: 1 / 1 !important;
+      }
       ${extraCss || ""}
     </style>
   </head><body>${el.outerHTML}</body></html>`;

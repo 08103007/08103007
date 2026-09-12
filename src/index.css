@@ -1467,11 +1467,19 @@ input[type=number] {
   color: #000 !important;
 }
 
-/* 2. Logo size in Quotation */
+/* 2. Logo and Stamp size in Quotation & Documents */
 .company-logo-img {
   width: 56px;
   height: 56px;
   object-fit: contain;
+}
+.company-stamp-img {
+  width: 151px !important;
+  height: 151px !important;
+  max-width: 151px !important;
+  max-height: 151px !important;
+  object-fit: contain !important;
+  aspect-ratio: 1 / 1 !important;
 }
 
 /* 3. Item Descriptions (Note Preview) - Normal font weight, pure black text */

@@ -138,6 +138,55 @@ export function getStampUrl() {
   return "";
 }
 
+const _squaredStampCache = new Map();
+
+export async function makeSquareStampImage(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== "string" || imageUrl.length < 20) return imageUrl;
+  if (_squaredStampCache.has(imageUrl)) {
+    return _squaredStampCache.get(imageUrl);
+  }
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      if (!w || !h) { 
+        _squaredStampCache.set(imageUrl, imageUrl);
+        resolve(imageUrl); 
+        return; 
+      }
+      if (Math.abs(w - h) < 2) { 
+        _squaredStampCache.set(imageUrl, imageUrl);
+        resolve(imageUrl); 
+        return; 
+      }
+      const maxDim = Math.max(w, h);
+      const canvas = document.createElement("canvas");
+      canvas.width = maxDim;
+      canvas.height = maxDim;
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, maxDim, maxDim);
+      const x = Math.round((maxDim - w) / 2);
+      const y = Math.round((maxDim - h) / 2);
+      ctx.drawImage(img, x, y, w, h);
+      try {
+        const sqDataUrl = canvas.toDataURL("image/png");
+        _squaredStampCache.set(imageUrl, sqDataUrl);
+        resolve(sqDataUrl);
+      } catch (e) {
+        _squaredStampCache.set(imageUrl, imageUrl);
+        resolve(imageUrl);
+      }
+    };
+    img.onerror = () => {
+      _squaredStampCache.set(imageUrl, imageUrl);
+      resolve(imageUrl);
+    };
+    img.src = imageUrl;
+  });
+}
+
 // In-memory store
 export const _mem = {
   quotes:    null,

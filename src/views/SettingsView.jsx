@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   COMPANY, logout, PRODUCT_CATALOG, 
   CONTRACT_DEFAULTS, LS_APP_PW, LS_COMPANY, LS_CONTRACTS_DF, LS_CATALOG,
-  getLogoUrl, getStampUrl, DEFAULT_LOGO_URI,
+  getLogoUrl, getStampUrl, makeSquareStampImage, DEFAULT_LOGO_URI,
   exportToJSON, importFromJSON, recoverEmergencyBackup,
   initLocalFileHandle, getCurrentFileHandle, selectAndBindLocalJsonFile,
   createAndBindLocalJsonFile, disconnectLocalJsonFile, readFromLocalJsonFile,
@@ -58,7 +58,12 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     if (COMPANY) {
       setCompany({ ...DEFAULT_COMPANY, ...COMPANY });
       setLogoPreview(getLogoUrl());
-      setStampPreview(getStampUrl());
+      const rawStamp = getStampUrl();
+      if (rawStamp) {
+        makeSquareStampImage(rawStamp).then(sq => setStampPreview(sq || rawStamp));
+      } else {
+        setStampPreview("");
+      }
     }
   }, []);
 
@@ -74,9 +79,11 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => { 
-      setStampPreview(ev.target.result); 
-      setC("stamp", ev.target.result); 
+    reader.onload = async (ev) => { 
+      const raw = ev.target.result;
+      const squared = await makeSquareStampImage(raw);
+      setStampPreview(squared); 
+      setC("stamp", squared); 
     };
     reader.readAsDataURL(file);
   };

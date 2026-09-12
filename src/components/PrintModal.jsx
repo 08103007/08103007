@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { COMPANY, getLogoUrl, getStampUrl, showToast, _mem } from '../utils/gasStore';
+import React, { useState, useEffect } from 'react';
+import { COMPANY, getLogoUrl, getStampUrl, makeSquareStampImage, showToast, _mem } from '../utils/gasStore';
 import { calcItems, fmt, generateCustomerShortName } from '../utils/helpers';
 import { printElementViaIframe, exportElementToPdf } from '../utils/pdfExporter';
 import { 
@@ -87,6 +87,19 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
 
   // Language state
   const [lang, setLang] = useState(() => quote?.lang || "vi");
+
+  // Stamp square image state
+  const [stampUrl, setStampUrl] = useState(() => getStampUrl());
+  useEffect(() => {
+    const rawStamp = getStampUrl();
+    if (rawStamp) {
+      makeSquareStampImage(rawStamp).then(sq => {
+        if (sq) setStampUrl(sq);
+      });
+    } else {
+      setStampUrl("");
+    }
+  }, []);
 
   // Parse quote date (defaults to today only if quote.date is missing)
   const parseQuoteDate = (dStr) => {
@@ -328,7 +341,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
         dxPara([{ text: localQuote.contact || localQuote.customer, bold: true }], { align: "center", size: 20 })
       ], 4500);
 
-      const stampRid = (printOptions.showStamp && getStampUrl() && getStampUrl().length > 100) ? getImgRid(getStampUrl()) : null;
+      const stampRid = (printOptions.showStamp && stampUrl && stampUrl.length > 100) ? getImgRid(stampUrl) : null;
 
       const rightSignRuns = [
         dxPara(`Phú Mỹ, ngày ${qDay} tháng ${qMonth} năm ${qYear}`, { align: "center", size: 18, italic: true, spaceAfter: 40 }),
@@ -337,7 +350,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
 
       if (stampRid) {
         rightSignRuns.push(
-          dxPara([dxImage(stampRid, 650000, 650000)], { align: "center", spaceAfter: 40 })
+          dxPara([dxImage(stampRid, 1440000, 1440000)], { align: "center", spaceAfter: 40 })
         );
       }
 
@@ -591,6 +604,22 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                 padding: 6px 6px !important;
                 font-size: 12px !important;
               }
+              #quotePreviewContent img.company-stamp-img {
+                width: 151px !important;
+                height: 151px !important;
+                max-width: 151px !important;
+                max-height: 151px !important;
+                object-fit: contain !important;
+                aspect-ratio: 1 / 1 !important;
+              }
+              @media print {
+                #quotePreviewContent img.company-stamp-img {
+                  width: 40mm !important;
+                  height: 40mm !important;
+                  max-width: 40mm !important;
+                  max-height: 40mm !important;
+                }
+              }
             `}</style>
             <div className="quote-company-header">
               <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
@@ -770,7 +799,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               <div style={{ textAlign: "center", minWidth: 200 }}>
                 <div style={{ fontWeight: 700, color: "#1a2540" }}>ĐẠI DIỆN KHÁCH HÀNG</div>
                 <div style={{ color: "#666", fontSize: 10 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
-                <div style={{ height: 60 }} />
+                <div style={{ height: 100 }} />
                 <div style={{ fontWeight: 600 }}>{localQuote.contact || localQuote.customer}</div>
               </div>
               <div style={{ textAlign: "center", minWidth: 260, maxWidth: 320 }}>
@@ -780,17 +809,21 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                 <div style={{ fontWeight: 700, color: "#1a2540", marginBottom: 2 }}>{T.signTitle}</div>
                 <div style={{ color: "#666", fontSize: 10, marginBottom: 4 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
                 
-                <div style={{ position: "relative", minHeight: 75, display: "flex", justifyContent: "center", alignItems: "center", margin: "4px 0" }}>
-                  {printOptions.showStamp && getStampUrl() && (
+                <div style={{ position: "relative", minHeight: 90, display: "flex", justifyContent: "center", alignItems: "center", margin: "4px 0" }}>
+                  {printOptions.showStamp && stampUrl && (
                     <img 
-                      src={getStampUrl()} 
+                      src={stampUrl} 
                       alt="Con dấu" 
+                      className="company-stamp-img"
                       style={{ 
-                        width: 100, 
-                        height: 100, 
+                        width: 151, 
+                        height: 151, 
+                        maxWidth: 151, 
+                        maxHeight: 151, 
                         objectFit: "contain",
+                        aspectRatio: "1 / 1",
                         position: "absolute",
-                        top: -12,
+                        top: -24,
                         opacity: 0.95,
                         pointerEvents: "none"
                       }} 
