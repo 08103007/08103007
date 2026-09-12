@@ -413,7 +413,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             { text: `Reason: ${COMPANY.digitalSign?.reason || "I am approving this document with my legally binding signature"}\n`, color: "334155" },
             { text: `Location: ${COMPANY.digitalSign?.location || "Bà Rịa - Vũng Tàu"}\n`, color: "334155" },
             { text: `Date: ${signedDate}\n`, color: "334155" },
-            { text: `${COMPANY.digitalSign?.caProvider || "Foxit Reader Version: 10.1.1"}`, italic: true, color: "64748B" }
+            { text: `${COMPANY.digitalSign?.caProvider || "I-CA (I-CA Public CA)"}`, italic: true, color: "64748B" }
           ], { align: "center", size: 15, spaceAfter: 120 })
         );
       }
@@ -903,7 +903,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                         <strong>Date:</strong> {signedDate}
                       </div>
                       <div style={{ color: "#64748b", marginTop: "1px", fontStyle: "italic", fontSize: "8.5px" }}>
-                        {COMPANY.digitalSign?.caProvider || "Foxit Reader Version: 10.1.1"}
+                        {COMPANY.digitalSign?.caProvider || "I-CA (I-CA Public CA)"}
                       </div>
                     </div>
                   </div>
@@ -933,7 +933,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             <div style={{ background: "linear-gradient(135deg, #1e3a8a, #2563eb)", color: "#fff", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700 }}>
                 <span>🔒</span>
-                <span>Xác thực Chữ ký số USB Token</span>
+                <span>Xác thực Chữ ký số USB Token (I-CA)</span>
               </div>
               <button type="button" onClick={() => setShowPinModal(false)} style={{ background: "none", border: "none", color: "#fff", fontSize: 22, cursor: "pointer", opacity: 0.8, lineHeight: 1 }}>×</button>
             </div>
@@ -944,13 +944,13 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", marginBottom: 18, fontSize: 12 }}>
                 <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
                   <span>🛡️</span>
-                  <span>Chứng thư số điện tử (X.509)</span>
+                  <span>Chứng thư số điện tử I-CA (X.509)</span>
                 </div>
                 <div style={{ color: "#475569", lineHeight: 1.5 }}>
                   <div><strong>Chủ thể:</strong> {COMPANY.digitalSign?.signerName || COMPANY.name}</div>
                   <div><strong>Mã số thuế:</strong> {COMPANY.mst}</div>
                   <div><strong>Người ký:</strong> {COMPANY.representative || "TRẦN VĂN THỊNH"}</div>
-                  <div><strong>Đơn vị CA:</strong> {COMPANY.digitalSign?.caProvider || "Foxit Reader / USB Token PKCS#11"}</div>
+                  <div><strong>Đơn vị CA:</strong> {COMPANY.digitalSign?.caProvider || "I-CA (I-CA Public CA)"}</div>
                 </div>
               </div>
 

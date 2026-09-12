@@ -633,9 +633,9 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
               <label>Đơn vị CA / Ứng dụng ký:</label>
               <input 
                 className="form-control" 
-                value={company.digitalSign?.caProvider || "Foxit Reader Version: 10.1.1"} 
+                value={company.digitalSign?.caProvider || "I-CA (I-CA Public CA)"} 
                 onChange={e => setDS("caProvider", e.target.value)} 
-                placeholder="Foxit Reader Version: 10.1.1" 
+                placeholder="I-CA (I-CA Public CA)" 
               />
             </div>
           </div>

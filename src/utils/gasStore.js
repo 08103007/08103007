@@ -102,7 +102,7 @@ export const DEFAULT_COMPANY = {
     province: "Bà Rịa - Vũng Tàu",
     location: "Bà Rịa - Vũng Tàu",
     reason: "I am approving this document with my legally binding signature",
-    caProvider: "Foxit Reader Version: 10.1.1",
+    caProvider: "I-CA (I-CA Public CA)",
     pin: "12345678",
     stampImg: "",
     showStamp: true,
