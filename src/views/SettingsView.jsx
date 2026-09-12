@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   COMPANY, getGasUrl, setGasUrl, logout, PRODUCT_CATALOG, 
-  CONTRACT_DEFAULTS, LS_TOKEN, LS_GAS_URL, getLogoUrl, DEFAULT_LOGO_URI,
+  CONTRACT_DEFAULTS, LS_TOKEN, LS_GAS_URL, getLogoUrl, getStampUrl, DEFAULT_LOGO_URI,
   exportToJSON, importFromJSON, recoverEmergencyBackup,
   initLocalFileHandle, getCurrentFileHandle, selectAndBindLocalJsonFile,
   createAndBindLocalJsonFile, disconnectLocalJsonFile, readFromLocalJsonFile,
@@ -63,7 +63,26 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
 
   const [saveMsg,  setSaveMsg]  = useState("");
   const [logoPreview, setLogoPreview] = useState(getLogoUrl());
+  const [stampPreview, setStampPreview] = useState(getStampUrl());
   const fileRef = useRef(null);
+  const stampFileRef = useRef(null);
+
+  const setC = (k, v) => setCompany(prev => ({ ...prev, [k]: v }));
+  const setDS = (k, v) => setCompany(prev => ({ 
+    ...prev, 
+    digitalSign: { ...(prev.digitalSign || {}), [k]: v } 
+  }));
+
+  const handleStampUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { 
+      setStampPreview(ev.target.result); 
+      setDS("stampImg", ev.target.result); 
+    };
+    reader.readAsDataURL(file);
+  };
 
   const cd = (CONTRACT_DEFAULTS && CONTRACT_DEFAULTS.vi_en) || {};
   const [deliveryDays,  setDeliveryDays]  = useState(cd.deliveryDays  || "05");
@@ -188,8 +207,6 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
 
 
 
-  const setC = (f, v) => setCompany(p => ({ ...p, [f]: v }));
-
   const handleChangeCredentials = async () => {
     if (!currentPw) { setCredMsg("❌ Nhập mật khẩu hiện tại"); return; }
     if (newPw && newPw.length < 6) { setCredMsg("❌ Mật khẩu mới phải ít nhất 6 ký tự"); return; }
@@ -239,25 +256,46 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     setSaving(true);
     try {
       setGasUrl(gasUrl.trim());
-      const token = getLS(LS_TOKEN) || "";
-      const resp = await fetch(getGasUrl(), {
-        method: "POST",
-        body: JSON.stringify({ token, action: "save_settings", payload: {
-          company,
-          contractDefaults: {
-            vi_en: {
-              deliveryDays:    deliveryDays,
-              deliveryPlace:   "",
-              deliveryPlaceEn: "",
-              paymentTerm:     paymentTerm,
-              paymentTermEn:   paymentTermEn,
-            }
-          },
-          productCatalog: quickCatalog.split("\n").map(s=>s.trim()).filter(Boolean),
-        }}),
-      });
-      const data = await resp.json();
-      if (!data.ok) throw new Error(data.error);
+      const payloadData = {
+        company,
+        contractDefaults: {
+          vi_en: {
+            deliveryDays:    deliveryDays,
+            deliveryPlace:   "",
+            deliveryPlaceEn: "",
+            paymentTerm:     paymentTerm,
+            paymentTermEn:   paymentTermEn,
+          }
+        },
+        productCatalog: quickCatalog.split("\n").map(s=>s.trim()).filter(Boolean),
+      };
+
+      if (hasGasUrl()) {
+        try {
+          const token = getLS(LS_TOKEN) || "";
+          await fetch(getGasUrl(), {
+            method: "POST",
+            body: JSON.stringify({ token, action: "save_settings", payload: payloadData }),
+          });
+        } catch(e) {
+          console.warn("GAS save_settings:", e.message);
+        }
+      }
+
+      if (hasSupabase()) {
+        await upsertSupabaseSettings("master_settings", {
+          ...payloadData,
+          customers: _mem.customers || [],
+          contracts: _mem.contracts || {},
+          handovers: _mem.handovers || {},
+          deliveries: _mem.deliveries || {},
+          debtRecs: _mem.debtRecs || {},
+          paymentRequests: _mem.paymentRequests || {},
+          tasks: _mem.tasks || [],
+          notes: _mem.notes || []
+        }).catch(() => {});
+      }
+
       Object.assign(COMPANY, company);
       if (!CONTRACT_DEFAULTS.vi_en) CONTRACT_DEFAULTS.vi_en = {};
       Object.assign(CONTRACT_DEFAULTS.vi_en, { deliveryDays, paymentTerm, paymentTermEn });
@@ -360,6 +398,76 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
               {logoPreview && <button className="btn btn-ghost btn-sm" style={{ marginLeft:8, color:"#dc2626" }} onClick={() => { setLogoPreview(""); setC("logo",""); }}>✕ Xóa</button>}
               <div style={{ fontSize:11, color:"#aaa", marginTop:4 }}>PNG, JPG — nên dùng ảnh vuông, nền trắng</div>
               <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleLogoUpload} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Digital Signature & Stamp Card */}
+      <div className="card" style={{ marginBottom:16, borderColor: "#dc2626" }}>
+        <div className="card-header" style={{ background: "#fef2f2", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <span style={{ fontWeight: 600, color: "#dc2626" }}>🖋️ Chữ ký số & Con dấu điện tử (Ký số Báo giá & Hợp đồng)</span>
+          <label style={{ fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, margin: 0 }}>
+            <input
+              type="checkbox"
+              checked={company.digitalSign?.enabled !== false}
+              onChange={e => setDS("enabled", e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: "#dc2626" }}
+            />
+            <span style={{ fontWeight: 600, color: "#991b1b" }}>Bật Ký Số Điện Tử Mặc Định</span>
+          </label>
+        </div>
+        <div className="card-body">
+          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+            <div style={{ width: 90, height: 90, border: "2px dashed #fca5a5", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#fff5f5", overflow: "hidden", flexShrink: 0, position: "relative" }}>
+              {stampPreview ? (
+                <img src={stampPreview} alt="Con dấu" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              ) : (
+                <span style={{ fontSize: 32, color: "#fca5a5" }}>💮</span>
+              )}
+            </div>
+            <div>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ color: "#dc2626", borderColor: "#fca5a5" }} onClick={() => stampFileRef.current && stampFileRef.current.click()}>
+                📁 Tải lên ảnh Con dấu / Chữ ký
+              </button>
+              {stampPreview && (
+                <button type="button" className="btn btn-ghost btn-sm" style={{ marginLeft: 8, color: "#991b1b" }} onClick={() => { setStampPreview(""); setDS("stampImg", ""); }}>
+                  ✕ Xóa con dấu
+                </button>
+              )}
+              <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>
+                Khuyên dùng: Ảnh con dấu tròn hoặc dấu kèm chữ ký nền trong suốt (PNG) để đóng dấu trực tiếp lên báo giá.
+              </div>
+              <input ref={stampFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleStampUpload} />
+            </div>
+          </div>
+
+          <div className="form-row form-row-2" style={{ marginBottom: 12 }}>
+            <div className="form-group">
+              <label>Tên đơn vị ký số</label>
+              <input 
+                className="form-control" 
+                value={company.digitalSign?.signerName !== undefined ? company.digitalSign.signerName : company.name} 
+                onChange={e => setDS("signerName", e.target.value)} 
+                placeholder={company.name || "CÔNG TY TNHH MÁY TÍNH PHÚ MỸ"} 
+              />
+            </div>
+            <div className="form-group">
+              <label>Nhà cung cấp chứng thư số (CA)</label>
+              <select 
+                className="form-control" 
+                value={company.digitalSign?.caProvider || "Viettel-CA"} 
+                onChange={e => setDS("caProvider", e.target.value)}
+              >
+                <option value="Viettel-CA">Viettel-CA (Tập đoàn Công nghiệp - Viễn thông Quân đội)</option>
+                <option value="VNPT-CA">VNPT-CA (Tập đoàn Bưu chính Viễn thông Việt Nam)</option>
+                <option value="FPT-CA">FPT-CA (Công ty Cổ phần Viễn thông FPT)</option>
+                <option value="BKAV-CA">BKAV-CA (Tập đoàn Công nghệ BKAV)</option>
+                <option value="MISA eSign">MISA eSign (Công ty Cổ phần MISA)</option>
+                <option value="EasyCA">EasyCA (Softdreams)</option>
+                <option value="SmartSign">SmartSign (VINA-CA)</option>
+                <option value="CA Doanh Nghiệp">Chứng thư số Doanh Nghiệp Hợp lệ</option>
+              </select>
             </div>
           </div>
         </div>

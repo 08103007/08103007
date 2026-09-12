@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { COMPANY, getLogoUrl, showToast, _mem } from '../utils/gasStore';
+import { COMPANY, getLogoUrl, getStampUrl, showToast, _mem } from '../utils/gasStore';
 import { calcItems, fmt, generateCustomerShortName } from '../utils/helpers';
 import { printElementViaIframe, exportElementToPdf } from '../utils/pdfExporter';
 import { 
@@ -116,13 +116,51 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
   const [wordLoading, setWordLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
 
+  // Digital signature state
+  const [signedDate, setSignedDate] = useState(() => {
+    if (localQuote?.signedAt) return localQuote.signedAt;
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, "0");
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const y = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    return `${d}/${m}/${y} ${hh}:${mm}:${ss}`;
+  });
+
+  const [isSigned, setIsSigned] = useState(() => {
+    return localQuote?.isSigned !== undefined ? localQuote.isSigned : true;
+  });
+
   // Print Template Options state
   const [printOptions, setPrintOptions] = useState({
     showStt: true,
     showImage: (localQuote?.items || []).some(it => it.image && it.image.trim()),
     showNote: true,
     showVat: true,
+    showDigitalSign: COMPANY.digitalSign ? COMPANY.digitalSign.enabled !== false : true,
   });
+
+  const handleSignNow = () => {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, "0");
+    const m = String(now.getMonth() + 1).padStart(2, "0");
+    const y = now.getFullYear();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const newSignedStr = `${d}/${m}/${y} ${hh}:${mm}:${ss}`;
+    setSignedDate(newSignedStr);
+    setIsSigned(true);
+    setPrintOptions(p => ({ ...p, showDigitalSign: true }));
+    setLocalQuote(prev => ({
+      ...prev,
+      isSigned: true,
+      signedAt: newSignedStr
+    }));
+    showToast("🖋️ Đã áp dụng Chữ Ký Số Điện Tử thành công!", 2500);
+  };
 
   const { subtotal, vat, total } = calcItems(localQuote?.items || [], localQuote?.vatRate);
 
@@ -321,15 +359,35 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
       }).filter(Boolean);
       const notesBlock = [dxPara([{ text: T.notesHeader, bold: true }], { size: 19, spaceAfter: 60 }), ...notesParas];
 
+      const leftSignCell = dxNoBorderCell([
+        dxPara([{ text: "ĐẠI DIỆN KHÁCH HÀNG", bold: true, color: "1A2540" }], { align: "center", size: 20 }),
+        dxPara([{ text: "(Ký, đóng dấu & ghi rõ họ tên)", italic: true, color: "666666" }], { align: "center", size: 17, spaceAfter: 600 }),
+        dxPara([{ text: localQuote.contact || localQuote.customer, bold: true }], { align: "center", size: 20 })
+      ], 4500);
+
+      const rightSignRuns = [
+        dxPara(`Phú Mỹ, ngày ${qDay} tháng ${qMonth} năm ${qYear}`, { align: "center", size: 18, italic: true, spaceAfter: 40 }),
+        dxPara(T.signTitle, { align: "center", bold: true, size: 20, spaceAfter: (printOptions.showDigitalSign && isSigned) ? 60 : 600 })
+      ];
+
+      if (printOptions.showDigitalSign && isSigned) {
+        rightSignRuns.push(
+          dxPara([
+            { text: "[ CHỮ KÝ SỐ ĐIỆN TỬ - SIGNATURE VALID ]\n", bold: true, color: "DC2626" },
+            { text: `Được ký bởi: ${COMPANY.digitalSign?.signerName || COMPANY.name}\n`, color: "DC2626" },
+            { text: `Mã số thuế: ${COMPANY.mst}\n`, color: "DC2626" },
+            { text: `Ngày ký: ${signedDate}\n`, color: "DC2626" },
+            { text: `Chứng thư số: ${COMPANY.digitalSign?.caProvider || "Viettel-CA"} (Hợp lệ)`, color: "DC2626" }
+          ], { align: "center", size: 16, spaceAfter: 100 })
+        );
+      }
+
+      rightSignRuns.push(dxPara(COMPANY.representative || "Trần Văn Thịnh", { align: "center", bold: true, size: 20 }));
+
+      const rightSignCell = dxNoBorderCell(rightSignRuns, 4400);
+
       const signBlock = dxNoBorderTable([
-        dxRow([
-          dxNoBorderCell("<w:p/>", 5000),
-          dxNoBorderCell([
-            dxPara(`Phú Mỹ, ngày ${qDay} tháng ${qMonth} năm ${qYear}`, { align: "center", size: 18, italic: true, spaceAfter: 40 }),
-            dxPara(T.signTitle, { align: "center", bold: true, size: 20, spaceAfter: 600 }),
-            dxPara(COMPANY.representative || "Trần Văn Thịnh", { align: "center", bold: true, size: 20 })
-          ], 3900)
-        ])
+        dxRow([leftSignCell, rightSignCell])
       ], 8900);
 
       const docBody = [
@@ -446,6 +504,24 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             <button className="btn btn-ghost" onClick={handleWord} disabled={wordLoading} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {wordLoading ? "⏳ Đang tạo Word..." : "📝 Xuất File Word (.docx)"}
             </button>
+
+            <button 
+              className={`btn ${isSigned && printOptions.showDigitalSign ? "btn-ghost" : "btn-primary"}`} 
+              onClick={handleSignNow}
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: 6, 
+                color: isSigned && printOptions.showDigitalSign ? "#dc2626" : undefined, 
+                borderColor: isSigned && printOptions.showDigitalSign ? "#fca5a5" : undefined,
+                background: isSigned && printOptions.showDigitalSign ? "#fef2f2" : undefined,
+                fontWeight: 600 
+              }}
+              title="Áp dụng dấu chữ ký số điện tử của doanh nghiệp lên báo giá"
+            >
+              {isSigned && printOptions.showDigitalSign ? "🛡️ Đã ký số điện tử" : "🖋️ Ký số báo giá ngay"}
+            </button>
+
             <div style={{ height: 24, width: 1, background: "#cbd5e1", margin: "0 4px" }} />
             {onCreateContract && (
               <button className="btn btn-ghost" onClick={() => { onClose(); onCreateContract(localQuote); }} style={{ color: "#2563eb", fontWeight: 600 }}>
@@ -510,6 +586,20 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                 style={{ width: 16, height: 16, accentColor: "var(--accent)" }}
               />
               Cột Thuế VAT
+            </label>
+
+            <label style={{ fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, userSelect: "none", color: "#dc2626", fontWeight: 600 }}>
+              <input
+                type="checkbox"
+                checked={printOptions.showDigitalSign}
+                onChange={e => {
+                  const checked = e.target.checked;
+                  setPrintOptions(p => ({ ...p, showDigitalSign: checked }));
+                  if (checked) setIsSigned(true);
+                }}
+                style={{ width: 16, height: 16, accentColor: "#dc2626" }}
+              />
+              🖋️ Dấu Ký Số Điện Tử
             </label>
           </div>
 
@@ -670,13 +760,59 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                 <div style={{ height: 60 }} />
                 <div style={{ fontWeight: 600 }}>{localQuote.contact || localQuote.customer}</div>
               </div>
-              <div style={{ textAlign: "center", minWidth: 200 }}>
+              <div style={{ textAlign: "center", minWidth: 220, maxWidth: 280 }}>
                 <div style={{ color: "#555", fontStyle: "italic", marginBottom: 4 }}>
                   Phú Mỹ, ngày {qDay} tháng {qMonth} năm {qYear}
                 </div>
-                <div style={{ fontWeight: 700, color: "#1a2540" }}>{T.signTitle}</div>
-                <div style={{ color: "#666", fontSize: 10 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
-                <div style={{ height: 60 }} />
+                <div style={{ fontWeight: 700, color: "#1a2540", marginBottom: 4 }}>{T.signTitle}</div>
+                
+                {printOptions.showDigitalSign && isSigned ? (
+                  <div style={{
+                    border: "2px solid #dc2626",
+                    borderRadius: "6px",
+                    padding: "8px 10px",
+                    background: "rgba(254, 242, 242, 0.7)",
+                    color: "#dc2626",
+                    textAlign: "left",
+                    fontSize: "10px",
+                    lineHeight: 1.45,
+                    position: "relative",
+                    margin: "6px auto 10px",
+                    boxShadow: "0 1px 4px rgba(220, 38, 38, 0.12)",
+                    maxWidth: 250
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: "800", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px dashed #fca5a5", paddingBottom: "3px", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "13px" }}>🛡️</span>
+                      <span>Signature Valid</span>
+                    </div>
+                    <div><strong>Ký bởi:</strong> {COMPANY.digitalSign?.signerName || COMPANY.name}</div>
+                    <div><strong>MST:</strong> {COMPANY.mst}</div>
+                    <div><strong>Ngày ký:</strong> {signedDate}</div>
+                    <div><strong>Chứng thư:</strong> {COMPANY.digitalSign?.caProvider || "Viettel-CA"} (Hợp lệ)</div>
+                    {getStampUrl() && (
+                      <img 
+                        src={getStampUrl()} 
+                        alt="Con dấu" 
+                        style={{ 
+                          position: "absolute", 
+                          right: "-12px", 
+                          bottom: "-12px", 
+                          width: "80px", 
+                          height: "80px", 
+                          objectFit: "contain", 
+                          opacity: 0.88, 
+                          pointerEvents: "none" 
+                        }} 
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ color: "#666", fontSize: 10 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
+                    <div style={{ height: 60 }} />
+                  </>
+                )}
+
                 <div style={{ fontWeight: 600 }}>{COMPANY.representative || "Trần Văn Thịnh"}</div>
               </div>
             </div>
