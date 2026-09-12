@@ -99,7 +99,11 @@ export const DEFAULT_COMPANY = {
     enabled: true,
     signerName: "CÔNG TY TNHH MÁY TÍNH PHÚ MỸ",
     signerTitle: "Người đại diện theo pháp luật",
-    caProvider: "Viettel-CA",
+    province: "Bà Rịa - Vũng Tàu",
+    location: "Bà Rịa - Vũng Tàu",
+    reason: "I am approving this document with my legally binding signature",
+    caProvider: "Foxit Reader Version: 10.1.1",
+    pin: "12345678",
     stampImg: "",
     showStamp: true,
     showCertInfo: true

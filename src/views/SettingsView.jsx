@@ -569,6 +569,131 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
         </div>
       </div>
 
+      {/* Digital Signature & USB Token Card */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontWeight: 600 }}>🖋️ Cấu hình Chữ ký số USB Token & Con dấu điện tử</span>
+          <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontWeight: 600, color: "#059669" }}>
+            <input 
+              type="checkbox" 
+              checked={company.digitalSign ? company.digitalSign.enabled !== false : true} 
+              onChange={e => setDS("enabled", e.target.checked)} 
+              style={{ width: 16, height: 16, accentColor: "#059669" }}
+            />
+            Bật ký số trên báo giá
+          </label>
+        </div>
+        <div className="card-body">
+          <div style={{ fontSize: 12, color: "#64748b", marginBottom: 14 }}>
+            Cấu hình các trường thông tin chứng thư số X.509 hiển thị trên khối ký số báo giá (chuẩn Foxit / PKCS#7) và mã PIN xác thực USB Token.
+          </div>
+
+          <div className="form-row form-row-2" style={{ marginBottom: 12 }}>
+            <div className="form-group">
+              <label>Chủ thể chứng thư số (CN, O):</label>
+              <input 
+                className="form-control" 
+                value={company.digitalSign?.signerName || company.name || ""} 
+                onChange={e => setDS("signerName", e.target.value)} 
+                placeholder="CÔNG TY TNHH MÁY TÍNH PHÚ MỸ" 
+              />
+            </div>
+            <div className="form-group">
+              <label>Mã PIN USB Token (xác thực ký):</label>
+              <input 
+                className="form-control" 
+                type="password"
+                value={company.digitalSign?.pin || "12345678"} 
+                onChange={e => setDS("pin", e.target.value)} 
+                placeholder="12345678" 
+              />
+            </div>
+          </div>
+
+          <div className="form-row form-row-3" style={{ marginBottom: 12 }}>
+            <div className="form-group">
+              <label>Tỉnh / Thành phố (S):</label>
+              <input 
+                className="form-control" 
+                value={company.digitalSign?.province || "Bà Rịa - Vũng Tàu"} 
+                onChange={e => setDS("province", e.target.value)} 
+                placeholder="Bà Rịa - Vũng Tàu" 
+              />
+            </div>
+            <div className="form-group">
+              <label>Địa điểm ký (Location):</label>
+              <input 
+                className="form-control" 
+                value={company.digitalSign?.location || "Bà Rịa - Vũng Tàu"} 
+                onChange={e => setDS("location", e.target.value)} 
+                placeholder="Bà Rịa - Vũng Tàu" 
+              />
+            </div>
+            <div className="form-group">
+              <label>Đơn vị CA / Ứng dụng ký:</label>
+              <input 
+                className="form-control" 
+                value={company.digitalSign?.caProvider || "Foxit Reader Version: 10.1.1"} 
+                onChange={e => setDS("caProvider", e.target.value)} 
+                placeholder="Foxit Reader Version: 10.1.1" 
+              />
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label>Lý do ký chứng từ (Reason):</label>
+            <input 
+              className="form-control" 
+              value={company.digitalSign?.reason || "I am approving this document with my legally binding signature"} 
+              onChange={e => setDS("reason", e.target.value)} 
+              placeholder="I am approving this document with my legally binding signature" 
+            />
+          </div>
+
+          <div className="form-group">
+            <label style={{ display: "block", marginBottom: 6 }}>Con dấu doanh nghiệp (Hình tròn/vuông PNG trong suốt):</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+              {stampPreview ? (
+                <img 
+                  src={stampPreview} 
+                  alt="Stamp preview" 
+                  style={{ width: 80, height: 80, objectFit: "contain", border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc", padding: 4 }} 
+                />
+              ) : (
+                <div style={{ width: 80, height: 80, border: "1px dashed #cbd5e1", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#94a3b8", textAlign: "center", padding: 4 }}>
+                  Chưa có con dấu
+                </div>
+              )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input 
+                  type="file" 
+                  ref={stampFileRef} 
+                  accept="image/*" 
+                  style={{ display: "none" }} 
+                  onChange={handleStampUpload} 
+                />
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={() => stampFileRef.current && stampFileRef.current.click()}
+                >
+                  📁 Tải lên con dấu (PNG)
+                </button>
+                {stampPreview && (
+                  <button 
+                    type="button" 
+                    className="btn btn-danger btn-sm" 
+                    onClick={() => { setStampPreview(""); setDS("stampImg", ""); }}
+                  >
+                    🗑️ Xóa con dấu
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="card" style={{ marginBottom:16 }}>
         <div className="card-header"><span style={{fontWeight:600}}>📃 Điều khoản hợp đồng mặc định</span></div>
         <div className="card-body">

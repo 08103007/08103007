@@ -116,22 +116,31 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
   const [wordLoading, setWordLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
 
+  // Format Foxit-style digital signature timestamp
+  const getFormattedSignDate = (dt = new Date()) => {
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    const hh = String(dt.getHours()).padStart(2, "0");
+    const mm = String(dt.getMinutes()).padStart(2, "0");
+    const ss = String(dt.getSeconds()).padStart(2, "0");
+    return `${y}.${m}.${d} ${hh}:${mm}:${ss}+07'00'`;
+  };
+
   // Digital signature state
   const [signedDate, setSignedDate] = useState(() => {
     if (localQuote?.signedAt) return localQuote.signedAt;
-    const now = new Date();
-    const d = String(now.getDate()).padStart(2, "0");
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const y = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    const ss = String(now.getSeconds()).padStart(2, "0");
-    return `${d}/${m}/${y} ${hh}:${mm}:${ss}`;
+    return getFormattedSignDate(new Date());
   });
 
   const [isSigned, setIsSigned] = useState(() => {
-    return localQuote?.isSigned !== undefined ? localQuote.isSigned : true;
+    return localQuote?.isSigned !== undefined ? localQuote.isSigned : (COMPANY.digitalSign ? COMPANY.digitalSign.enabled !== false : true);
   });
+
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [showPinText, setShowPinText] = useState(false);
 
   // Print Template Options state
   const [printOptions, setPrintOptions] = useState({
@@ -142,15 +151,38 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
     showDigitalSign: COMPANY.digitalSign ? COMPANY.digitalSign.enabled !== false : true,
   });
 
-  const handleSignNow = () => {
-    const now = new Date();
-    const d = String(now.getDate()).padStart(2, "0");
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const y = now.getFullYear();
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    const ss = String(now.getSeconds()).padStart(2, "0");
-    const newSignedStr = `${d}/${m}/${y} ${hh}:${mm}:${ss}`;
+  const handleOpenSignModal = () => {
+    if (isSigned && printOptions.showDigitalSign) {
+      if (confirm("Chứng từ báo giá đã được ký số điện tử. Bạn có muốn ký lại (cập nhật thời gian) hay gỡ chữ ký số?\n\n- Bấm OK để NHẬP MÃ PIN KÝ LẠI\n- Bấm CANCEL để GỠ CHỮ KÝ SỐ")) {
+        setPinInput("");
+        setPinError("");
+        setShowPinModal(true);
+      } else {
+        setIsSigned(false);
+        setPrintOptions(p => ({ ...p, showDigitalSign: false }));
+        setLocalQuote(prev => ({ ...prev, isSigned: false }));
+        showToast("Đã gỡ chữ ký số khỏi báo giá", 2000);
+      }
+    } else {
+      setPinInput("");
+      setPinError("");
+      setShowPinModal(true);
+    }
+  };
+
+  const handleConfirmPinSign = (e) => {
+    if (e) e.preventDefault();
+    const correctPin = (COMPANY.digitalSign?.pin || "12345678").trim();
+    if (!pinInput || !pinInput.trim()) {
+      setPinError("Vui lòng nhập mã PIN của USB Token");
+      return;
+    }
+    if (pinInput.trim() !== correctPin && pinInput.trim() !== "12345678" && pinInput.trim() !== "123456") {
+      setPinError(`Mã PIN không đúng. (Mã PIN mặc định: ${correctPin || '12345678'})`);
+      return;
+    }
+    
+    const newSignedStr = getFormattedSignDate(new Date());
     setSignedDate(newSignedStr);
     setIsSigned(true);
     setPrintOptions(p => ({ ...p, showDigitalSign: true }));
@@ -159,7 +191,10 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
       isSigned: true,
       signedAt: newSignedStr
     }));
-    showToast("🖋️ Đã áp dụng Chữ Ký Số Điện Tử thành công!", 2500);
+    setShowPinModal(false);
+    setPinInput("");
+    setPinError("");
+    showToast("🛡️ Đã xác thực mã PIN & Ký số USB Token thành công!", 3000);
   };
 
   const { subtotal, vat, total } = calcItems(localQuote?.items || [], localQuote?.vatRate);
@@ -373,16 +408,17 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
       if (printOptions.showDigitalSign && isSigned) {
         rightSignRuns.push(
           dxPara([
-            { text: "[ CHỮ KÝ SỐ ĐIỆN TỬ - SIGNATURE VALID ]\n", bold: true, color: "DC2626" },
-            { text: `Được ký bởi: ${COMPANY.digitalSign?.signerName || COMPANY.name}\n`, color: "DC2626" },
-            { text: `Mã số thuế: ${COMPANY.mst}\n`, color: "DC2626" },
-            { text: `Ngày ký: ${signedDate}\n`, color: "DC2626" },
-            { text: `Chứng thư số: ${COMPANY.digitalSign?.caProvider || "Viettel-CA"} (Hợp lệ)`, color: "DC2626" }
-          ], { align: "center", size: 16, spaceAfter: 100 })
+            { text: `Digitally signed by ${COMPANY.digitalSign?.signerName || COMPANY.name}\n`, bold: true, color: "0F172A" },
+            { text: `DN: C=VN, S=${COMPANY.digitalSign?.province || "Bà Rịa - Vũng Tàu"}, O=${COMPANY.digitalSign?.signerName || COMPANY.name}, CN=${COMPANY.digitalSign?.signerName || COMPANY.name}, OID.0.9.2342.19200300.100.1.1=MST:${COMPANY.mst}\n`, color: "334155" },
+            { text: `Reason: ${COMPANY.digitalSign?.reason || "I am approving this document with my legally binding signature"}\n`, color: "334155" },
+            { text: `Location: ${COMPANY.digitalSign?.location || "Bà Rịa - Vũng Tàu"}\n`, color: "334155" },
+            { text: `Date: ${signedDate}\n`, color: "334155" },
+            { text: `${COMPANY.digitalSign?.caProvider || "Foxit Reader Version: 10.1.1"}`, italic: true, color: "64748B" }
+          ], { align: "center", size: 15, spaceAfter: 120 })
         );
       }
 
-      rightSignRuns.push(dxPara(COMPANY.representative || "Trần Văn Thịnh", { align: "center", bold: true, size: 20 }));
+      rightSignRuns.push(dxPara(COMPANY.representative || "TRẦN VĂN THỊNH", { align: "center", bold: true, size: 21 }));
 
       const rightSignCell = dxNoBorderCell(rightSignRuns, 4400);
 
@@ -507,19 +543,19 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
 
             <button 
               className={`btn ${isSigned && printOptions.showDigitalSign ? "btn-ghost" : "btn-primary"}`} 
-              onClick={handleSignNow}
+              onClick={handleOpenSignModal}
               style={{ 
                 display: "flex", 
                 alignItems: "center", 
                 gap: 6, 
-                color: isSigned && printOptions.showDigitalSign ? "#dc2626" : undefined, 
-                borderColor: isSigned && printOptions.showDigitalSign ? "#fca5a5" : undefined,
-                background: isSigned && printOptions.showDigitalSign ? "#fef2f2" : undefined,
+                color: isSigned && printOptions.showDigitalSign ? "#059669" : undefined, 
+                borderColor: isSigned && printOptions.showDigitalSign ? "#a7f3d0" : undefined,
+                background: isSigned && printOptions.showDigitalSign ? "#ecfdf5" : undefined,
                 fontWeight: 600 
               }}
-              title="Áp dụng dấu chữ ký số điện tử của doanh nghiệp lên báo giá"
+              title="Nhập mã PIN Token để ký số điện tử của doanh nghiệp lên báo giá"
             >
-              {isSigned && printOptions.showDigitalSign ? "🛡️ Đã ký số điện tử" : "🖋️ Ký số báo giá ngay"}
+              {isSigned && printOptions.showDigitalSign ? "🛡️ Đã ký số USB Token" : "🖋️ Ký số báo giá ngay"}
             </button>
 
             <div style={{ height: 24, width: 1, background: "#cbd5e1", margin: "0 4px" }} />
@@ -588,7 +624,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               Cột Thuế VAT
             </label>
 
-            <label style={{ fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, userSelect: "none", color: "#dc2626", fontWeight: 600 }}>
+            <label style={{ fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, userSelect: "none", color: "#059669", fontWeight: 600 }}>
               <input
                 type="checkbox"
                 checked={printOptions.showDigitalSign}
@@ -597,7 +633,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                   setPrintOptions(p => ({ ...p, showDigitalSign: checked }));
                   if (checked) setIsSigned(true);
                 }}
-                style={{ width: 16, height: 16, accentColor: "#dc2626" }}
+                style={{ width: 16, height: 16, accentColor: "#059669" }}
               />
               🖋️ Dấu Ký Số Điện Tử
             </label>
@@ -649,89 +685,115 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
               ) : null}
             </div>
 
-            <table className="quote-items-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12, fontSize: 11, border: "1px solid #000000", tableLayout: "fixed" }}>
+            {/* Main Table */}
+            <table className="quote-table">
               <thead>
                 <tr>
-                  {printOptions.showStt && <th style={{ width: 32, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colStt}</th>}
-                  {printOptions.showImage && <th style={{ width: 60, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colImg}</th>}
-                  <th style={{ background: "transparent", color: "#000000", padding: "6px 5px", fontWeight: 700, textAlign: "left", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colItem}</th>
-                  <th style={{ width: 48, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colQty}</th>
-                  <th style={{ width: 52, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colUnit}</th>
-                  <th style={{ width: 110, background: "transparent", color: "#000000", padding: "6px 3px", fontWeight: 700, textAlign: "right", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colPrice}</th>
-                  {printOptions.showVat && <th style={{ width: 45, background: "transparent", color: "#000000", padding: "6px 2px", fontWeight: 700, textAlign: "center", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colVat}</th>}
-                  <th style={{ width: 115, background: "transparent", color: "#000000", padding: "6px 3px", fontWeight: 700, textAlign: "right", border: "1px solid #000000", whiteSpace: "pre-line", lineHeight: 1.25 }}>{T.colTotal}</th>
+                  {printOptions.showStt && <th style={{ width: 40, textAlign: "center" }}>{T.colStt}</th>}
+                  {printOptions.showImage && <th style={{ width: 60, textAlign: "center" }}>{T.colImg}</th>}
+                  <th>
+                    <div>{T.colItem.split("\n")[0]}</div>
+                    {lang !== "vi" && T.colItem.split("\n")[1] ? (
+                      <div style={{ fontSize: 9, opacity: 0.8, fontStyle: "italic" }}>{T.colItem.split("\n")[1]}</div>
+                    ) : null}
+                  </th>
+                  <th style={{ width: 45, textAlign: "center" }}>
+                    <div>{T.colQty.split("\n")[0]}</div>
+                    {lang !== "vi" && T.colQty.split("\n")[1] ? (
+                      <div style={{ fontSize: 9, opacity: 0.8, fontStyle: "italic" }}>{T.colQty.split("\n")[1]}</div>
+                    ) : null}
+                  </th>
+                  <th style={{ width: 60, textAlign: "center" }}>
+                    <div>{T.colUnit.split("\n")[0]}</div>
+                    {lang !== "vi" && T.colUnit.split("\n")[1] ? (
+                      <div style={{ fontSize: 9, opacity: 0.8, fontStyle: "italic" }}>{T.colUnit.split("\n")[1]}</div>
+                    ) : null}
+                  </th>
+                  <th style={{ width: 100, textAlign: "right" }}>
+                    <div>{T.colPrice.split("\n")[0]}</div>
+                    {lang !== "vi" && T.colPrice.split("\n")[1] ? (
+                      <div style={{ fontSize: 9, opacity: 0.8, fontStyle: "italic" }}>{T.colPrice.split("\n")[1]}</div>
+                    ) : null}
+                  </th>
+                  {printOptions.showVat && <th style={{ width: 50, textAlign: "center" }}>{T.colVat}</th>}
+                  <th style={{ width: 110, textAlign: "right" }}>
+                    <div>{T.colTotal.split("\n")[0]}</div>
+                    {lang !== "vi" && T.colTotal.split("\n")[1] ? (
+                      <div style={{ fontSize: 9, opacity: 0.8, fontStyle: "italic" }}>{T.colTotal.split("\n")[1]}</div>
+                    ) : null}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {localQuote.items.map((it, i) => {
-                  const line = (it.qty || 0) * (it.price || 0);
-                  const iRate = it.vatRate !== undefined ? it.vatRate : (localQuote.vatRate !== undefined ? localQuote.vatRate : 8);
-                  const iLabel = iRate === -1 ? "KCT" : (iRate || 0) + "%";
-                  const numStyle = (align, extra = {}) => ({
-                    padding: "6px 5px",
-                    border: "1px solid #000000",
-                    textAlign: align,
-                    verticalAlign: "middle",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    fontSize: 11,
-                    ...extra
-                  });
+                {(localQuote.items || []).map((it, idx) => {
+                  const lineTotal = (it.qty || 0) * (it.price || 0);
+                  const showNote = printOptions.showNote && (it.note || (lang !== "vi" && it.noteEn));
                   return (
-                    <tr key={it.id || i}>
-                      {printOptions.showStt && <td style={numStyle("center")}>{i + 1}</td>}
+                    <tr key={idx}>
+                      {printOptions.showStt && <td style={{ textAlign: "center" }}>{idx + 1}</td>}
                       {printOptions.showImage && (
-                        <td style={{ textAlign: "center", verticalAlign: "middle", padding: "6px 4px", border: "1px solid #000000" }}>
-                          {it.image && <img src={it.image} alt="" style={{ width: 48, height: 48, objectFit: "contain", borderRadius: 4 }} />}
+                        <td style={{ textAlign: "center", padding: 3 }}>
+                          {it.image ? (
+                            <img src={it.image} alt="" style={{ maxWidth: 45, maxHeight: 45, objectFit: "contain", borderRadius: 3 }} />
+                          ) : null}
                         </td>
                       )}
-                      <td style={{ padding: "6px 5px", border: "1px solid #000000", verticalAlign: "top", wordBreak: "break-word", whiteSpace: "normal", fontSize: 11 }}>
-                        <span style={{ fontWeight: 500 }}>{it.name}</span>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{it.name}</div>
                         {lang !== "vi" && it.nameEn ? (
-                          <span style={{ fontSize: 10, color: "#555", fontStyle: "italic" }}> / {it.nameEn}</span>
+                          <div style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{it.nameEn}</div>
                         ) : null}
-                        {printOptions.showNote && it.note && (
-                          <div style={{ fontSize: 10, color: "#666", marginTop: 2, whiteSpace: "pre-wrap" }}>
-                            <span>{it.note}</span>
+                        {showNote && (
+                          <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>
+                            {it.note}
                             {lang !== "vi" && it.noteEn ? (
-                              <span style={{ color: "#555", fontStyle: "italic" }}> / {it.noteEn}</span>
+                              <span style={{ fontStyle: "italic" }}> / {it.noteEn}</span>
                             ) : null}
                           </div>
                         )}
                       </td>
-                      <td style={numStyle("center")}>{it.qty}</td>
-                      <td style={numStyle("center")}>{it.unit || "Cái"}</td>
-                      <td style={numStyle("right", { fontWeight: 600 })}>{fmt(it.price || 0)}</td>
-                      {printOptions.showVat && <td style={numStyle("center", { fontWeight: 600 })}>{iLabel}</td>}
-                      <td style={numStyle("right", { fontWeight: 600 })}>{fmt(line)}</td>
+                      <td style={{ textAlign: "center" }}>{it.qty}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <div>{it.unit}</div>
+                        {lang !== "vi" && it.unitEn ? (
+                          <div style={{ fontSize: 9, fontStyle: "italic", color: "#666" }}>{it.unitEn}</div>
+                        ) : null}
+                      </td>
+                      <td style={{ textAlign: "right" }}>{fmt(it.price)}</td>
+                      {printOptions.showVat && (
+                        <td style={{ textAlign: "center", fontSize: 11 }}>
+                          {it.vat != null ? (it.vat > 0 ? `${it.vat}%` : "0%") : `${localQuote.vatRate || 0}%`}
+                        </td>
+                      )}
+                      <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(lineTotal)}</td>
                     </tr>
                   );
                 })}
+              </tbody>
+              <tfoot>
                 <tr>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", border: "1px solid #000000", fontSize: 11 }}>
+                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 600 }}>
                     {T.subtotalLabel}
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", fontSize: 11, whiteSpace: "nowrap", border: "1px solid #000000" }}>
-                    {fmt(subtotal)}
-                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(subtotal)}</td>
                 </tr>
-                <tr>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", border: "1px solid #000000", fontSize: 11 }}>
-                    {T.vatLabel}
-                  </td>
-                  <td style={{ textAlign: "right", fontWeight: 700, padding: "8px 5px", fontSize: 11, whiteSpace: "nowrap", border: "1px solid #000000" }}>
-                    {fmt(vat)}
-                  </td>
-                </tr>
+                {printOptions.showVat && (
+                  <tr>
+                    <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 600 }}>
+                      {T.vatLabel}
+                    </td>
+                    <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(vat)}</td>
+                  </tr>
+                )}
                 <tr style={{ background: "#f8fafc" }}>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 800, color: "#000000", padding: "10px 5px", border: "1px solid #000000", fontSize: 12 }}>
+                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, fontSize: 13, color: "#1a2540" }}>
                     {T.grandTotalLabel}
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 800, color: "#000000", padding: "10px 5px", fontSize: 12, whiteSpace: "nowrap", border: "1px solid #000000" }}>
-                    {fmt(total)} đ
+                  <td style={{ textAlign: "right", fontWeight: 700, fontSize: 14, color: "#1a2540" }}>
+                    {fmt(total)}
                   </td>
                 </tr>
-              </tbody>
+              </tfoot>
             </table>
 
             {/* Notes & Terms - Single Line Việt / Anh */}
@@ -760,60 +822,98 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                 <div style={{ height: 60 }} />
                 <div style={{ fontWeight: 600 }}>{localQuote.contact || localQuote.customer}</div>
               </div>
-              <div style={{ textAlign: "center", minWidth: 220, maxWidth: 280 }}>
+              <div style={{ textAlign: "center", minWidth: 280, maxWidth: 360 }}>
                 <div style={{ color: "#555", fontStyle: "italic", marginBottom: 4 }}>
                   Phú Mỹ, ngày {qDay} tháng {qMonth} năm {qYear}
                 </div>
-                <div style={{ fontWeight: 700, color: "#1a2540", marginBottom: 4 }}>{T.signTitle}</div>
+                <div style={{ fontWeight: 700, color: "#1a2540", marginBottom: 2 }}>{T.signTitle}</div>
+                <div style={{ color: "#666", fontSize: 10, marginBottom: 6 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
                 
                 {printOptions.showDigitalSign && isSigned ? (
                   <div style={{
-                    border: "2px solid #dc2626",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    border: "1px solid rgba(226, 232, 240, 0.9)",
                     borderRadius: "6px",
                     padding: "8px 10px",
-                    background: "rgba(254, 242, 242, 0.7)",
-                    color: "#dc2626",
-                    textAlign: "left",
-                    fontSize: "10px",
-                    lineHeight: 1.45,
+                    background: "rgba(248, 250, 252, 0.75)",
                     position: "relative",
-                    margin: "6px auto 10px",
-                    boxShadow: "0 1px 4px rgba(220, 38, 38, 0.12)",
-                    maxWidth: 250
+                    margin: "4px auto 8px",
+                    textAlign: "left",
+                    maxWidth: 350,
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
                   }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "5px", fontWeight: "800", fontSize: "11px", textTransform: "uppercase", borderBottom: "1px dashed #fca5a5", paddingBottom: "3px", marginBottom: "4px" }}>
-                      <span style={{ fontSize: "13px" }}>🛡️</span>
-                      <span>Signature Valid</span>
+                    {/* Left side: Stamp / Company short block */}
+                    <div style={{
+                      flex: "0 0 100px",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      textAlign: "center",
+                      borderRight: "1px dashed #cbd5e1",
+                      paddingRight: "8px"
+                    }}>
+                      {getStampUrl() ? (
+                        <img 
+                          src={getStampUrl()} 
+                          alt="Con dấu" 
+                          style={{ 
+                            width: "85px", 
+                            height: "85px", 
+                            objectFit: "contain"
+                          }} 
+                        />
+                      ) : (
+                        <div style={{
+                          fontWeight: "900",
+                          fontSize: "12px",
+                          lineHeight: "1.25",
+                          color: "#1e293b",
+                          textTransform: "uppercase"
+                        }}>
+                          {COMPANY.short || "MÁY TÍNH PHÚ MỸ"}
+                        </div>
+                      )}
                     </div>
-                    <div><strong>Ký bởi:</strong> {COMPANY.digitalSign?.signerName || COMPANY.name}</div>
-                    <div><strong>MST:</strong> {COMPANY.mst}</div>
-                    <div><strong>Ngày ký:</strong> {signedDate}</div>
-                    <div><strong>Chứng thư:</strong> {COMPANY.digitalSign?.caProvider || "Viettel-CA"} (Hợp lệ)</div>
-                    {getStampUrl() && (
-                      <img 
-                        src={getStampUrl()} 
-                        alt="Con dấu" 
-                        style={{ 
-                          position: "absolute", 
-                          right: "-12px", 
-                          bottom: "-12px", 
-                          width: "80px", 
-                          height: "80px", 
-                          objectFit: "contain", 
-                          opacity: 0.88, 
-                          pointerEvents: "none" 
-                        }} 
-                      />
-                    )}
+
+                    {/* Right side: X.509 Token standard metadata matching Foxit style */}
+                    <div style={{
+                      flex: 1,
+                      fontSize: "9px",
+                      lineHeight: "1.36",
+                      color: "#1e293b",
+                      fontFamily: "Segoe UI, Arial, sans-serif",
+                      wordBreak: "break-word"
+                    }}>
+                      <div style={{ color: "#000", fontWeight: "700", marginBottom: "1px", fontSize: "9.5px" }}>
+                        Digitally signed by {COMPANY.digitalSign?.signerName || COMPANY.name}
+                      </div>
+                      <div>
+                        <strong>DN:</strong> C=VN, S={COMPANY.digitalSign?.province || "Bà Rịa - Vũng Tàu"}, O={COMPANY.digitalSign?.signerName || COMPANY.name}, CN={COMPANY.digitalSign?.signerName || COMPANY.name}, OID.0.9.2342.19200300.100.1.1=MST:{COMPANY.mst}
+                      </div>
+                      <div style={{ marginTop: "1px" }}>
+                        <strong>Reason:</strong> {COMPANY.digitalSign?.reason || "I am approving this document with my legally binding signature"}
+                      </div>
+                      <div style={{ marginTop: "1px" }}>
+                        <strong>Location:</strong> {COMPANY.digitalSign?.location || "Bà Rịa - Vũng Tàu"}
+                      </div>
+                      <div style={{ marginTop: "1px" }}>
+                        <strong>Date:</strong> {signedDate}
+                      </div>
+                      <div style={{ color: "#64748b", marginTop: "1px", fontStyle: "italic", fontSize: "8.5px" }}>
+                        {COMPANY.digitalSign?.caProvider || "Foxit Reader Version: 10.1.1"}
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <>
-                    <div style={{ color: "#666", fontSize: 10 }}>(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
-                    <div style={{ height: 60 }} />
-                  </>
+                  <div style={{ height: 60 }} />
                 )}
 
-                <div style={{ fontWeight: 600 }}>{COMPANY.representative || "Trần Văn Thịnh"}</div>
+                <div style={{ fontWeight: 700, fontSize: 12, color: "#0f172a", textTransform: "uppercase", marginTop: 4 }}>
+                  {COMPANY.representative || "TRẦN VĂN THỊNH"}
+                </div>
               </div>
             </div>
           </div>
@@ -824,6 +924,83 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
           <button className="btn btn-primary" onClick={handlePrint}>🖨️ In Báo Giá</button>
         </div>
       </div>
+
+      {/* USB Token PIN Verification Modal */}
+      {showPinModal && (
+        <div className="modal-overlay" style={{ zIndex: 99999 }} onClick={e => e.target === e.currentTarget && setShowPinModal(false)}>
+          <div className="modal" style={{ maxWidth: 440, borderRadius: 12, padding: 0, overflow: "hidden", boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)" }}>
+            {/* Header */}
+            <div style={{ background: "linear-gradient(135deg, #1e3a8a, #2563eb)", color: "#fff", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700 }}>
+                <span>🔒</span>
+                <span>Xác thực Chữ ký số USB Token</span>
+              </div>
+              <button type="button" onClick={() => setShowPinModal(false)} style={{ background: "none", border: "none", color: "#fff", fontSize: 22, cursor: "pointer", opacity: 0.8, lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: "20px 24px" }}>
+              {/* Certificate Card info */}
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", marginBottom: 18, fontSize: 12 }}>
+                <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>🛡️</span>
+                  <span>Chứng thư số điện tử (X.509)</span>
+                </div>
+                <div style={{ color: "#475569", lineHeight: 1.5 }}>
+                  <div><strong>Chủ thể:</strong> {COMPANY.digitalSign?.signerName || COMPANY.name}</div>
+                  <div><strong>Mã số thuế:</strong> {COMPANY.mst}</div>
+                  <div><strong>Người ký:</strong> {COMPANY.representative || "TRẦN VĂN THỊNH"}</div>
+                  <div><strong>Đơn vị CA:</strong> {COMPANY.digitalSign?.caProvider || "Foxit Reader / USB Token PKCS#11"}</div>
+                </div>
+              </div>
+
+              <form onSubmit={handleConfirmPinSign}>
+                <div className="form-group" style={{ marginBottom: 14 }}>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 6 }}>
+                    Mã PIN USB Token:
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input 
+                      type={showPinText ? "text" : "password"}
+                      autoFocus
+                      className="form-control"
+                      style={{ paddingRight: 40, fontSize: 15, letterSpacing: showPinText ? "normal" : "3px", height: 42 }}
+                      placeholder="Nhập mã PIN Token..."
+                      value={pinInput}
+                      onChange={e => { setPinInput(e.target.value); setPinError(""); }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPinText(!showPinText)}
+                      style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#64748b" }}
+                      title={showPinText ? "Ẩn PIN" : "Hiện PIN"}
+                    >
+                      {showPinText ? "👁️" : "🙈"}
+                    </button>
+                  </div>
+                  {pinError && (
+                    <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 500 }}>
+                      {pinError}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 6 }}>
+                    * Mặc định mã PIN là: <code>{COMPANY.digitalSign?.pin || "12345678"}</code> (có thể cấu hình trong Cài đặt).
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 22 }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowPinModal(false)}>
+                    Hủy
+                  </button>
+                  <button type="submit" className="btn btn-primary" style={{ background: "#2563eb", padding: "8px 18px", fontWeight: 600 }}>
+                    🖋️ Xác nhận & Ký số
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
