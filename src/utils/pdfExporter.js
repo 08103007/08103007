@@ -1,4 +1,6 @@
 import { ensureHtml2Canvas, ensureJsPdf } from './docxBuilder';
+import { COMPANY, getLogoUrl, getStampUrl, showToast } from './gasStore';
+import { calcItems, fmt, generateCustomerShortName } from './helpers';
 
 export function buildPrintHtml(elementId, extraCss) {
   const el = document.getElementById(elementId);
@@ -135,29 +137,17 @@ export function printElementViaIframe(elementId, extraCss) {
   };
 }
 
-export async function exportElementToPdf(elementId, opts) {
+export async function generateElementPdfBlob(elementId, opts) {
   const el = document.getElementById(elementId);
-  if (!el) return;
+  if (!el) return null;
   const options = typeof opts === "string" ? { filename: opts } : (opts || {});
-  const { filename = "document.pdf", scale = 3, a4Px = 794, pad = 32, respectNoCut = false, extraCss = "" } = options;
+  const { filename = "document.pdf", scale = 3, a4Px = 794, pad = 32 } = options;
 
-  // 1. Export via Puppeteer PDF Server (localhost:3456) if server is running
-  try {
-    const html = buildPrintHtml(elementId, extraCss);
-    if (html) {
-      const puppeteerOk = await exportViaPuppeteer(html, filename);
-      if (puppeteerOk) return;
-    }
-  } catch (pErr) {
-    console.warn("Puppeteer PDF server export failed/unavailable, falling back to html2canvas:", pErr);
-  }
-
-  // 2. Fallback: Render PDF via client-side html2canvas + jsPDF with full-width offscreen clone
   const container = document.createElement("div");
   container.style.cssText = `position:fixed;top:0;left:-9999px;width:${a4Px}px;min-width:${a4Px}px;max-width:${a4Px}px;background:#ffffff;z-index:-9999;box-sizing:border-box;`;
   
   const clone = el.cloneNode(true);
-  clone.id = elementId + "_pdf_clone";
+  clone.id = elementId + "_pdf_blob_clone";
   clone.style.width = `${a4Px}px`;
   clone.style.maxWidth = `${a4Px}px`;
   clone.style.minWidth = `${a4Px}px`;
@@ -172,11 +162,10 @@ export async function exportElementToPdf(elementId, opts) {
 
   try {
     await Promise.all([ensureHtml2Canvas(), ensureJsPdf()]);
-    if (!window.html2canvas) {
-      throw new Error("html2canvas library is not loaded yet");
+    if (!window.html2canvas || !window.jspdf) {
+      throw new Error("Thư viện tạo PDF chưa tải xong, vui lòng thử lại.");
     }
 
-    // Wait a tick for layout and images to settle in clone
     await new Promise(r => setTimeout(r, 60));
 
     const canvas = await window.html2canvas(clone, { 
@@ -190,9 +179,6 @@ export async function exportElementToPdf(elementId, opts) {
       imageTimeout: 0 
     });
     
-    if (!window.jspdf) {
-      throw new Error("jsPDF library is not loaded yet");
-    }
     const { jsPDF } = window.jspdf;
     const MARGIN = 8, printW = 210 - MARGIN * 2, printH = 297 - MARGIN * 2;
     const canvasScale = canvas.width / a4Px;
@@ -221,11 +207,284 @@ export async function exportElementToPdf(elementId, opts) {
       srcY += slicePx;
       page++;
     }
-    doc.save(filename);
+    const pdfBlob = doc.output("blob");
+    const pdfFile = new File([pdfBlob], filename, { type: "application/pdf" });
+    return { blob: pdfBlob, file: pdfFile, filename };
   } finally {
     if (document.body.contains(container)) {
       document.body.removeChild(container);
     }
+  }
+}
+
+export async function exportElementToPdf(elementId, opts) {
+  const options = typeof opts === "string" ? { filename: opts } : (opts || {});
+  const { filename = "document.pdf", extraCss = "" } = options;
+
+  // 1. Export via Puppeteer PDF Server (localhost:3456) if server is running
+  try {
+    const html = buildPrintHtml(elementId, extraCss);
+    if (html) {
+      const puppeteerOk = await exportViaPuppeteer(html, filename);
+      if (puppeteerOk) return;
+    }
+  } catch (pErr) {
+    console.warn("Puppeteer PDF server export failed/unavailable, falling back to html2canvas:", pErr);
+  }
+
+  // 2. Fallback: Render PDF via client-side html2canvas + jsPDF
+  const res = await generateElementPdfBlob(elementId, options);
+  if (res && res.blob) {
+    const url = URL.createObjectURL(res.blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 2000);
+  }
+}
+
+export function buildQuoteHtmlString(quote, options = {}) {
+  const { subtotal, vat, total } = calcItems(quote.items || [], quote.vatRate);
+  const showStt = options.showStt !== false;
+  const showImage = options.showImage !== false && (quote.items || []).some(it => it.image && it.image.trim());
+  const showNote = options.showNote !== false;
+  const showVat = options.showVat !== false;
+  const showStamp = options.showStamp !== false && COMPANY.showStamp !== false;
+  const stampUrl = options.stampUrl || getStampUrl();
+  const logoUrl = options.logoUrl || getLogoUrl();
+
+  const parseQuoteDate = (dStr) => {
+    if (!dStr) return new Date();
+    if (dStr instanceof Date && !isNaN(dStr)) return dStr;
+    if (typeof dStr === 'string' && dStr.includes('/')) {
+      const parts = dStr.split('/');
+      if (parts.length === 3) {
+        const d = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const y = parseInt(parts[2], 10);
+        const dt = new Date(y, m, d);
+        if (!isNaN(dt)) return dt;
+      }
+    }
+    const dt = new Date(dStr);
+    if (!isNaN(dt)) return dt;
+    return new Date();
+  };
+
+  const dt = parseQuoteDate(quote.date);
+  const qDay = String(dt.getDate()).padStart(2, "0");
+  const qMonth = String(dt.getMonth() + 1).padStart(2, "0");
+  const qYear = dt.getFullYear();
+
+  const visibleCols = 1 + (showStt ? 1 : 0) + (showImage ? 1 : 0) + 3 + (showVat ? 1 : 0);
+
+  const rows = (quote.items || []).map((it, idx) => {
+    const lineTotal = (it.qty || 0) * (it.price || 0);
+    const hasNote = showNote && it.note;
+    const vatStr = it.vat != null ? (it.vat > 0 ? `${it.vat}%` : "0%") : `${quote.vatRate || 0}%`;
+
+    return `
+      <tr>
+        ${showStt ? `<td style="border:0.5px solid #000;background:#fff;color:#000;text-align:center;padding:5px 4px;font-size:11px;">${idx + 1}</td>` : ''}
+        ${showImage ? `<td style="border:0.5px solid #000;background:#fff;color:#000;text-align:center;padding:3px;">${it.image ? `<img src="${it.image}" style="max-width:45px;max-height:45px;object-fit:contain;border-radius:3px;" />` : ''}</td>` : ''}
+        <td style="border:0.5px solid #000;background:#fff;color:#000;padding:5px 6px;font-size:11px;">
+          <div style="font-weight:600;font-size:11px;">${it.name || ''}</div>
+          ${hasNote ? `<div style="font-size:9.5px;color:#555;margin-top:2px;white-space:pre-wrap;">${it.note}</div>` : ''}
+        </td>
+        <td style="border:0.5px solid #000;background:#fff;color:#000;text-align:center;padding:5px 4px;font-size:11px;">${it.qty || 0}</td>
+        <td style="border:0.5px solid #000;background:#fff;color:#000;text-align:center;padding:5px 4px;font-size:11px;">${it.unit || ''}</td>
+        <td style="border:0.5px solid #000;background:#fff;color:#000;text-align:right;padding:5px 4px;font-size:11px;">${fmt(it.price)}</td>
+        ${showVat ? `<td style="border:0.5px solid #000;background:#fff;color:#000;text-align:center;padding:5px 4px;font-size:11px;">${vatStr}</td>` : ''}
+        <td style="border:0.5px solid #000;background:#fff;color:#000;text-align:right;font-weight:600;padding:5px 4px;font-size:11px;">${fmt(lineTotal)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div id="_offscreen_quote_preview" class="quote-preview" style="background:#fff;color:#000;font-family:'Plus Jakarta Sans',Arial,sans-serif;padding:16px 8px;width:730px;box-sizing:border-box;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;border-bottom:3px solid #000;padding-bottom:14px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="${logoUrl}" style="width:56px;height:56px;object-fit:contain;" alt="PMC Logo" />
+          <div>
+            <h2 style="font-size:14px;font-weight:700;margin:0 0 3px 0;color:#000;">${COMPANY.name || ''}</h2>
+            <p style="font-size:11px;margin:2px 0;color:#000;">MST: ${COMPANY.mst || ''}</p>
+            <p style="font-size:11px;margin:2px 0;color:#000;">Địa chỉ: ${COMPANY.address || ''}</p>
+            <p style="font-size:11px;margin:2px 0;color:#000;">ĐT: ${COMPANY.phone || ''} | Email: ${COMPANY.email || ''}</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;margin-bottom:16px;">
+        <h1 style="font-size:18px;font-weight:700;margin:0 0 4px 0;color:#000;">${quote.status === "provisional" ? "BẢNG BÁO GIÁ TẠM TÍNH" : "BẢNG BÁO GIÁ"}</h1>
+        <div style="font-size:11.5px;color:#000;">Số: ${quote.quoteNumber || ''}</div>
+      </div>
+
+      <div style="margin-bottom:16px;font-size:11px;line-height:1.6;color:#000;">
+        <div><strong>Kính gửi:</strong> ${quote.customer || ''}</div>
+        ${quote.taxId ? `<div><strong>MST:</strong> ${quote.taxId}</div>` : ''}
+        ${quote.address ? `<div><strong>Địa chỉ:</strong> ${quote.address}</div>` : ''}
+        ${quote.phone ? `<div><strong>SĐT:</strong> ${quote.phone}</div>` : ''}
+        ${quote.contact ? `<div><strong>Người liên hệ:</strong> ${quote.contact}</div>` : ''}
+        ${quote.workContent ? `<div style="margin-top:4px;"><strong>Nội dung:</strong> ${quote.workContent}</div>` : ''}
+      </div>
+
+      <table class="quote-items-table quote-table" style="width:100%;border-collapse:collapse;border:0.5px solid #000;background:#fff;margin-bottom:12px;font-size:11px;">
+        <thead>
+          <tr>
+            ${showStt ? `<th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:center;padding:5px 4px;width:40px;font-size:11px;">STT</th>` : ''}
+            ${showImage ? `<th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:center;padding:5px 4px;width:60px;font-size:11px;">HÌNH</th>` : ''}
+            <th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:left;padding:5px 6px;font-size:11px;">HÀNG HÓA / DỊCH VỤ</th>
+            <th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:center;padding:5px 4px;width:45px;font-size:11px;">SL</th>
+            <th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:center;padding:5px 4px;width:60px;font-size:11px;">ĐVT</th>
+            <th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:right;padding:5px 4px;width:100px;font-size:11px;">ĐƠN GIÁ</th>
+            ${showVat ? `<th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:center;padding:5px 4px;width:50px;font-size:11px;">VAT</th>` : ''}
+            <th style="border:0.5px solid #000;background:#fff;color:#000;font-weight:700;text-align:right;padding:5px 4px;width:110px;font-size:11px;">THÀNH TIỀN</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="${visibleCols - 1}" style="border:0.5px solid #000;background:#fff;color:#000;padding:5px 6px;text-align:right;font-weight:600;font-size:11px;">CỘNG TIỀN HÀNG (CHƯA VAT):</td>
+            <td style="border:0.5px solid #000;background:#fff;color:#000;padding:5px 4px;text-align:right;font-weight:600;font-size:11px;">${fmt(subtotal)}</td>
+          </tr>
+          ${showVat ? `
+          <tr>
+            <td colspan="${visibleCols - 1}" style="border:0.5px solid #000;background:#fff;color:#000;padding:5px 6px;text-align:right;font-weight:600;font-size:11px;">TỔNG TIỀN THUẾ VAT:</td>
+            <td style="border:0.5px solid #000;background:#fff;color:#000;padding:5px 4px;text-align:right;font-weight:600;font-size:11px;">${fmt(vat)}</td>
+          </tr>` : ''}
+          <tr style="background:#fff;">
+            <td colspan="${visibleCols - 1}" style="border:0.5px solid #000;background:#fff;color:#000;padding:5px 6px;text-align:right;font-weight:700;font-size:11.5px;">TỔNG CỘNG THANH TOÁN (GỒM VAT):</td>
+            <td style="border:0.5px solid #000;background:#fff;color:#000;padding:5px 4px;text-align:right;font-weight:700;font-size:12px;">${fmt(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      ${quote.notes ? `
+        <div style="margin-top:14px;font-size:11px;">
+          <div style="font-weight:700;color:#000;margin-bottom:4px;">Ghi chú & Điều khoản:</div>
+          <div style="white-space:pre-wrap;line-height:1.5;color:#000;">${quote.notes}</div>
+        </div>
+      ` : ''}
+
+      <div style="display:flex;justify-content:space-between;margin-top:24px;font-size:11px;page-break-inside:avoid;">
+        <div style="text-align:center;min-width:200px;">
+          <div style="font-weight:700;color:#000;">ĐẠI DIỆN KHÁCH HÀNG</div>
+          <div style="color:#666;font-size:10px;">(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
+          <div style="height:100px;"></div>
+          <div style="font-weight:600;color:#000;">${quote.contact || quote.customer || ''}</div>
+        </div>
+        <div style="text-align:center;min-width:260px;max-width:320px;">
+          <div style="color:#555;font-style:italic;margin-bottom:4px;">Phú Mỹ, ngày ${qDay} tháng ${qMonth} năm ${qYear}</div>
+          <div style="font-weight:700;color:#000;margin-bottom:2px;">${COMPANY.short || "PMC"}</div>
+          <div style="color:#666;font-size:10px;margin-bottom:4px;">(Ký, đóng dấu &amp; ghi rõ họ tên)</div>
+          <div style="position:relative;min-height:90px;display:flex;justify-content:center;align-items:center;margin:4px 0;">
+            ${showStamp && stampUrl ? `
+              <img 
+                src="${stampUrl}" 
+                alt="Con dấu" 
+                class="company-stamp-img"
+                style="width:151px;height:151px;max-width:151px;max-height:151px;object-fit:contain;aspect-ratio:1/1;position:absolute;top:-24px;opacity:0.95;pointer-events:none;" 
+              />
+            ` : ''}
+          </div>
+          <div style="font-weight:700;font-size:12px;color:#000;text-transform:uppercase;margin-top:4px;">
+            ${COMPANY.representative || "TRẦN VĂN THỊNH"}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export async function generateQuotePdfBlob(quote, options = {}) {
+  const container = document.createElement("div");
+  container.id = "_temp_quote_wrap";
+  container.style.cssText = "position:fixed;top:0;left:-9999px;z-index:-9999;";
+  container.innerHTML = buildQuoteHtmlString(quote, options);
+  document.body.appendChild(container);
+
+  try {
+    const res = await generateElementPdfBlob("_offscreen_quote_preview", options);
+    return res;
+  } finally {
+    if (document.body.contains(container)) {
+      document.body.removeChild(container);
+    }
+  }
+}
+
+export async function shareQuoteViaZalo(quote, options = {}) {
+  if (!quote) return;
+  const { total } = calcItems(quote.items || [], quote.vatRate);
+  
+  const text = `📄 BÁO GIÁ PMC - ${COMPANY.short || "PMC"}\n----------------------------\n` +
+    `• Số BG: ${quote.quoteNumber || "BG"}\n` +
+    `• Khách hàng: ${quote.customer || ""}\n` +
+    `• Ngày: ${quote.date || ""}\n` +
+    `• Tổng tiền: ${fmt(total)} VNĐ\n` +
+    `----------------------------\n` +
+    `Vui lòng xem file PDF đính kèm. Trân trọng!`;
+
+  const compShort = (options.customerShortName || generateCustomerShortName(quote.customer) || "KH");
+  const filename = `${quote.quoteNumber || "BG"}_${compShort}.pdf`;
+
+  showToast("⏳ Đang tạo file PDF báo giá để gửi Zalo...", 3500);
+
+  try {
+    let pdfRes = null;
+    const previewEl = document.getElementById("quotePreviewContent");
+    if (previewEl) {
+      pdfRes = await generateElementPdfBlob("quotePreviewContent", { filename });
+    } else {
+      pdfRes = await generateQuotePdfBlob(quote, { filename });
+    }
+
+    if (!pdfRes || !pdfRes.file) {
+      throw new Error("Không thể tạo file PDF");
+    }
+
+    const { file, blob } = pdfRes;
+
+    // 1. Mobile Web Share API with files
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          title: `Báo Giá ${quote.quoteNumber} - ${quote.customer}`,
+          text: text,
+          files: [file]
+        });
+        showToast("✅ Đã mở chia sẻ Báo giá kèm file PDF!", 3000);
+        return;
+      } catch (err) {
+        if (err.name === "AbortError") return; // User cancelled
+        console.warn("navigator.share with file failed:", err);
+      }
+    }
+
+    // 2. PC / Desktop: Download PDF + Copy text + Open Zalo Web
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 3000);
+
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {}
+
+    // Open Zalo Web
+    window.open("https://chat.zalo.me/", "_blank");
+
+    showToast("✅ Đã tải file PDF & Sao chép nội dung báo giá!\n👉 Hãy sang Zalo (Web/App), bấm Ctrl+V để dán thông tin và gửi kèm file PDF vừa tải.", 6000);
+  } catch (err) {
+    console.error("Lỗi gửi Zalo:", err);
+    showToast("⚠️ Lỗi tạo PDF gửi Zalo: " + err.message, 4000);
   }
 }
 

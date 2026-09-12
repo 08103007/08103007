@@ -11,6 +11,7 @@ import {
   generateId, generateQuoteNumber, todayStr, fmt, 
   calcItems, getCustomerColor, STATUS_LABELS 
 } from './utils/helpers';
+import { shareQuoteViaZalo } from './utils/pdfExporter';
 
 // Components & Views
 import LoginScreen from './components/LoginScreen';
@@ -126,20 +127,7 @@ export default function App() {
   };
 
   const shareQuoteZalo = (q) => {
-    const { total } = calcItems(q.items, q.vatRate);
-    const text = `📄 BÁO GIÁ PMC - ${COMPANY.short}\n----------------------------\n` +
-      `• Số BG: ${q.quoteNumber}\n` +
-      `• Khách hàng: ${q.customer}\n` +
-      `• Ngày: ${q.date}\n` +
-      `• Tổng tiền: ${fmt(total)} VNĐ\n` +
-      `----------------------------\n` +
-      `Vui lòng xem file PDF đính kèm. Trân trọng!`;
-    if (navigator.share) {
-      navigator.share({ title: `Báo Giá ${q.quoteNumber}`, text }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text);
-      showToast("📋 Đã sao chép thông tin báo giá! Bạn có thể dán vào Zalo.", 3000);
-    }
+    shareQuoteViaZalo(q);
   };
 
   // Filter list: search by quote number, customer, OR item name
@@ -653,6 +641,7 @@ export default function App() {
                                 <td>
                                   <div style={{display:"flex",gap:4,justifyContent:"center"}}>
                                     <button className="btn btn-ghost btn-sm btn-icon" title="Xem & In / Xuất" onClick={()=>setPrintQuote(q)}>🖨️</button>
+                                    <button className="btn btn-ghost btn-sm btn-icon" title="Gửi Zalo kèm file PDF" onClick={()=>shareQuoteZalo(q)} style={{color:"#0068ff"}}>📲</button>
                                     <button className="btn btn-ghost btn-sm btn-icon" title="Chỉnh sửa" onClick={()=>{setEditQuote(q);setShowModal(true);}}>✏️</button>
                                     <button className="btn btn-ghost btn-sm btn-icon" title="Nhân bản" onClick={()=>{
                                       const copy={...JSON.parse(JSON.stringify(q)),id:generateId(),quoteNumber:generateQuoteNumber([...quotes,q]),date:todayStr(),status:"draft"};

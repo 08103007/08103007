@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { COMPANY, getLogoUrl, getStampUrl, makeSquareStampImage, showToast, _mem } from '../utils/gasStore';
 import { calcItems, fmt, generateCustomerShortName } from '../utils/helpers';
-import { printElementViaIframe, exportElementToPdf } from '../utils/pdfExporter';
+import { printElementViaIframe, exportElementToPdf, shareQuoteViaZalo } from '../utils/pdfExporter';
 import { 
   buildDocxBlob, dxPara, dxHeaderCell, dxRow, dxTable, 
   dxNoBorderTable, dxNoBorderCell, dxImage, downloadBlob
@@ -127,6 +127,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
 
   const [pdfLoading, setPdfLoading] = useState(false);
   const [wordLoading, setWordLoading] = useState(false);
+  const [zaloLoading, setZaloLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
 
   // Print Template Options state
@@ -433,6 +434,25 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
     }
   };
 
+  const handleZaloClick = async () => {
+    setZaloLoading(true);
+    try {
+      await shareQuoteViaZalo(localQuote, {
+        customerShortName: compShort,
+        stampUrl,
+        showStamp: printOptions.showStamp,
+        showStt: printOptions.showStt,
+        showImage: printOptions.showImage,
+        showNote: printOptions.showNote,
+        showVat: printOptions.showVat
+      });
+    } catch (err) {
+      showToast("⚠️ Lỗi gửi Zalo: " + err.message, 3000);
+    } finally {
+      setZaloLoading(false);
+    }
+  };
+
   const visibleColsCount = (printOptions.showStt ? 1 : 0) +
     (printOptions.showImage ? 1 : 0) +
     1 + // Tên hàng hóa
@@ -475,6 +495,14 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             </button>
             <button className="btn btn-ghost" onClick={handleWord} disabled={wordLoading} style={{ display: "flex", alignItems: "center", gap: 6 }}>
               {wordLoading ? "⏳ Đang tạo Word..." : "📝 Xuất File Word (.docx)"}
+            </button>
+            <button 
+              className="btn btn-ghost" 
+              onClick={handleZaloClick} 
+              disabled={zaloLoading} 
+              style={{ display: "flex", alignItems: "center", gap: 6, color: "#0068ff", borderColor: "#bfdbfe", background: "#eff6ff", fontWeight: 600 }}
+            >
+              {zaloLoading ? "⏳ Đang tạo PDF gửi Zalo..." : "📲 Gửi Zalo (kèm PDF)"}
             </button>
 
             <div style={{ height: 24, width: 1, background: "#cbd5e1", margin: "0 4px" }} />
