@@ -10,6 +10,7 @@ import {
   compareLocalAndGAS, applyReconciledQuotes, showToast
 } from '../utils/gasStore';
 import { parseX509Certificate } from '../utils/certParser';
+import { checkPluginStatus, readCertificatesFromPlugin } from '../utils/icaSigner';
 import { 
   getSupabaseUrl, setSupabaseUrl, getSupabaseKey, setSupabaseKey, 
   testSupabaseConnection, migrateAllLocalDataToSupabase, SUPABASE_SQL_SCHEMA 
@@ -120,6 +121,64 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
       alert("❌ Lỗi đọc file chứng thư số: " + err.message);
     } finally {
       if (e.target) e.target.value = "";
+    }
+  };
+
+  const [pluginStatus, setPluginStatus] = useState({ checked: false, ok: false, message: "" });
+  const [pluginLoading, setPluginLoading] = useState(false);
+
+  const handleTestPlugin = async () => {
+    setPluginLoading(true);
+    setPluginStatus({ checked: false, ok: false, message: "⏳ Đang kiểm tra kết nối tới I-CA Plugin..." });
+    try {
+      const port = company.digitalSign?.pluginPort || 15888;
+      const res = await checkPluginStatus(port);
+      setPluginStatus({ checked: true, ok: res.ok, port: res.port, message: res.message });
+      if (res.ok) {
+        showToast(`🟢 ${res.message}`, 3000);
+      } else {
+        showToast("⚠️ Chưa kết nối được I-CA Web Plugin", 3000);
+      }
+    } catch (e) {
+      setPluginStatus({ checked: true, ok: false, message: "❌ Lỗi: " + e.message });
+    } finally {
+      setPluginLoading(false);
+    }
+  };
+
+  const handleReadTokenDirect = async () => {
+    setPluginLoading(true);
+    try {
+      const port = company.digitalSign?.pluginPort || 15888;
+      const res = await readCertificatesFromPlugin(port);
+      if (res.ok && res.cert) {
+        const parsed = res.cert;
+        setCompany(prev => ({
+          ...prev,
+          mst: parsed.mst || prev.mst,
+          digitalSign: {
+            ...(prev.digitalSign || {}),
+            signerName: parsed.signerName || prev.digitalSign?.signerName || prev.name,
+            province: parsed.province || prev.digitalSign?.province || "Bà Rịa - Vũng Tàu",
+            location: parsed.location || prev.digitalSign?.location || "Bà Rịa - Vũng Tàu",
+            caProvider: parsed.caProvider || "I-CA (I-CA Public CA)",
+            serialNumber: parsed.serialNumber || "",
+            validFrom: parsed.validFrom || "",
+            validTo: parsed.validTo || "",
+            daysRemaining: parsed.daysRemaining,
+            isExpired: parsed.isExpired,
+            dnString: parsed.dnString,
+            mst: parsed.mst || prev.mst
+          }
+        }));
+        showToast(`✅ Đã đọc thành công chứng thư số trực tiếp từ USB Token I-CA!`, 4000);
+      } else {
+        alert("⚠️ " + (res.error || "Không tìm thấy chứng thư trên USB Token I-CA. Vui lòng đảm bảo Token đã cắm và I-CA Plugin đang chạy."));
+      }
+    } catch (err) {
+      alert("❌ Lỗi: " + err.message);
+    } finally {
+      setPluginLoading(false);
     }
   };
 
@@ -690,6 +749,77 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
                   <div><strong>Số Serial:</strong> <code>{company.digitalSign?.serialNumber}</code></div>
                   <div><strong>Thời hạn hiệu lực:</strong> {company.digitalSign?.validFrom} đến {company.digitalSign?.validTo}</div>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* I-CA Web Signer Plugin Connection Card */}
+          <div style={{
+            background: "#f8fafc",
+            border: "1px solid #cbd5e1",
+            borderRadius: 8,
+            padding: "14px 16px",
+            marginBottom: 16
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: "#1e293b", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>🔌</span>
+                <span>Kết nối trực tiếp I-CA Web Signer Plugin (Localhost)</span>
+              </div>
+              {pluginStatus.checked && (
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  padding: "3px 10px",
+                  borderRadius: 12,
+                  background: pluginStatus.ok ? "#dcfce7" : "#fee2e2",
+                  color: pluginStatus.ok ? "#166534" : "#dc2626"
+                }}>
+                  {pluginStatus.ok ? "🟢 Đã kết nối I-CA Plugin" : "🔴 Chưa kết nối được Plugin"}
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 12, lineHeight: 1.5 }}>
+              Nếu máy tính có cài đặt & chạy <strong>I-CA Web Signer Plugin</strong> (dịch vụ ký số trung gian), bạn có thể đọc chứng thư và ký số trực tiếp qua cổng kết nối nội bộ mà không cần tải file thủ công.
+            </div>
+
+            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: "#475569" }}>Cổng Plugin:</label>
+                <input 
+                  className="form-control" 
+                  style={{ width: 90, height: 32, fontSize: 12, padding: "2px 8px" }} 
+                  value={company.digitalSign?.pluginPort || "15888"} 
+                  onChange={e => setDS("pluginPort", e.target.value)} 
+                  placeholder="15888" 
+                />
+              </div>
+
+              <button 
+                type="button" 
+                className="btn btn-secondary btn-sm" 
+                onClick={handleTestPlugin}
+                disabled={pluginLoading}
+                style={{ fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}
+              >
+                {pluginLoading ? "⏳ Đang kiểm tra..." : "🔍 Kiểm tra kết nối Plugin"}
+              </button>
+
+              <button 
+                type="button" 
+                className="btn btn-ghost btn-sm" 
+                onClick={handleReadTokenDirect}
+                disabled={pluginLoading}
+                style={{ fontSize: 12, color: "#2563eb", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}
+              >
+                ⚡ Đọc chứng thư trực tiếp từ Token USB
+              </button>
+            </div>
+
+            {pluginStatus.message && (
+              <div style={{ fontSize: 11, marginTop: 8, color: pluginStatus.ok ? "#16a34a" : "#dc2626", fontWeight: 500 }}>
+                {pluginStatus.message}
               </div>
             )}
           </div>

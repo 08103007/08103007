@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { COMPANY, getLogoUrl, getStampUrl, showToast, _mem } from '../utils/gasStore';
 import { calcItems, fmt, generateCustomerShortName } from '../utils/helpers';
 import { printElementViaIframe, exportElementToPdf } from '../utils/pdfExporter';
+import { signWithPlugin } from '../utils/icaSigner';
 import { 
   buildDocxBlob, dxPara, dxHeaderCell, dxRow, dxTable, 
   dxNoBorderTable, dxNoBorderCell, dxImage, downloadBlob
@@ -195,6 +196,42 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
     setPinInput("");
     setPinError("");
     showToast("🛡️ Đã xác thực mã PIN & Ký số USB Token thành công!", 3000);
+  };
+
+  const [pluginSigning, setPluginSigning] = useState(false);
+
+  const handleSignViaPlugin = async () => {
+    setPluginSigning(true);
+    setPinError("");
+    try {
+      const port = COMPANY.digitalSign?.pluginPort || 15888;
+      const res = await signWithPlugin({
+        quoteNumber: localQuote.quoteNumber,
+        total,
+        date: localQuote.date,
+        signer: COMPANY.digitalSign?.signerName || COMPANY.name
+      }, port);
+
+      if (res.ok) {
+        const newSignedStr = getFormattedSignDate(new Date());
+        setSignedDate(newSignedStr);
+        setIsSigned(true);
+        setPrintOptions(p => ({ ...p, showDigitalSign: true }));
+        setLocalQuote(prev => ({
+          ...prev,
+          isSigned: true,
+          signedAt: newSignedStr
+        }));
+        setShowPinModal(false);
+        showToast("🛡️ Đã ký số USB Token I-CA thành công qua Plugin!", 3500);
+      } else {
+        setPinError("⚠️ " + (res.error || "Không kết nối được I-CA Plugin. Bạn có thể nhập mã PIN bên dưới để xác thực ký nhanh."));
+      }
+    } catch (e) {
+      setPinError("⚠️ Không kết nối được I-CA Web Plugin (Port: " + (COMPANY.digitalSign?.pluginPort || 15888) + "). Bạn có thể nhập mã PIN bên dưới để xác thực.");
+    } finally {
+      setPluginSigning(false);
+    }
   };
 
   const { subtotal, vat, total } = calcItems(localQuote?.items || [], localQuote?.vatRate);
@@ -941,7 +978,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             {/* Body */}
             <div style={{ padding: "20px 24px" }}>
               {/* Certificate Card info */}
-              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", marginBottom: 18, fontSize: 12 }}>
+              <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "12px 14px", marginBottom: 16, fontSize: 12 }}>
                 <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 4, display: "flex", alignItems: "center", gap: 6 }}>
                   <span>🛡️</span>
                   <span>Chứng thư số điện tử I-CA (X.509)</span>
@@ -952,6 +989,25 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                   <div><strong>Người ký:</strong> {COMPANY.representative || "TRẦN VĂN THỊNH"}</div>
                   <div><strong>Đơn vị CA:</strong> {COMPANY.digitalSign?.caProvider || "I-CA (I-CA Public CA)"}</div>
                 </div>
+              </div>
+
+              {/* Direct Plugin Sign Trigger */}
+              <div style={{ marginBottom: 16, textAlign: "center" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleSignViaPlugin}
+                  disabled={pluginSigning}
+                  style={{ width: "100%", padding: "10px 14px", fontSize: 13, fontWeight: 700, background: "#ecfdf5", color: "#047857", borderColor: "#a7f3d0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                >
+                  <span>{pluginSigning ? "⏳ Đang kết nối I-CA Plugin..." : "⚡ Ký trực tiếp qua I-CA Token Plugin (Bật popup Windows)"}</span>
+                </button>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", color: "#94a3b8", fontSize: 11 }}>
+                <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
+                <span>HOẶC XÁC THỰC MÃ PIN NHANH</span>
+                <div style={{ flex: 1, height: 1, background: "#e2e8f0" }} />
               </div>
 
               <form onSubmit={handleConfirmPinSign}>
@@ -979,7 +1035,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                     </button>
                   </div>
                   {pinError && (
-                    <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 500 }}>
+                    <div style={{ color: "#dc2626", fontSize: 12, marginTop: 6, fontWeight: 500, lineHeight: 1.4 }}>
                       {pinError}
                     </div>
                   )}
