@@ -417,6 +417,115 @@ export async function generateQuotePdfBlob(quote, options = {}) {
   }
 }
 
+export function showZaloPcModal({ filename, text, blob }) {
+  const old = document.getElementById("zalo_pc_modal");
+  if (old) old.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "zalo_pc_modal";
+  modal.style.cssText = `
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10000;
+    font-family: 'Plus Jakarta Sans', Arial, sans-serif;
+  `;
+
+  modal.innerHTML = `
+    <div style="background: #ffffff; width: 92%; max-width: 480px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.1); overflow: hidden; border: 1px solid #e2e8f0; animation: scaleUp 0.18s ease-out;">
+      <div style="background: #0068ff; color: #fff; padding: 14px 18px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px;">
+          <span style="font-size: 20px;">💬</span> Gửi Báo Giá Qua Zalo
+        </div>
+        <button id="_zalo_modal_close" style="background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px;">×</button>
+      </div>
+
+      <div style="padding: 18px 20px; color: #1e293b;">
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 26px;">📄</span>
+          <div style="flex: 1; min-width: 0;">
+            <div style="font-weight: 700; font-size: 13px; color: #166534; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;">
+              ${filename}
+            </div>
+            <div style="font-size: 11.5px; color: #15803d;">
+              ✅ Đã tải file PDF báo giá về máy tính
+            </div>
+          </div>
+        </div>
+
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">📋</span>
+          <div style="flex: 1;">
+            <div style="font-weight: 700; font-size: 13px; color: #1e40af;">
+              Đã sao chép nội dung báo giá vào bộ nhớ tạm
+            </div>
+            <div style="font-size: 11.5px; color: #2563eb;">
+              Bạn chỉ cần nhấn <strong>Ctrl + V</strong> trong ô chat Zalo để dán
+            </div>
+          </div>
+        </div>
+
+        <div style="font-size: 13px; font-weight: 600; color: #334155; margin-bottom: 10px;">
+          👉 Chọn cách mở Zalo:
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <button id="_btn_open_zalo_app" style="flex: 1; padding: 12px 14px; background: #0068ff; color: #fff; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,104,255,0.25);">
+            💬 Mở Zalo App (PC)
+          </button>
+          <button id="_btn_open_zalo_web" style="flex: 1; padding: 12px 14px; background: #ffffff; color: #0068ff; border: 1.5px solid #0068ff; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            🌐 Mở Zalo Web
+          </button>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 10px 12px; font-size: 11.5px; color: #64748b; line-height: 1.6;">
+          <strong>💡 3 bước gửi nhanh cho khách:</strong><br/>
+          1. Bấm nút <strong>"Mở Zalo App (PC)"</strong> hoặc chuyển sang Zalo.<br/>
+          2. Chọn khách hàng $\rightarrow$ bấm <strong>Ctrl + V</strong> để dán lời nhắn báo giá.<br/>
+          3. Kéo thả file PDF vừa tải (ở góc dưới trình duyệt hoặc thư mục Downloads) vào ô chat.
+        </div>
+      </div>
+
+      <div style="background: #f8fafc; padding: 10px 18px; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 8px;">
+        <button id="_btn_recopy_text" style="padding: 7px 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; cursor: pointer; color: #334155; font-weight: 500;">
+          📋 Sao chép lại lời nhắn
+        </button>
+        <button id="_zalo_modal_done" style="padding: 7px 18px; background: #0068ff; color: #fff; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
+          Đóng
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  const closeModal = () => {
+    if (document.body.contains(modal)) document.body.removeChild(modal);
+  };
+
+  modal.querySelector("#_zalo_modal_close").onclick = closeModal;
+  modal.querySelector("#_zalo_modal_done").onclick = closeModal;
+  modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+  modal.querySelector("#_btn_open_zalo_app").onclick = () => {
+    // Open Zalo PC application protocol
+    window.location.href = "zalo://";
+  };
+
+  modal.querySelector("#_btn_open_zalo_web").onclick = () => {
+    window.open("https://chat.zalo.me/", "_blank");
+  };
+
+  modal.querySelector("#_btn_recopy_text").onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("📋 Đã sao chép lại nội dung báo giá!", 2000);
+    } catch (_) {}
+  };
+}
+
 export async function shareQuoteViaZalo(quote, options = {}) {
   if (!quote) return;
   const { total } = calcItems(quote.items || [], quote.vatRate);
@@ -432,7 +541,7 @@ export async function shareQuoteViaZalo(quote, options = {}) {
   const compShort = (options.customerShortName || generateCustomerShortName(quote.customer) || "KH");
   const filename = `${quote.quoteNumber || "BG"}_${compShort}.pdf`;
 
-  showToast("⏳ Đang tạo file PDF báo giá để gửi Zalo...", 3500);
+  showToast("⏳ Đang tạo file PDF báo giá...", 2500);
 
   try {
     let pdfRes = null;
@@ -448,9 +557,10 @@ export async function shareQuoteViaZalo(quote, options = {}) {
     }
 
     const { file, blob } = pdfRes;
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
 
-    // 1. Mobile Web Share API with files
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    // 1. Mobile: Native Web Share with attached PDF file
+    if (isMobile && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
           title: `Báo Giá ${quote.quoteNumber} - ${quote.customer}`,
@@ -461,11 +571,11 @@ export async function shareQuoteViaZalo(quote, options = {}) {
         return;
       } catch (err) {
         if (err.name === "AbortError") return; // User cancelled
-        console.warn("navigator.share with file failed:", err);
+        console.warn("navigator.share with file failed, falling back:", err);
       }
     }
 
-    // 2. PC / Desktop: Download PDF + Copy text + Open Zalo Web
+    // 2. PC / Desktop: Download PDF + Copy text + Open Zalo Modal
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -478,10 +588,7 @@ export async function shareQuoteViaZalo(quote, options = {}) {
       await navigator.clipboard.writeText(text);
     } catch (_) {}
 
-    // Open Zalo Web
-    window.open("https://chat.zalo.me/", "_blank");
-
-    showToast("✅ Đã tải file PDF & Sao chép nội dung báo giá!\n👉 Hãy sang Zalo (Web/App), bấm Ctrl+V để dán thông tin và gửi kèm file PDF vừa tải.", 6000);
+    showZaloPcModal({ filename, text, blob });
   } catch (err) {
     console.error("Lỗi gửi Zalo:", err);
     showToast("⚠️ Lỗi tạo PDF gửi Zalo: " + err.message, 4000);
