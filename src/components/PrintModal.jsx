@@ -588,7 +588,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
             </div>
 
             {/* Main Table */}
-            <table className="quote-table">
+            <table className="quote-items-table quote-table">
               <thead>
                 <tr>
                   {printOptions.showStt && <th style={{ width: 40, textAlign: "center" }}>{T.colStt}</th>}
@@ -745,6 +745,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                         opacity: 0.95,
                         pointerEvents: "none"
                       }} 
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
                   )}
                 </div>

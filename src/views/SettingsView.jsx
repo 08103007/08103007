@@ -58,6 +58,7 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
     if (COMPANY) {
       setCompany({ ...DEFAULT_COMPANY, ...COMPANY });
       setLogoPreview(getLogoUrl());
+      setStampPreview(getStampUrl());
     }
   }, []);
 
@@ -359,7 +360,12 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 90, height: 90, border: "2px dashed #cbd5e1", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc", overflow: "hidden", flexShrink: 0, position: "relative" }}>
               {stampPreview ? (
-                <img src={stampPreview} alt="Con dấu" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                <img 
+                  src={stampPreview} 
+                  alt="Con dấu" 
+                  style={{ width: "100%", height: "100%", objectFit: "contain" }} 
+                  onError={() => { setStampPreview(""); setC("stamp", ""); }}
+                />
               ) : (
                 <span style={{ fontSize: 32, color: "#94a3b8" }}>💮</span>
               )}

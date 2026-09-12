@@ -21,11 +21,13 @@ export function buildPrintHtml(elementId, extraCss) {
       .no-print { display:none !important; }
       #${elementId} { position:relative !important; width:100% !important; max-width:100% !important; height:auto !important; overflow:visible !important; margin:0 !important; padding:0 !important; box-shadow:none !important; }
       table, th, td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      table.quote-items-table, table.handover-items-table, table.debt-items-table, table.contract-table, table.payreq-table, table.print-table {
+      table.quote-table, table.quote-items-table, table.handover-items-table, table.debt-items-table, table.contract-table, table.payreq-table, table.print-table {
         border-collapse: collapse !important;
         border-spacing: 0 !important;
         border: 1px solid #000000 !important;
+        width: 100% !important;
       }
+      table.quote-table th, table.quote-table td,
       table.quote-items-table th, table.quote-items-table td,
       table.handover-items-table th, table.handover-items-table td,
       table.debt-items-table th, table.debt-items-table td,

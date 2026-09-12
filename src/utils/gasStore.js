@@ -74,6 +74,12 @@ export function _flushToLocalStorage() {
     if (Array.isArray(_mem.quotes) && _mem.quotes.length > 0) {
       setLS(LS_QUOTES, JSON.stringify(_mem.quotes));
     }
+    if (Array.isArray(_mem.products) && _mem.products.length > 0) {
+      setLS(LS_PRODUCTS, JSON.stringify(_mem.products));
+    }
+    setLS(LS_COMPANY, JSON.stringify(COMPANY));
+    setLS(LS_CONTRACTS_DF, JSON.stringify(CONTRACT_DEFAULTS));
+    setLS(LS_CATALOG, JSON.stringify(PRODUCT_CATALOG));
   } catch (e) {}
 }
 
@@ -117,15 +123,16 @@ export const CONTRACT_DEFAULTS = { ...DEFAULT_COMPANY.contractDefaults };
 export const PRODUCT_CATALOG = [ ...DEFAULT_COMPANY.productCatalog ];
 
 export function getLogoUrl() {
-  if (COMPANY.logo && COMPANY.logo.length > 15) {
-    return COMPANY.logo.replace(/[\r\n\s]+/g, "");
+  const l = (COMPANY.logo || "").trim();
+  if (l && l.length > 20 && (l.startsWith("data:image/") || l.startsWith("http://") || l.startsWith("https://") || l.startsWith("blob:"))) {
+    return l.replace(/[\r\n\s]+/g, "");
   }
   return DEFAULT_LOGO_URI;
 }
 
 export function getStampUrl() {
-  const s = COMPANY.stamp || "";
-  if (s && s.length > 15) {
+  const s = (COMPANY.stamp || "").trim();
+  if (s && s.length > 20 && (s.startsWith("data:image/") || s.startsWith("http://") || s.startsWith("https://") || s.startsWith("blob:"))) {
     return s.replace(/[\r\n\s]+/g, "");
   }
   return "";

@@ -1485,19 +1485,21 @@ input[type=number] {
 }
 
 /* 4. Document Border sharpness overrides - 100% uniform crisp 1px solid black borders */
-.quote-items-table, .handover-items-table, .debt-items-table, .contract-table, .payreq-table {
+.quote-items-table, .quote-table, .handover-items-table, .debt-items-table, .contract-table, .payreq-table {
   border: 1px solid #000000 !important;
   border-collapse: collapse !important;
   border-spacing: 0 !important;
-  table-layout: fixed !important;
+  width: 100% !important;
 }
 .quote-items-table th, .quote-items-table td,
+.quote-table th, .quote-table td,
 .handover-items-table th, .handover-items-table td,
 .debt-items-table th, .debt-items-table td,
 .contract-table th, .contract-table td,
 .payreq-table th, .payreq-table td {
   border: 1px solid #000000 !important;
   box-sizing: border-box !important;
+  padding: 6px 6px;
 }
 
 /* 5. Document Previews structural styles */
@@ -1556,29 +1558,37 @@ input[type=number] {
   font-size: 12px;
 }
 
-.quote-items-table {
+.quote-items-table, .quote-table {
   width: 100%;
   margin-bottom: 12px;
-  font-size: 11px;
+  font-size: 11.5px;
+  border-collapse: collapse !important;
 }
 
-.quote-items-table th {
+.quote-items-table th, .quote-table th {
   background: transparent;
   padding: 6px 4px;
   font-weight: 700;
   white-space: pre-line !important;
   line-height: 1.25;
   text-align: center;
+  border: 1px solid #000 !important;
 }
 
-.quote-items-table td {
+.quote-items-table td, .quote-table td {
   padding: 6px 4px;
   overflow-wrap: break-word;
   word-break: break-word;
-  vertical-align: top;
+  vertical-align: middle;
+  border: 1px solid #000 !important;
 }
 
-.quote-items-table .right {
+.quote-items-table tfoot td, .quote-table tfoot td {
+  border: 1px solid #000 !important;
+  padding: 6px 6px;
+}
+
+.quote-items-table .right, .quote-table .right {
   text-align: right;
 }
 
