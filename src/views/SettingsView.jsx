@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   COMPANY, getGasUrl, setGasUrl, logout, PRODUCT_CATALOG, 
-  CONTRACT_DEFAULTS, LS_TOKEN, LS_GAS_URL, getLogoUrl, getStampUrl, DEFAULT_LOGO_URI,
+  CONTRACT_DEFAULTS, LS_TOKEN, LS_GAS_URL, LS_COMPANY, LS_CONTRACTS_DF, LS_CATALOG,
+  getLogoUrl, getStampUrl, DEFAULT_LOGO_URI,
   exportToJSON, importFromJSON, recoverEmergencyBackup,
   initLocalFileHandle, getCurrentFileHandle, selectAndBindLocalJsonFile,
   createAndBindLocalJsonFile, disconnectLocalJsonFile, readFromLocalJsonFile,
   writeToLocalJsonFile, _mem,
-  getLS, removeLS, getAppPrefix, setAppPrefix,
+  getLS, setLS, removeLS, getAppPrefix, setAppPrefix,
   compareLocalAndGAS, applyReconciledQuotes, showToast
 } from '../utils/gasStore';
 import { 
@@ -293,10 +294,16 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
       }
 
       Object.assign(COMPANY, company);
+      try { setLS(LS_COMPANY, JSON.stringify(company)); } catch {}
+
       if (!CONTRACT_DEFAULTS.vi_en) CONTRACT_DEFAULTS.vi_en = {};
       Object.assign(CONTRACT_DEFAULTS.vi_en, { deliveryDays, paymentTerm, paymentTermEn });
+      try { setLS(LS_CONTRACTS_DF, JSON.stringify(CONTRACT_DEFAULTS)); } catch {}
+
       const newCatalog = quickCatalog.split("\n").map(s=>s.trim()).filter(Boolean);
       PRODUCT_CATALOG.splice(0, PRODUCT_CATALOG.length, ...newCatalog);
+      try { setLS(LS_CATALOG, JSON.stringify(PRODUCT_CATALOG)); } catch {}
+
       setSaveMsg("✅ Đã lưu");
       setTimeout(() => setSaveMsg(""), 2500);
       if (typeof onCompanyUpdate === "function") onCompanyUpdate({ ...company });
@@ -431,8 +438,11 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
                   ✕ Xóa con dấu
                 </button>
               )}
+              <button type="button" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }} onClick={handleSave} disabled={saving}>
+                {saving ? "⏳ Đang lưu..." : "💾 Lưu cài đặt con dấu"}
+              </button>
               <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                Khuyên dùng: Ảnh con dấu tròn hoặc dấu kèm chữ ký nền trong suốt (PNG) để tự động đóng dấu lên phần chữ ký báo giá.
+                Khuyên dùng: Ảnh con dấu tròn hoặc dấu kèm chữ ký nền trong suốt (PNG). Sau khi tải lên, bấm nút <strong>"Lưu cài đặt"</strong> để lưu vĩnh viễn vào hệ thống.
               </div>
               <input ref={stampFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleStampUpload} />
             </div>
