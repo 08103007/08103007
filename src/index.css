@@ -1492,9 +1492,9 @@ input[type=number] {
   word-break: break-word;
 }
 
-/* 4. Document Border sharpness overrides - 100% uniform crisp 1px solid black borders */
+/* 4. Document Border sharpness overrides - 100% uniform fine 0.5px solid black borders */
 .quote-items-table, .quote-table, .handover-items-table, .debt-items-table, .contract-table, .payreq-table {
-  border: 1px solid #000000 !important;
+  border: 0.5px solid #000000 !important;
   border-collapse: collapse !important;
   border-spacing: 0 !important;
   width: 100% !important;
@@ -1506,9 +1506,9 @@ input[type=number] {
 .debt-items-table th, .debt-items-table td, .debt-items-table tfoot td,
 .contract-table th, .contract-table td, .contract-table tfoot td,
 .payreq-table th, .payreq-table td, .payreq-table tfoot td {
-  border: 1px solid #000000 !important;
+  border: 0.5px solid #000000 !important;
   box-sizing: border-box !important;
-  padding: 6px 6px !important;
+  padding: 5px 4px !important;
   background: #ffffff !important;
   color: #000000 !important;
 }

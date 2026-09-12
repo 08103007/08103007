@@ -24,7 +24,7 @@ export function buildPrintHtml(elementId, extraCss) {
       table.quote-table, table.quote-items-table, table.handover-items-table, table.debt-items-table, table.contract-table, table.payreq-table, table.print-table {
         border-collapse: collapse !important;
         border-spacing: 0 !important;
-        border: 1px solid #000000 !important;
+        border: 0.5px solid #000000 !important;
         width: 100% !important;
         background: #ffffff !important;
       }
@@ -35,7 +35,7 @@ export function buildPrintHtml(elementId, extraCss) {
       table.contract-table th, table.contract-table td, table.contract-table tfoot td,
       table.payreq-table th, table.payreq-table td, table.payreq-table tfoot td,
       table.print-table th, table.print-table td, table.print-table tfoot td {
-        border: 1px solid #000000 !important;
+        border: 0.5px solid #000000 !important;
         box-sizing: border-box !important;
         background: #ffffff !important;
         color: #000000 !important;

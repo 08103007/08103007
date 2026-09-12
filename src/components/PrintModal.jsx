@@ -571,38 +571,39 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                 width: 100% !important;
                 border-collapse: collapse !important;
                 border-spacing: 0 !important;
-                border: 1px solid #000000 !important;
+                border: 0.5px solid #000000 !important;
                 margin-top: 10px !important;
                 margin-bottom: 12px !important;
                 background: #ffffff !important;
+                font-size: 11px !important;
               }
               #quotePreviewContent table.quote-items-table th,
               #quotePreviewContent table.quote-table th {
-                border: 1px solid #000000 !important;
+                border: 0.5px solid #000000 !important;
                 background: #ffffff !important;
                 color: #000000 !important;
                 font-weight: 700 !important;
                 text-align: center !important;
-                padding: 6px 4px !important;
-                font-size: 11.5px !important;
+                padding: 5px 4px !important;
+                font-size: 11px !important;
                 vertical-align: middle !important;
               }
               #quotePreviewContent table.quote-items-table td,
               #quotePreviewContent table.quote-table td {
-                border: 1px solid #000000 !important;
+                border: 0.5px solid #000000 !important;
                 background: #ffffff !important;
                 color: #000000 !important;
-                padding: 6px 4px !important;
-                font-size: 11.5px !important;
+                padding: 5px 4px !important;
+                font-size: 11px !important;
                 vertical-align: middle !important;
               }
               #quotePreviewContent table.quote-items-table tfoot td,
               #quotePreviewContent table.quote-table tfoot td {
-                border: 1px solid #000000 !important;
+                border: 0.5px solid #000000 !important;
                 background: #ffffff !important;
                 color: #000000 !important;
-                padding: 6px 6px !important;
-                font-size: 12px !important;
+                padding: 5px 6px !important;
+                font-size: 11px !important;
               }
               #quotePreviewContent img.company-stamp-img {
                 width: 151px !important;
@@ -710,7 +711,7 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                   const showNote = printOptions.showNote && (it.note || (lang !== "vi" && it.noteEn));
                   return (
                     <tr key={idx}>
-                      {printOptions.showStt && <td style={{ textAlign: "center" }}>{idx + 1}</td>}
+                      {printOptions.showStt && <td style={{ textAlign: "center", fontSize: 11 }}>{idx + 1}</td>}
                       {printOptions.showImage && (
                         <td style={{ textAlign: "center", padding: 3 }}>
                           {it.image ? (
@@ -718,13 +719,13 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                           ) : null}
                         </td>
                       )}
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{it.name}</div>
+                      <td style={{ fontSize: 11 }}>
+                        <div style={{ fontWeight: 600, fontSize: 11 }}>{it.name}</div>
                         {lang !== "vi" && it.nameEn ? (
-                          <div style={{ fontSize: 11, fontStyle: "italic", color: "#555" }}>{it.nameEn}</div>
+                          <div style={{ fontSize: 10, fontStyle: "italic", color: "#555" }}>{it.nameEn}</div>
                         ) : null}
                         {showNote && (
-                          <div style={{ fontSize: 10, color: "#666", marginTop: 2 }}>
+                          <div style={{ fontSize: 9.5, color: "#555", marginTop: 2, whiteSpace: "pre-wrap" }}>
                             {it.note}
                             {lang !== "vi" && it.noteEn ? (
                               <span style={{ fontStyle: "italic" }}> / {it.noteEn}</span>
@@ -732,44 +733,44 @@ export default function PrintModal({ quote, onClose, onCreateContract, onHandove
                           </div>
                         )}
                       </td>
-                      <td style={{ textAlign: "center" }}>{it.qty}</td>
-                      <td style={{ textAlign: "center" }}>
+                      <td style={{ textAlign: "center", fontSize: 11 }}>{it.qty}</td>
+                      <td style={{ textAlign: "center", fontSize: 11 }}>
                         <div>{it.unit}</div>
                         {lang !== "vi" && it.unitEn ? (
                           <div style={{ fontSize: 9, fontStyle: "italic", color: "#666" }}>{it.unitEn}</div>
                         ) : null}
                       </td>
-                      <td style={{ textAlign: "right" }}>{fmt(it.price)}</td>
+                      <td style={{ textAlign: "right", fontSize: 11 }}>{fmt(it.price)}</td>
                       {printOptions.showVat && (
                         <td style={{ textAlign: "center", fontSize: 11 }}>
                           {it.vat != null ? (it.vat > 0 ? `${it.vat}%` : "0%") : `${localQuote.vatRate || 0}%`}
                         </td>
                       )}
-                      <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(lineTotal)}</td>
+                      <td style={{ textAlign: "right", fontWeight: 600, fontSize: 11 }}>{fmt(lineTotal)}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 600 }}>
+                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 600, fontSize: 11 }}>
                     {T.subtotalLabel}
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(subtotal)}</td>
+                  <td style={{ textAlign: "right", fontWeight: 600, fontSize: 11 }}>{fmt(subtotal)}</td>
                 </tr>
                 {printOptions.showVat && (
                   <tr>
-                    <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 600 }}>
+                    <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 600, fontSize: 11 }}>
                       {T.vatLabel}
                     </td>
-                    <td style={{ textAlign: "right", fontWeight: 600 }}>{fmt(vat)}</td>
+                    <td style={{ textAlign: "right", fontWeight: 600, fontSize: 11 }}>{fmt(vat)}</td>
                   </tr>
                 )}
-                <tr style={{ background: "#f8fafc" }}>
-                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, fontSize: 13, color: "#1a2540" }}>
+                <tr style={{ background: "#ffffff" }}>
+                  <td colSpan={visibleColsCount - 1} style={{ textAlign: "right", fontWeight: 700, fontSize: 11.5, color: "#000000" }}>
                     {T.grandTotalLabel}
                   </td>
-                  <td style={{ textAlign: "right", fontWeight: 700, fontSize: 14, color: "#1a2540" }}>
+                  <td style={{ textAlign: "right", fontWeight: 700, fontSize: 12, color: "#000000" }}>
                     {fmt(total)}
                   </td>
                 </tr>
