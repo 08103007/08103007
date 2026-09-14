@@ -463,21 +463,21 @@ export default function HandoverModal({ quote, onClose }) {
 
       const critCol1 = [
         dxPara([{ text: T.crit1Title, bold: true, size: 16 }], { spaceAfter: 10 }),
-        dxPara([{ text: crit1 === "pass" ? "[X] " : "[  ] ", bold: true, color: crit1 === "pass" ? "15803D" : "000000" }, { text: T.crit1Pass, size: 15 }], { spaceAfter: 10 }),
-        dxPara([{ text: crit1 === "fail" ? "[X] " : "[  ] ", bold: true, color: crit1 === "fail" ? "B91C1C" : "000000" }, { text: T.crit1Fail, size: 15 }], { spaceAfter: 40 }),
+        dxPara([{ text: crit1 === "pass" ? "[X] " : "[  ] ", bold: true, color: crit1 === "pass" ? "15803D" : "000000" }, { text: T.crit1Pass, size: 16 }], { spaceAfter: 10 }),
+        dxPara([{ text: crit1 === "fail" ? "[X] " : "[  ] ", bold: true, color: crit1 === "fail" ? "B91C1C" : "000000" }, { text: T.crit1Fail, size: 16 }], { spaceAfter: 40 }),
 
         dxPara([{ text: T.crit3Title, bold: true, size: 16 }], { spaceAfter: 10 }),
-        dxPara([{ text: crit3 === "pass" ? "[X] " : "[  ] ", bold: true, color: crit3 === "pass" ? "15803D" : "000000" }, { text: T.crit3Pass, size: 15 }], { spaceAfter: 10 }),
-        dxPara([{ text: crit3 === "fail" ? "[X] " : "[  ] ", bold: true, color: crit3 === "fail" ? "B91C1C" : "000000" }, { text: T.crit3Fail, size: 15 }])
+        dxPara([{ text: crit3 === "pass" ? "[X] " : "[  ] ", bold: true, color: crit3 === "pass" ? "15803D" : "000000" }, { text: T.crit3Pass, size: 16 }], { spaceAfter: 10 }),
+        dxPara([{ text: crit3 === "fail" ? "[X] " : "[  ] ", bold: true, color: crit3 === "fail" ? "B91C1C" : "000000" }, { text: T.crit3Fail, size: 16 }])
       ];
 
       const critCol2 = [
         dxPara([{ text: T.crit2Title, bold: true, size: 16 }], { spaceAfter: 10 }),
-        dxPara([{ text: crit2 === "pass" ? "[X] " : "[  ] ", bold: true, color: crit2 === "pass" ? "15803D" : "000000" }, { text: T.crit2Pass, size: 15 }], { spaceAfter: 10 }),
-        dxPara([{ text: crit2 === "fail" ? "[X] " : "[  ] ", bold: true, color: crit2 === "fail" ? "B91C1C" : "000000" }, { text: T.crit2Fail, size: 15 }], { spaceAfter: 40 }),
+        dxPara([{ text: crit2 === "pass" ? "[X] " : "[  ] ", bold: true, color: crit2 === "pass" ? "15803D" : "000000" }, { text: T.crit2Pass, size: 16 }], { spaceAfter: 10 }),
+        dxPara([{ text: crit2 === "fail" ? "[X] " : "[  ] ", bold: true, color: crit2 === "fail" ? "B91C1C" : "000000" }, { text: T.crit2Fail, size: 16 }], { spaceAfter: 40 }),
 
         dxPara([{ text: T.crit4Title, bold: true, size: 16 }], { spaceAfter: 10 }),
-        dxPara([{ text: crit4 === "pass" ? "[X] " : "[  ] ", bold: true, color: "15803D" }, { text: T.crit4Pass, bold: true, size: 15 }])
+        dxPara([{ text: crit4 === "pass" ? "[X] " : "[  ] ", bold: true, color: "15803D" }, { text: T.crit4Pass, bold: true, size: 16 }])
       ];
 
       const evalTable = dxTable([
@@ -813,7 +813,7 @@ export default function HandoverModal({ quote, onClose }) {
                   {T.sec2Title}
                 </div>
 
-                <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 10, textAlign: "left", boxSizing: "border-box" }}>
+                <table style={{ width: "100%", tableLayout: "fixed", borderCollapse: "collapse", fontSize: 10.5, textAlign: "left", boxSizing: "border-box" }}>
                   <thead>
                     <tr style={{ background: "#1e3a8a", color: "#ffffff", textAlign: "center", fontWeight: 700 }}>
                       <th style={{ border: "1px solid #1e3a8a", padding: "6px 4px", width: "6%", whiteSpace: "pre-line" }}>{T.colStt}</th>
@@ -827,29 +827,29 @@ export default function HandoverModal({ quote, onClose }) {
                   <tbody>
                     {items.map((it, idx) => (
                       <tr key={it.id || idx}>
-                        <td style={{ border: "1px solid #94a3b8", padding: "5px 4px", textAlign: "center" }}>{idx + 1}</td>
+                        <td style={{ border: "1px solid #94a3b8", padding: "5px 4px", textAlign: "center", fontSize: 10.5 }}>{idx + 1}</td>
                         <td style={{ border: "1px solid #94a3b8", padding: "5px 8px", wordBreak: "break-word" }}>
-                          <div style={{ fontWeight: 700, color: "#111827", whiteSpace: "pre-line" }}>{it.name}</div>
+                          <div style={{ fontWeight: 700, color: "#111827", whiteSpace: "pre-line", fontSize: 10.5 }}>{it.name}</div>
                           {lang !== "vi" && it.nameEn ? (
-                            <div style={{ fontSize: 9, fontStyle: "italic", color: "#4b5563", marginTop: 2, whiteSpace: "pre-line" }}>
+                            <div style={{ fontSize: 9.5, fontStyle: "italic", color: "#4b5563", marginTop: 2, whiteSpace: "pre-line" }}>
                               {it.nameEn}
                             </div>
                           ) : null}
                         </td>
-                        <td style={{ border: "1px solid #94a3b8", padding: "5px 4px", textAlign: "center" }}>{it.unit || "Bộ"}</td>
-                        <td style={{ border: "1px solid #94a3b8", padding: "5px 4px", textAlign: "center", fontWeight: 700 }}>{String(it.qty || 1).padStart(2, "0")}</td>
-                        <td style={{ border: "1px solid #94a3b8", padding: "5px 6px", textAlign: "center", color: "#4b5563", fontSize: 9.5 }}>{it.serialNo || "-"}</td>
-                        <td style={{ border: "1px solid #94a3b8", padding: "5px 6px", color: "#4b5563", fontSize: 9.5 }}>{it.note || ""}</td>
+                        <td style={{ border: "1px solid #94a3b8", padding: "5px 4px", textAlign: "center", fontSize: 10.5 }}>{it.unit || "Bộ"}</td>
+                        <td style={{ border: "1px solid #94a3b8", padding: "5px 4px", textAlign: "center", fontWeight: 700, fontSize: 10.5 }}>{String(it.qty || 1).padStart(2, "0")}</td>
+                        <td style={{ border: "1px solid #94a3b8", padding: "5px 6px", textAlign: "center", color: "#374151", fontSize: 10.5 }}>{it.serialNo || "-"}</td>
+                        <td style={{ border: "1px solid #94a3b8", padding: "5px 6px", color: "#374151", fontSize: 10.5 }}>{it.note || ""}</td>
                       </tr>
                     ))}
                     <tr style={{ background: "#f8fafc", fontWeight: 700 }}>
-                      <td colSpan={3} style={{ border: "1px solid #94a3b8", padding: "6px 8px", textAlign: "right" }}>
+                      <td colSpan={3} style={{ border: "1px solid #94a3b8", padding: "6px 8px", textAlign: "right", fontSize: 10.5 }}>
                         {T.totalQtyLabel}
                       </td>
-                      <td style={{ border: "1px solid #94a3b8", padding: "6px 4px", textAlign: "center", fontSize: 11, color: "#1e3a8a", fontWeight: 800 }}>
+                      <td style={{ border: "1px solid #94a3b8", padding: "6px 4px", textAlign: "center", fontSize: 11.5, color: "#1e3a8a", fontWeight: 800 }}>
                         {totalQtyStr}
                       </td>
-                      <td colSpan={2} style={{ border: "1px solid #94a3b8", padding: "6px 8px", fontStyle: "italic", color: "#1e40af", fontSize: 9.5, textAlign: "center" }}>
+                      <td colSpan={2} style={{ border: "1px solid #94a3b8", padding: "6px 8px", fontStyle: "italic", color: "#1e40af", fontSize: 10, textAlign: "center" }}>
                         {T.matchingNote}
                       </td>
                     </tr>
@@ -863,7 +863,7 @@ export default function HandoverModal({ quote, onClose }) {
                   {T.sec3Title}
                 </div>
 
-                <div style={{ border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10, boxSizing: "border-box" }}>
+                <div style={{ border: "1px solid #94a3b8", borderRadius: 4, padding: "8px 10px", fontSize: 10.5, boxSizing: "border-box" }}>
                   <div style={{ display: "flex", gap: 12, width: "100%", boxSizing: "border-box" }}>
                     
                     {/* Left criteria */}
@@ -913,7 +913,7 @@ export default function HandoverModal({ quote, onClose }) {
               </div>
 
               {/* Notes & Responsibility Commitments */}
-              <div style={{ fontSize: 9.5, color: "#374151", marginBottom: 18, lineHeight: 1.45 }}>
+              <div style={{ fontSize: 10, color: "#374151", marginBottom: 18, lineHeight: 1.45 }}>
                 <div style={{ fontWeight: 700, color: "#111827", marginBottom: 2 }}>{T.notesCommitTitle}</div>
                 <div>- {T.commit1}</div>
                 <div>- {T.commit2}</div>
