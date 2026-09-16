@@ -731,6 +731,30 @@ export async function migrateAllLocalDataToSupabase(_mem, company, contractDefau
   const contractsObj = { ...(_mem.contracts || {}) };
   const handoversObj = { ...(_mem.handovers || {}) };
 
+  // Auto-extract all customers from quotes if not in catalog
+  const existingCustMap = new Map((_mem.customers || []).map(c => [((c.customer || "").trim().toLowerCase()), c]));
+  quotesList.forEach(q => {
+    if (q && q.customer && q.customer.trim()) {
+      const key = q.customer.trim().toLowerCase();
+      if (!existingCustMap.has(key)) {
+        const cObj = {
+          id: "c_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+          customer: q.customer.trim(),
+          shortName: (q.customerShort || "").trim().toUpperCase(),
+          contact: q.contact || "",
+          address: q.address || "",
+          taxId: q.taxId || "",
+          phone: q.phone || "",
+          email: "",
+          notes: "",
+          updatedAt: new Date().toISOString()
+        };
+        existingCustMap.set(key, cObj);
+      }
+    }
+  });
+  _mem.customers = Array.from(existingCustMap.values());
+
   quotesList.forEach(q => {
     if (!q) return;
     const qNum = q.quoteNumber || q.id || `Q_${Date.now()}`;
