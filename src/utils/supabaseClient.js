@@ -958,14 +958,31 @@ alter table debt_reconciliations enable row level security;
 alter table payment_requests enable row level security;
 alter table app_settings enable row level security;
 
+drop policy if exists "Public Access Quotes" on quotes;
 create policy "Public Access Quotes" on quotes for all using (true) with check (true);
+
+drop policy if exists "Public Access Products" on products;
 create policy "Public Access Products" on products for all using (true) with check (true);
+
+drop policy if exists "Public Access Customers" on customers;
 create policy "Public Access Customers" on customers for all using (true) with check (true);
+
+drop policy if exists "Public Access Tasks" on tasks;
 create policy "Public Access Tasks" on tasks for all using (true) with check (true);
+
+drop policy if exists "Public Access Notes" on notes;
 create policy "Public Access Notes" on notes for all using (true) with check (true);
+
+drop policy if exists "Public Access Handovers" on handovers;
 create policy "Public Access Handovers" on handovers for all using (true) with check (true);
+
+drop policy if exists "Public Access DebtRecs" on debt_reconciliations;
 create policy "Public Access DebtRecs" on debt_reconciliations for all using (true) with check (true);
+
+drop policy if exists "Public Access PayReqs" on payment_requests;
 create policy "Public Access PayReqs" on payment_requests for all using (true) with check (true);
+
+drop policy if exists "Public Access Settings" on app_settings;
 create policy "Public Access Settings" on app_settings for all using (true) with check (true);
 `;
 
