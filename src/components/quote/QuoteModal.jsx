@@ -270,11 +270,22 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
       const snapshot = {
         versionId: generateId(),
         savedAt: new Date().toLocaleString("vi-VN"),
+        quoteNumber: form.quoteNumber,
+        date: form.date,
         customer: form.customer,
+        customerShort: cleanShortName,
+        contact: form.contact || "",
+        phone: form.phone || "",
+        address: form.address || "",
+        taxId: form.taxId || "",
+        workContent: form.workContent || "",
+        internalNote: form.internalNote || "",
+        vatRate: form.vatRate !== undefined ? form.vatRate : 8,
+        notes: form.notes || "",
         total: total,
         items: JSON.parse(JSON.stringify(form.items))
       };
-      const updatedVersions = [snapshot, ...(form.versions || [])].slice(0, 15);
+      const updatedVersions = [snapshot, ...(form.versions || [])].slice(0, 20);
       const finalForm = { ...form, customerShort: cleanShortName, versions: updatedVersions };
 
       await upsertCatalogItems(finalForm.items);
@@ -293,14 +304,48 @@ Thông tin chi tiết quý khách vui lòng liên hệ trực tiếp.`,
   };
 
   const handleRestoreVersion = (ver) => {
-    if (ver && ver.items) {
-      setForm(p => ({
-        ...p,
-        customer: ver.customer || p.customer,
-        items: JSON.parse(JSON.stringify(ver.items))
-      }));
-      showToast("🔄 Đã khôi phục dữ liệu từ bản lịch sử!", 2500);
-    }
+    if (!ver || !ver.items) return;
+
+    // 1. Tự động lưu bản hiện tại vào lịch sử trước khi phục hồi để không bao giờ bị mất
+    const currentSnapshot = {
+      versionId: generateId(),
+      savedAt: new Date().toLocaleString("vi-VN") + " (Bản trước khi phục hồi)",
+      quoteNumber: form.quoteNumber,
+      date: form.date,
+      customer: form.customer,
+      customerShort: form.customerShort,
+      contact: form.contact,
+      phone: form.phone,
+      address: form.address,
+      taxId: form.taxId,
+      workContent: form.workContent,
+      internalNote: form.internalNote,
+      vatRate: form.vatRate,
+      notes: form.notes,
+      total: total,
+      items: JSON.parse(JSON.stringify(form.items))
+    };
+
+    // 2. Khôi phục toàn bộ thông tin từ bản được chọn
+    setForm(prev => {
+      const updatedVersions = [currentSnapshot, ...(prev.versions || [])].slice(0, 20);
+      return {
+        ...prev,
+        customer: ver.customer !== undefined ? ver.customer : prev.customer,
+        customerShort: ver.customerShort !== undefined ? ver.customerShort : prev.customerShort,
+        contact: ver.contact !== undefined ? ver.contact : prev.contact,
+        phone: ver.phone !== undefined ? ver.phone : prev.phone,
+        address: ver.address !== undefined ? ver.address : prev.address,
+        taxId: ver.taxId !== undefined ? ver.taxId : prev.taxId,
+        workContent: ver.workContent !== undefined ? ver.workContent : prev.workContent,
+        internalNote: ver.internalNote !== undefined ? ver.internalNote : prev.internalNote,
+        vatRate: ver.vatRate !== undefined ? ver.vatRate : prev.vatRate,
+        notes: ver.notes !== undefined ? ver.notes : prev.notes,
+        items: JSON.parse(JSON.stringify(ver.items)),
+        versions: updatedVersions
+      };
+    });
+    showToast("🔄 Đã khôi phục phiên bản! (Bản trước đó đã được tự động lưu vào Lịch sử)", 3500);
   };
 
   const [translating, setTranslating] = useState(false);
