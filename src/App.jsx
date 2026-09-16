@@ -50,8 +50,94 @@ export default function App() {
   const [companyVersion, setCompanyVersion] = useState(0);
 
   const [fileHandle, setFileHandle] = useState(getCurrentFileHandle());
+  const [tickerItems, setTickerItems] = useState([]);
 
-  // ── Khởi động: Instant load từ PC local file / storage + Sync ngầm với GAS ──────────────────────
+  // ── Header Marquee: Pin Ghi chú & Công việc theo ngày ───────────────────
+  const updateTicker = () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const items = [];
+
+    // 1. Pinned Notes (Ghi chú được chỉ định ghim)
+    const rawNotes = _mem.notes || [];
+    rawNotes.forEach(n => {
+      if (n && n.pinned) {
+        const titleStr = (n.title || "").trim();
+        const bodyStr = (n.body || "").replace(/[\r\n]+/g, " ").trim();
+        let display = titleStr ? `${titleStr}${bodyStr ? `: ${bodyStr}` : ""}` : bodyStr;
+        if (display.length > 70) display = display.slice(0, 70) + "...";
+        items.push({
+          id: n.id || `n_${Math.random()}`,
+          type: "note",
+          tag: "Ghi chú",
+          tagClass: "ticker-tag-note",
+          icon: "📌",
+          text: display || "Ghi chú đã ghim",
+          targetView: "notes"
+        });
+      }
+    });
+
+    // 2. Active Tasks by Date (Công việc theo ngày & khẩn cấp)
+    const rawTasks = _mem.tasks || [];
+    rawTasks.forEach(t => {
+      if (!t || t.status === "done") return;
+      const isToday = t.dueDate === today;
+      const isOverdue = t.dueDate && t.dueDate < today;
+      const isUrgent = t.priority === "high";
+
+      if (isToday || isOverdue || isUrgent || t.dueDate) {
+        let tag = "Việc hôm nay";
+        let tagClass = "ticker-tag-today";
+        let icon = "⚡";
+
+        if (isOverdue) {
+          tag = `Quá hạn (${t.dueDate})`;
+          tagClass = "ticker-tag-overdue";
+          icon = "⚠️";
+        } else if (isToday) {
+          tag = "Hôm nay";
+          tagClass = "ticker-tag-today";
+          icon = "⚡";
+        } else if (isUrgent) {
+          tag = "Khẩn cấp";
+          tagClass = "ticker-tag-urgent";
+          icon = "🔴";
+        } else if (t.dueDate) {
+          tag = `Hạn ${t.dueDate}`;
+          tagClass = "ticker-tag-today";
+          icon = "📅";
+        }
+
+        let titleDisplay = (t.title || "").trim();
+        if (titleDisplay.length > 55) titleDisplay = titleDisplay.slice(0, 55) + "...";
+
+        items.push({
+          id: t.id || `t_${Math.random()}`,
+          type: "task",
+          tag: tag,
+          tagClass: tagClass,
+          icon: icon,
+          text: `${titleDisplay}${t.progress ? ` (${t.progress}%)` : ""}`,
+          targetView: "tasks"
+        });
+      }
+    });
+
+    setTickerItems(items);
+  };
+
+  useEffect(() => {
+    updateTicker();
+    const handleStoreChange = () => updateTicker();
+    window.addEventListener("pmc_store_change", handleStoreChange);
+    const interval = setInterval(updateTicker, 4000);
+    return () => {
+      window.removeEventListener("pmc_store_change", handleStoreChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // ── Khởi động: Instant load từ PC local file / storage + Sync ngầm với Supabase ──────────────────────
   useEffect(() => {
     if (!authed) return;
     
@@ -239,6 +325,33 @@ export default function App() {
           {getLogoUrl() ? <img src={getLogoUrl()} alt="PMC" /> : null}
           <span>Quản Lý Báo Giá – {COMPANY.short}</span>
         </div>
+
+        {/* Header Marquee Ticker for Pinned Notes & Date-based Tasks */}
+        <div className="topbar-ticker-wrap" title="Nhấp vào để mở Ghi chú hoặc Công việc">
+          {tickerItems.length > 0 ? (
+            <div className="topbar-ticker-track">
+              {/* Duplicate array for seamless endless marquee animation */}
+              {[...tickerItems, ...tickerItems].map((it, idx) => (
+                <span
+                  key={`${it.id}_${idx}`}
+                  className="topbar-ticker-item"
+                  onClick={() => setView(it.targetView)}
+                >
+                  <span>{it.icon}</span>
+                  <span className={`ticker-tag ${it.tagClass}`}>{it.tag}</span>
+                  <span>{it.text}</span>
+                  <span className="topbar-ticker-divider">•</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#64748b", paddingLeft: 14 }}>
+              <span>💡</span>
+              <span>Ghim ghi chú hoặc lên lịch công việc để hiện dòng chữ chạy tại đây</span>
+            </div>
+          )}
+        </div>
+
         <div className="topbar-actions">
           <button
             className="btn btn-ghost"

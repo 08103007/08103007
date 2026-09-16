@@ -5,9 +5,17 @@ import {
   fetchSupabaseProducts, upsertSupabaseProducts, fetchSupabaseSettings, upsertSupabaseSettings,
   upsertSupabaseDebtRecs, fetchSupabaseDebtRecs,
   upsertSupabasePaymentRequests, fetchSupabasePaymentRequests,
-  upsertSupabaseHandovers, fetchSupabaseHandovers
+  upsertSupabaseHandovers, fetchSupabaseHandovers,
+  upsertSupabaseCustomers, fetchSupabaseCustomers, deleteSupabaseCustomer,
+  upsertSupabaseTasks, fetchSupabaseTasks, deleteSupabaseTask,
+  upsertSupabaseNotes, fetchSupabaseNotes, deleteSupabaseNote
 } from './supabaseClient';
-export { hasSupabase };
+export { 
+  hasSupabase,
+  upsertSupabaseCustomers, fetchSupabaseCustomers, deleteSupabaseCustomer,
+  upsertSupabaseTasks, fetchSupabaseTasks, deleteSupabaseTask,
+  upsertSupabaseNotes, fetchSupabaseNotes, deleteSupabaseNote
+};
 
 // Cache keys (localStorage – backup offline)
 export const LS_APP_PW   = "pmc_app_password";
@@ -358,13 +366,45 @@ export async function doLoad(onProgress) {
 
       // Fetch dedicated Supabase tables if present
       try {
+        const sbCustomers = await fetchSupabaseCustomers();
+        if (Array.isArray(sbCustomers) && sbCustomers.length > 0) {
+          const custMap = new Map((_mem.customers || []).map(c => [c.customer || c.id, c]));
+          sbCustomers.forEach(c => { if (c && c.customer) custMap.set(c.customer, { ...custMap.get(c.customer), ...c }); });
+          _mem.customers = Array.from(custMap.values());
+          console.log(`⚡ Supabase: Đã nạp ${_mem.customers.length} khách hàng từ bảng customers`);
+        } else if (Array.isArray(_mem.customers) && _mem.customers.length > 0) {
+          upsertSupabaseCustomers(_mem.customers).catch(() => {});
+        }
+
+        const sbTasks = await fetchSupabaseTasks();
+        if (Array.isArray(sbTasks) && sbTasks.length > 0) {
+          const taskMap = new Map((_mem.tasks || []).map(t => [t.id, t]));
+          sbTasks.forEach(t => { if (t && t.id) taskMap.set(t.id, { ...taskMap.get(t.id), ...t }); });
+          _mem.tasks = Array.from(taskMap.values());
+          console.log(`⚡ Supabase: Đã nạp ${_mem.tasks.length} công việc từ bảng tasks`);
+        } else if (Array.isArray(_mem.tasks) && _mem.tasks.length > 0) {
+          upsertSupabaseTasks(_mem.tasks).catch(() => {});
+        }
+
+        const sbNotes = await fetchSupabaseNotes();
+        if (Array.isArray(sbNotes) && sbNotes.length > 0) {
+          const noteMap = new Map((_mem.notes || []).map(n => [n.id, n]));
+          sbNotes.forEach(n => { if (n && n.id) noteMap.set(n.id, { ...noteMap.get(n.id), ...n }); });
+          _mem.notes = Array.from(noteMap.values());
+          console.log(`⚡ Supabase: Đã nạp ${_mem.notes.length} ghi chú từ bảng notes`);
+        } else if (Array.isArray(_mem.notes) && _mem.notes.length > 0) {
+          upsertSupabaseNotes(_mem.notes).catch(() => {});
+        }
+
         const sbDebtRecs = await fetchSupabaseDebtRecs();
         if (sbDebtRecs && Object.keys(sbDebtRecs).length > 0) _mem.debtRecs = { ..._mem.debtRecs, ...sbDebtRecs };
         const sbPayReqs = await fetchSupabasePaymentRequests();
         if (sbPayReqs && Object.keys(sbPayReqs).length > 0) _mem.paymentRequests = { ..._mem.paymentRequests, ...sbPayReqs };
         const sbHandovers = await fetchSupabaseHandovers();
         if (sbHandovers && Object.keys(sbHandovers).length > 0) _mem.handovers = { ..._mem.handovers, ...sbHandovers };
-      } catch {}
+      } catch (err) {
+        console.warn("Lỗi tải các bảng chuyên biệt Supabase:", err);
+      }
 
       const sbSettings = await fetchSupabaseSettings("master_settings");
       if (sbSettings && typeof sbSettings === "object") {
@@ -377,9 +417,9 @@ export async function doLoad(onProgress) {
         if (sbSettings.paymentRequests && typeof sbSettings.paymentRequests === "object") _mem.paymentRequests = { ..._mem.paymentRequests, ...sbSettings.paymentRequests };
         if (sbSettings.handovers && typeof sbSettings.handovers === "object") _mem.handovers = { ..._mem.handovers, ...sbSettings.handovers };
         if (sbSettings.contracts && typeof sbSettings.contracts === "object") _mem.contracts = { ..._mem.contracts, ...sbSettings.contracts };
-        if (Array.isArray(sbSettings.customers) && sbSettings.customers.length) _mem.customers = sbSettings.customers;
-        if (Array.isArray(sbSettings.tasks) && sbSettings.tasks.length) _mem.tasks = sbSettings.tasks;
-        if (Array.isArray(sbSettings.notes) && sbSettings.notes.length) _mem.notes = sbSettings.notes;
+        if (Array.isArray(sbSettings.customers) && sbSettings.customers.length && (!_mem.customers || _mem.customers.length === 0)) _mem.customers = sbSettings.customers;
+        if (Array.isArray(sbSettings.tasks) && sbSettings.tasks.length && (!_mem.tasks || _mem.tasks.length === 0)) _mem.tasks = sbSettings.tasks;
+        if (Array.isArray(sbSettings.notes) && sbSettings.notes.length && (!_mem.notes || _mem.notes.length === 0)) _mem.notes = sbSettings.notes;
       }
     } catch (e) {
       console.warn("Lỗi tải từ Supabase:", e);
@@ -389,6 +429,7 @@ export async function doLoad(onProgress) {
   _mem.quotes = Array.from(quoteMap.values());
   _flushToLocalStorage();
   _scheduleSave();
+  try { window.dispatchEvent(new CustomEvent("pmc_store_change", { detail: { type: "all" } })); } catch {}
   return _mem.quotes ?? [];
 }
 
@@ -520,8 +561,10 @@ export function saveCustomerCatalog(catalog) {
   _flushToLocalStorage();
   _scheduleSave(); 
   if (hasSupabase()) {
+    upsertSupabaseCustomers(_mem.customers).catch(() => {});
     _flushToGAS();
   }
+  try { window.dispatchEvent(new CustomEvent("pmc_store_change", { detail: { type: "customers" } })); } catch {}
   return Promise.resolve(_mem.customers); 
 }
 
@@ -554,8 +597,10 @@ export async function upsertCatalogCustomer(cust) {
   _flushToLocalStorage();
   _scheduleSave();
   if (hasSupabase()) {
+    upsertSupabaseCustomers(_mem.customers).catch(() => {});
     _flushToGAS();
   }
+  try { window.dispatchEvent(new CustomEvent("pmc_store_change", { detail: { type: "customers" } })); } catch {}
   return updatedItem;
 }
 
@@ -565,8 +610,11 @@ export async function deleteCatalogCustomer(idOrName) {
   _flushToLocalStorage();
   _scheduleSave();
   if (hasSupabase()) {
+    deleteSupabaseCustomer(idOrName).catch(() => {});
+    upsertSupabaseCustomers(_mem.customers).catch(() => {});
     _flushToGAS();
   }
+  try { window.dispatchEvent(new CustomEvent("pmc_store_change", { detail: { type: "customers" } })); } catch {}
 }
 
 export function generateContractNumber(dateObj = new Date(), currentQuoteId = null) {
@@ -662,6 +710,11 @@ export function saveTasks(tasks) {
   _mem.tasks = tasks;
   _flushToLocalStorage();
   _scheduleSave();          
+  if (hasSupabase()) {
+    upsertSupabaseTasks(_mem.tasks).catch(() => {});
+    _flushToGAS();
+  }
+  try { window.dispatchEvent(new CustomEvent("pmc_store_change", { detail: { type: "tasks" } })); } catch {}
   return Promise.resolve();
 }
 
@@ -670,6 +723,11 @@ export function saveNotes(notes) {
   _mem.notes = notes;
   _flushToLocalStorage();
   _scheduleSave();
+  if (hasSupabase()) {
+    upsertSupabaseNotes(_mem.notes).catch(() => {});
+    _flushToGAS();
+  }
+  try { window.dispatchEvent(new CustomEvent("pmc_store_change", { detail: { type: "notes" } })); } catch {}
   return Promise.resolve();
 }
 

@@ -28,25 +28,25 @@ export default function SettingsView({ onCompanyUpdate, onQuotesImport }) {
   const [saving,   setSaving]   = useState(false);
 
   const handleTestSb = async () => {
-    setSbTestMsg("⏳ Đang kết nối Supabase & quét đẩy tự động dữ liệu cũ lên 8 bảng Cloud...");
+    setSbTestMsg("⏳ Đang kết nối Supabase & quét đẩy tự động dữ liệu lên 9 bảng Cloud...");
     try {
       setSupabaseUrl(sbUrl.trim());
       setSupabaseKey(sbKey.trim());
       await testSupabaseConnection();
       const res = await migrateAllLocalDataToSupabase(_mem, company, CONTRACT_DEFAULTS, PRODUCT_CATALOG);
-      setSbTestMsg(`⚡ KẾT NỐI SUPABASE THÀNH CÔNG! Đã tự động đẩy ${res.quotesCount || 0} báo giá, ${res.productsCount || 0} sản phẩm, ${res.debtRecsCount || 0} đối chiếu công nợ, ${res.payReqsCount || 0} đề nghị thanh toán lên 8 Bảng Supabase Cloud Database!`);
+      setSbTestMsg(`⚡ KẾT NỐI SUPABASE THÀNH CÔNG! Đã tự động đẩy ${res.quotesCount || 0} báo giá, ${res.productsCount || 0} sản phẩm, ${res.customersCount || 0} khách hàng, ${res.tasksCount || 0} công việc, ${res.notesCount || 0} ghi chú, ${res.debtRecsCount || 0} đối chiếu công nợ, ${res.payReqsCount || 0} đề nghị thanh toán lên 9 Bảng Supabase Cloud Database!`);
     } catch(err) {
       setSbTestMsg("❌ Lỗi: " + err.message);
     }
   };
 
   const handleMigrateToSupabase = async () => {
-    if (!window.confirm(`Bạn có chắc chắn muốn đẩy toàn bộ ${_mem.quotes?.length || 0} báo giá và sản phẩm hiện tại lên Supabase Cloud Database?`)) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn đẩy toàn bộ ${_mem.quotes?.length || 0} báo giá, ${_mem.customers?.length || 0} khách hàng, ${_mem.tasks?.length || 0} công việc và ghi chú lên Supabase Cloud Database?`)) return;
     setMigrating(true);
     setMigMsg("⏳ Đang đẩy toàn bộ dữ liệu lên Supabase...");
     try {
       const res = await migrateAllLocalDataToSupabase(_mem, company, CONTRACT_DEFAULTS, PRODUCT_CATALOG);
-      setMigMsg(`✅ Đã đẩy thành công ${res.quotesCount || 0} báo giá, ${res.productsCount || 0} sản phẩm, ${res.debtRecsCount || 0} đối chiếu công nợ, ${res.payReqsCount || 0} đề nghị thanh toán lên Supabase Cloud!`);
+      setMigMsg(`✅ Đã đẩy thành công ${res.quotesCount || 0} báo giá, ${res.productsCount || 0} sản phẩm, ${res.customersCount || 0} khách hàng, ${res.tasksCount || 0} công việc, ${res.notesCount || 0} ghi chú, ${res.debtRecsCount || 0} đối chiếu công nợ, ${res.payReqsCount || 0} đề nghị thanh toán lên 9 bảng Supabase Cloud!`);
     } catch(err) {
       setMigMsg("❌ Lỗi đẩy dữ liệu: " + err.message);
     } finally {

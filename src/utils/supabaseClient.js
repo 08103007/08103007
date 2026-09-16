@@ -447,6 +447,228 @@ export async function fetchSupabaseHandovers() {
 }
 
 /**
+ * Sync Customers to customers table
+ */
+export async function upsertSupabaseCustomers(customers) {
+  if (!hasSupabase() || !Array.isArray(customers) || customers.length === 0) return false;
+  try {
+    const chunkSize = 50;
+    for (let i = 0; i < customers.length; i += chunkSize) {
+      const chunk = customers.slice(i, i + chunkSize);
+      const rows = chunk.map((c, idx) => ({
+        id: c.id || `c_${idx}_${Date.now()}`,
+        customer: c.customer || "",
+        short_name: c.shortName || "",
+        contact: c.contact || "",
+        address: c.address || "",
+        tax_id: c.taxId || "",
+        phone: c.phone || "",
+        email: c.email || "",
+        notes: c.notes || "",
+        payload: c,
+        updated_at: new Date().toISOString()
+      }));
+
+      const url = `${getSupabaseUrl()}/rest/v1/customers?on_conflict=id`;
+      await fetch(url, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(rows)
+      });
+    }
+    return true;
+  } catch (e) {
+    console.warn("Supabase customer upsert error:", e);
+    return false;
+  }
+}
+
+export async function fetchSupabaseCustomers() {
+  if (!hasSupabase()) return [];
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/customers?select=*`;
+    const resp = await fetch(url, { headers: getHeaders() });
+    if (!resp.ok) return [];
+    const rows = await resp.json();
+    if (!Array.isArray(rows)) return [];
+    return rows.map(r => {
+      if (r.payload && typeof r.payload === "object") {
+        return { ...r.payload, id: r.id || r.payload.id, customer: r.customer || r.payload.customer };
+      }
+      return {
+        id: r.id,
+        customer: r.customer || "",
+        shortName: r.short_name || "",
+        contact: r.contact || "",
+        address: r.address || "",
+        taxId: r.tax_id || "",
+        phone: r.phone || "",
+        email: r.email || "",
+        notes: r.notes || "",
+        updatedAt: r.updated_at
+      };
+    });
+  } catch (err) {
+    console.warn("Lỗi tải Khách Hàng từ Supabase:", err);
+    return [];
+  }
+}
+
+export async function deleteSupabaseCustomer(id) {
+  if (!hasSupabase() || !id) return false;
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/customers?id=eq.${encodeURIComponent(id)}`;
+    const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
+    return resp.ok;
+  } catch { return false; }
+}
+
+/**
+ * Sync Tasks to tasks table
+ */
+export async function upsertSupabaseTasks(tasks) {
+  if (!hasSupabase() || !Array.isArray(tasks) || tasks.length === 0) return false;
+  try {
+    const chunkSize = 50;
+    for (let i = 0; i < tasks.length; i += chunkSize) {
+      const chunk = tasks.slice(i, i + chunkSize);
+      const rows = chunk.map((t, idx) => ({
+        id: t.id || `t_${idx}_${Date.now()}`,
+        title: t.title || "",
+        description: t.description || "",
+        status: t.status || "todo",
+        priority: t.priority || "medium",
+        progress: t.progress || 0,
+        due_date: t.dueDate || "",
+        quote_id: t.quoteId || "",
+        payload: t,
+        updated_at: new Date().toISOString()
+      }));
+
+      const url = `${getSupabaseUrl()}/rest/v1/tasks?on_conflict=id`;
+      await fetch(url, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(rows)
+      });
+    }
+    return true;
+  } catch (e) {
+    console.warn("Supabase tasks upsert error:", e);
+    return false;
+  }
+}
+
+export async function fetchSupabaseTasks() {
+  if (!hasSupabase()) return [];
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/tasks?select=*`;
+    const resp = await fetch(url, { headers: getHeaders() });
+    if (!resp.ok) return [];
+    const rows = await resp.json();
+    if (!Array.isArray(rows)) return [];
+    return rows.map(r => {
+      if (r.payload && typeof r.payload === "object") {
+        return { ...r.payload, id: r.id || r.payload.id, title: r.title || r.payload.title };
+      }
+      return {
+        id: r.id,
+        title: r.title || "",
+        description: r.description || "",
+        status: r.status || "todo",
+        priority: r.priority || "medium",
+        progress: Number(r.progress) || 0,
+        dueDate: r.due_date || "",
+        quoteId: r.quote_id || "",
+        updatedAt: r.updated_at
+      };
+    });
+  } catch (err) {
+    console.warn("Lỗi tải Công Việc từ Supabase:", err);
+    return [];
+  }
+}
+
+export async function deleteSupabaseTask(id) {
+  if (!hasSupabase() || !id) return false;
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/tasks?id=eq.${encodeURIComponent(id)}`;
+    const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
+    return resp.ok;
+  } catch { return false; }
+}
+
+/**
+ * Sync Notes to notes table
+ */
+export async function upsertSupabaseNotes(notes) {
+  if (!hasSupabase() || !Array.isArray(notes) || notes.length === 0) return false;
+  try {
+    const chunkSize = 50;
+    for (let i = 0; i < notes.length; i += chunkSize) {
+      const chunk = notes.slice(i, i + chunkSize);
+      const rows = chunk.map((n, idx) => ({
+        id: n.id || `n_${idx}_${Date.now()}`,
+        title: n.title || "",
+        body: n.body || "",
+        pinned: !!n.pinned,
+        color: n.color || "#fff9db",
+        payload: n,
+        updated_at: new Date().toISOString()
+      }));
+
+      const url = `${getSupabaseUrl()}/rest/v1/notes?on_conflict=id`;
+      await fetch(url, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify(rows)
+      });
+    }
+    return true;
+  } catch (e) {
+    console.warn("Supabase notes upsert error:", e);
+    return false;
+  }
+}
+
+export async function fetchSupabaseNotes() {
+  if (!hasSupabase()) return [];
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/notes?select=*`;
+    const resp = await fetch(url, { headers: getHeaders() });
+    if (!resp.ok) return [];
+    const rows = await resp.json();
+    if (!Array.isArray(rows)) return [];
+    return rows.map(r => {
+      if (r.payload && typeof r.payload === "object") {
+        return { ...r.payload, id: r.id || r.payload.id, title: r.title || r.payload.title, pinned: r.pinned !== undefined ? !!r.pinned : !!r.payload.pinned };
+      }
+      return {
+        id: r.id,
+        title: r.title || "",
+        body: r.body || "",
+        pinned: !!r.pinned,
+        color: r.color || "#fff9db",
+        tags: [],
+        updatedAt: r.updated_at
+      };
+    });
+  } catch (err) {
+    console.warn("Lỗi tải Ghi Chú từ Supabase:", err);
+    return [];
+  }
+}
+
+export async function deleteSupabaseNote(id) {
+  if (!hasSupabase() || !id) return false;
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/notes?id=eq.${encodeURIComponent(id)}`;
+    const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
+    return resp.ok;
+  } catch { return false; }
+}
+
+/**
  * Fetch App Settings / Master Payload from Supabase
  */
 export async function fetchSupabaseSettings(key) {
@@ -486,13 +708,16 @@ export async function upsertSupabaseSettings(key, value) {
 }
 
 /**
- * 1-Click Master Data Migration from Local Memory & GAS to Supabase Cloud (Syncs all 8 tables)
+ * 1-Click Master Data Migration from Local Memory & Storage to Supabase Cloud (Syncs all 9 tables)
  */
 export async function migrateAllLocalDataToSupabase(_mem, company, contractDefaults, productCatalog) {
   if (!hasSupabase()) throw new Error("Chưa kết nối Supabase URL và Key");
   
   let quotesCount = 0;
   let productsCount = 0;
+  let customersCount = 0;
+  let tasksCount = 0;
+  let notesCount = 0;
   let debtRecsCount = 0;
   let payReqsCount = 0;
   let handoversCount = 0;
@@ -574,31 +799,51 @@ export async function migrateAllLocalDataToSupabase(_mem, company, contractDefau
   const prodOk = await upsertSupabaseProducts(_mem.products || [], productCatalog, _mem.quotes || []);
   if (prodOk) productsCount = (_mem.products || []).length || (productCatalog || []).length;
 
-  // 3. Upload Debt Reconciliations (debt_reconciliations table)
+  // 3. Upload Customers (customers table)
+  if (Array.isArray(_mem.customers) && _mem.customers.length > 0) {
+    await upsertSupabaseCustomers(_mem.customers);
+    customersCount = _mem.customers.length;
+  }
+
+  // 4. Upload Tasks (tasks table)
+  if (Array.isArray(_mem.tasks) && _mem.tasks.length > 0) {
+    await upsertSupabaseTasks(_mem.tasks);
+    tasksCount = _mem.tasks.length;
+  }
+
+  // 5. Upload Notes (notes table)
+  if (Array.isArray(_mem.notes) && _mem.notes.length > 0) {
+    await upsertSupabaseNotes(_mem.notes);
+    notesCount = _mem.notes.length;
+  }
+
+  // 6. Upload Debt Reconciliations (debt_reconciliations table)
   if (_mem.debtRecs && typeof _mem.debtRecs === "object") {
     await upsertSupabaseDebtRecs(_mem.debtRecs);
     debtRecsCount = Object.keys(_mem.debtRecs).length;
   }
 
-  // 4. Upload Payment Requests (payment_requests table)
+  // 7. Upload Payment Requests (payment_requests table)
   if (_mem.paymentRequests && typeof _mem.paymentRequests === "object") {
     await upsertSupabasePaymentRequests(_mem.paymentRequests);
     payReqsCount = Object.keys(_mem.paymentRequests).length;
   }
 
-  // 5. Upload Handovers (handovers table)
+  // 8. Upload Handovers (handovers table)
   if (_mem.handovers && typeof _mem.handovers === "object") {
     await upsertSupabaseHandovers(_mem.handovers);
     handoversCount = Object.keys(_mem.handovers).length;
   }
 
-  // 6. Upload Master Settings (app_settings table)
+  // 9. Upload Master Settings (app_settings table)
   await upsertSupabaseSettings("master_settings", settingsData);
 
-  return { quotesCount, productsCount, debtRecsCount, payReqsCount, handoversCount, contractsCount, deliveriesCount };
+  return { quotesCount, productsCount, customersCount, tasksCount, notesCount, debtRecsCount, payReqsCount, handoversCount, contractsCount, deliveriesCount };
 }
 
-export const SUPABASE_SQL_SCHEMA = `-- CÂU LỆNH MẪU TẠO BẢNG TRÊN SUPABASE (SQL EDITOR):
+export const SUPABASE_SQL_SCHEMA = `-- CÂU LỆNH MẪU TẠO ĐẦY ĐỦ BẢNG TRÊN SUPABASE (SQL EDITOR):
+
+-- 1. Báo giá
 create table if not exists quotes (
   id text primary key,
   quote_number text,
@@ -610,6 +855,7 @@ create table if not exists quotes (
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- 2. Sản phẩm & Hàng hóa
 create table if not exists products (
   id text primary key,
   name text,
@@ -622,6 +868,47 @@ create table if not exists products (
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- 3. Khách hàng
+create table if not exists customers (
+  id text primary key,
+  customer text,
+  short_name text,
+  contact text,
+  address text,
+  tax_id text,
+  phone text,
+  email text,
+  notes text,
+  payload jsonb,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- 4. Công việc
+create table if not exists tasks (
+  id text primary key,
+  title text,
+  description text,
+  status text default 'todo',
+  priority text default 'medium',
+  progress numeric default 0,
+  due_date text,
+  quote_id text,
+  payload jsonb,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- 5. Ghi chú nội bộ
+create table if not exists notes (
+  id text primary key,
+  title text,
+  body text,
+  pinned boolean default false,
+  color text,
+  payload jsonb,
+  updated_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- 6. Biên bản bàn giao & Giao hàng
 create table if not exists handovers (
   id text primary key,
   quote_id text,
@@ -632,6 +919,7 @@ create table if not exists handovers (
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- 7. Biên bản đối chiếu công nợ
 create table if not exists debt_reconciliations (
   id text primary key,
   ref_num text,
@@ -642,6 +930,7 @@ create table if not exists debt_reconciliations (
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- 8. Đề nghị thanh toán
 create table if not exists payment_requests (
   id text primary key,
   req_number text,
@@ -651,14 +940,19 @@ create table if not exists payment_requests (
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- 9. Cài đặt hệ thống
 create table if not exists app_settings (
   key text primary key,
   value jsonb,
   updated_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- Phân quyền Row Level Security (RLS) cho phép truy cập qua Anon Key:
 alter table quotes enable row level security;
 alter table products enable row level security;
+alter table customers enable row level security;
+alter table tasks enable row level security;
+alter table notes enable row level security;
 alter table handovers enable row level security;
 alter table debt_reconciliations enable row level security;
 alter table payment_requests enable row level security;
@@ -666,8 +960,12 @@ alter table app_settings enable row level security;
 
 create policy "Public Access Quotes" on quotes for all using (true) with check (true);
 create policy "Public Access Products" on products for all using (true) with check (true);
+create policy "Public Access Customers" on customers for all using (true) with check (true);
+create policy "Public Access Tasks" on tasks for all using (true) with check (true);
+create policy "Public Access Notes" on notes for all using (true) with check (true);
 create policy "Public Access Handovers" on handovers for all using (true) with check (true);
 create policy "Public Access DebtRecs" on debt_reconciliations for all using (true) with check (true);
 create policy "Public Access PayReqs" on payment_requests for all using (true) with check (true);
 create policy "Public Access Settings" on app_settings for all using (true) with check (true);
 `;
+
