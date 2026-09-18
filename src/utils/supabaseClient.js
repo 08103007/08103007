@@ -131,18 +131,22 @@ export function setSupabaseKey(key) {
 
 export function hasSupabase() {
   const url = getSupabaseUrl();
-  const key = getSupabaseKey();
-  return !!(url && key && url.startsWith("http"));
+  return !!(url && url.startsWith("http"));
 }
 
 function getHeaders() {
   const key = getSupabaseKey();
-  return {
-    "apikey": key,
-    "Authorization": `Bearer ${key}`,
+  const headers = {
     "Content-Type": "application/json",
     "Prefer": "return=representation,resolution=merge-duplicates"
   };
+  if (key) {
+    headers["apikey"] = key;
+    if (key.startsWith("eyJ")) {
+      headers["Authorization"] = `Bearer ${key}`;
+    }
+  }
+  return headers;
 }
 
 /**
