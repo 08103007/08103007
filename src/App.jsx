@@ -27,6 +27,8 @@ import SettingsView from './views/SettingsView';
 import NotesView from './views/NotesView';
 import ContractsView from './views/ContractsView';
 import CustomersView from './views/CustomersView';
+import DbStatusModal from './components/DbStatusModal';
+import { getDbSyncStatus, checkSupabaseHealth } from './utils/supabaseClient';
 
 export default function App() {
   const [quotes, setQuotes] = useState([]);
@@ -51,11 +53,62 @@ export default function App() {
 
   const [fileHandle, setFileHandle] = useState(getCurrentFileHandle());
   const [tickerItems, setTickerItems] = useState([]);
+  const [showDbModal, setShowDbModal] = useState(false);
 
-  // ── Header Marquee: Pin Ghi chú & Công việc theo ngày ───────────────────
+  // ── Header Marquee: CSDL Status, Pin Ghi chú & Công việc theo ngày ───────────────────
   const updateTicker = () => {
     const today = new Date().toISOString().slice(0, 10);
     const items = [];
+
+    // 0. Tình trạng máy chủ & Ghi CSDL Cloud (Supabase / Local)
+    const dbStatus = getDbSyncStatus();
+    if (dbStatus) {
+      if (dbStatus.state === "error") {
+        items.push({
+          id: "db_status_error",
+          type: "db_status",
+          tag: `LỖI CSDL ${dbStatus.httpStatus ? `(${dbStatus.httpStatus})` : ""}`.trim(),
+          tagClass: "ticker-tag-db-error",
+          icon: "🚨",
+          text: `${dbStatus.message} — Nhấp để xem chi tiết & hướng dẫn khắc phục`,
+          targetView: "settings",
+          isDbStatus: true
+        });
+      } else if (dbStatus.state === "syncing") {
+        items.push({
+          id: "db_status_syncing",
+          type: "db_status",
+          tag: "ĐANG GHI CSDL",
+          tagClass: "ticker-tag-db-sync",
+          icon: "⏳",
+          text: dbStatus.message || "Đang gửi dữ liệu lên Supabase Cloud...",
+          targetView: "settings",
+          isDbStatus: true
+        });
+      } else if (dbStatus.state === "success") {
+        items.push({
+          id: "db_status_ok",
+          type: "db_status",
+          tag: "CSDL CLOUD",
+          tagClass: "ticker-tag-db-ok",
+          icon: "🟢",
+          text: `${dbStatus.message} • Máy chủ hoạt động tốt`,
+          targetView: "settings",
+          isDbStatus: true
+        });
+      } else if (dbStatus.state === "offline" || !hasSupabase()) {
+        items.push({
+          id: "db_status_local",
+          type: "db_status",
+          tag: "LƯU CỤC BỘ",
+          tagClass: "ticker-tag-db-local",
+          icon: "💾",
+          text: "Dữ liệu đang lưu an toàn trên máy tính (Chưa bật Supabase Cloud)",
+          targetView: "settings",
+          isDbStatus: true
+        });
+      }
+    }
 
     // 1. Pinned Notes (Ghi chú được chỉ định ghim)
     const rawNotes = _mem.notes || [];
@@ -130,10 +183,20 @@ export default function App() {
     updateTicker();
     const handleStoreChange = () => updateTicker();
     window.addEventListener("pmc_store_change", handleStoreChange);
+    window.addEventListener("pmc_db_status_change", handleStoreChange);
+
+    // Initial and periodic CSDL health monitor
+    checkSupabaseHealth().then(() => updateTicker());
+    const healthInterval = setInterval(() => {
+      checkSupabaseHealth().then(() => updateTicker());
+    }, 45000);
+
     const interval = setInterval(updateTicker, 4000);
     return () => {
       window.removeEventListener("pmc_store_change", handleStoreChange);
+      window.removeEventListener("pmc_db_status_change", handleStoreChange);
       clearInterval(interval);
+      clearInterval(healthInterval);
     };
   }, []);
 
@@ -335,7 +398,14 @@ export default function App() {
                 <span
                   key={`${it.id}_${idx}`}
                   className="topbar-ticker-item"
-                  onClick={() => setView(it.targetView)}
+                  onClick={() => {
+                    if (it.isDbStatus) {
+                      setShowDbModal(true);
+                    } else if (it.targetView) {
+                      setView(it.targetView);
+                    }
+                  }}
+                  title={it.isDbStatus ? "Nhấp để kiểm tra tình trạng máy chủ CSDL" : "Nhấp để mở"}
                 >
                   <span>{it.icon}</span>
                   <span className={`ticker-tag ${it.tagClass}`}>{it.tag}</span>
@@ -921,6 +991,16 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {showDbModal && (
+        <DbStatusModal
+          onClose={() => setShowDbModal(false)}
+          onOpenSettings={() => {
+            setShowDbModal(false);
+            setView("settings");
+          }}
+        />
       )}
     </div>
   );

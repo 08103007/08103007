@@ -1,3 +1,92 @@
+let _lastDbStatus = {
+  state: "idle", // 'idle' | 'syncing' | 'success' | 'error' | 'offline'
+  action: "",
+  message: "",
+  detail: "",
+  httpStatus: null,
+  timestamp: Date.now(),
+  lastSuccessTime: null,
+  lastErrorTime: null
+};
+
+export function getDbSyncStatus() {
+  return _lastDbStatus;
+}
+
+export function setDbSyncStatus(update) {
+  _lastDbStatus = {
+    ..._lastDbStatus,
+    ...update,
+    timestamp: Date.now()
+  };
+  if (update.state === "success") {
+    _lastDbStatus.lastSuccessTime = Date.now();
+  } else if (update.state === "error") {
+    _lastDbStatus.lastErrorTime = Date.now();
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("pmc_db_status_change", { detail: _lastDbStatus }));
+  }
+}
+
+export function notifySupabaseSyncing(actionName = "Đang ghi CSDL...") {
+  setDbSyncStatus({
+    state: "syncing",
+    action: actionName,
+    message: actionName,
+    detail: "Đang gửi dữ liệu lên Supabase Cloud Database..."
+  });
+}
+
+export function notifySupabaseSuccess(actionName = "Đồng bộ CSDL", count = 0) {
+  const timeStr = new Date().toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  setDbSyncStatus({
+    state: "success",
+    action: actionName,
+    message: `CSDL Supabase: ${actionName} thành công (${timeStr})`,
+    detail: count > 0 ? `Đã ghi nhận ${count} bản ghi an toàn trên Cloud.` : "Máy chủ CSDL Cloud hoạt động bình thường.",
+    httpStatus: 200
+  });
+}
+
+export function parseSupabaseError(err, status = null, actionName = "Ghi CSDL") {
+  const statusNum = status || (err && err.status) || (err && err.response && err.response.status) || null;
+  const rawMsg = (err && err.message) || String(err || "");
+  let msg = "";
+  let detail = "";
+
+  if (statusNum === 522 || rawMsg.includes("522") || rawMsg.toLowerCase().includes("timed out")) {
+    msg = `LỖI 522: Máy chủ Supabase Timeout / Đang Pause`;
+    detail = "Không thể kết nối đến máy chủ CSDL Supabase. Dự án có thể đang bị Tạm dừng (Paused) hoặc Unhealthy trên Supabase Dashboard. Dữ liệu đã được lưu an toàn trên máy tính.";
+  } else if (statusNum === 502 || rawMsg.includes("502") || statusNum === 504 || rawMsg.includes("504")) {
+    msg = `LỖI ${statusNum || 502}: Máy chủ Supabase Unhealthy / Bad Gateway`;
+    detail = "Máy chủ CSDL đang khởi động lại hoặc gặp sự cố tạm thời. Dữ liệu đã được sao lưu an toàn trên máy tính.";
+  } else if (rawMsg.includes("57014") || rawMsg.toLowerCase().includes("statement timeout")) {
+    msg = `LỖI 57014: Lệnh SQL quá thời gian chờ (Statement Timeout)`;
+    detail = "Câu truy vấn CSDL xử lý vượt quá thời gian tối đa cho phép của máy chủ.";
+  } else if (statusNum === 401 || statusNum === 403 || rawMsg.includes("401") || rawMsg.includes("403") || rawMsg.includes("JWT") || rawMsg.includes("apikey")) {
+    msg = `LỖI ${statusNum || 401}: Sai Khóa API Supabase (Anon Key)`;
+    detail = "Khóa xác thực API hoặc URL kết nối Supabase chưa chính xác hoặc đã hết hạn.";
+  } else if (statusNum === 404 || rawMsg.includes("404") || rawMsg.includes("relation") || rawMsg.includes("does not exist")) {
+    msg = `LỖI 404: Bảng CSDL chưa được tạo trên Supabase`;
+    detail = "Bảng dữ liệu tương ứng chưa được tạo trong SQL Editor của Supabase.";
+  } else if (rawMsg.toLowerCase().includes("failed to fetch") || rawMsg.toLowerCase().includes("networkerror") || rawMsg.includes("CORS")) {
+    msg = `LỖI KẾT NỐI: Mất mạng hoặc bị chặn kết nối CSDL`;
+    detail = "Trình duyệt không thể kết nối đến máy chủ Supabase. Đang hoạt động ở chế độ Offline.";
+  } else {
+    msg = `LỖI CSDL: ${rawMsg.slice(0, 70)}`;
+    detail = rawMsg;
+  }
+
+  setDbSyncStatus({
+    state: "error",
+    action: actionName,
+    message: msg,
+    detail: detail,
+    httpStatus: statusNum
+  });
+}
+
 /**
  * Lightweight Supabase REST API Client (Zero external dependencies)
  * Supports Quotes, Products, Customers & App Settings tables on Supabase PostgreSQL.
@@ -57,17 +146,65 @@ function getHeaders() {
 }
 
 /**
+ * Health check with short timeout
+ */
+export async function checkSupabaseHealth() {
+  if (!hasSupabase()) {
+    setDbSyncStatus({
+      state: "offline",
+      action: "Chế độ Cục Bộ",
+      message: "Đang lưu trên bộ nhớ máy tính (Chưa cấu hình Supabase Cloud)",
+      detail: "Dữ liệu đang được lưu an toàn vào bộ nhớ trình duyệt/tệp JSON của máy tính.",
+      httpStatus: null
+    });
+    return { ok: true, offline: true };
+  }
+
+  try {
+    const url = `${getSupabaseUrl()}/rest/v1/quotes?select=id&limit=1`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 7000);
+    const resp = await fetch(url, { headers: getHeaders(), signal: ctrl.signal });
+    clearTimeout(timer);
+
+    if (resp.ok) {
+      notifySupabaseSuccess("Kết nối máy chủ CSDL", 0);
+      return { ok: true };
+    } else {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText || `HTTP ${resp.status}`), resp.status, "Kiểm tra máy chủ CSDL");
+      return { ok: false, status: resp.status, text: errText };
+    }
+  } catch (err) {
+    parseSupabaseError(err, null, "Kiểm tra máy chủ CSDL");
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
  * Test Supabase connection
  */
 export async function testSupabaseConnection() {
-  if (!hasSupabase()) throw new Error("Chưa nhập Supabase URL và Anon Key");
-  const url = `${getSupabaseUrl()}/rest/v1/quotes?select=id&limit=1`;
-  const resp = await fetch(url, { headers: getHeaders() });
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Supabase kết nối thất bại (${resp.status}): ${errText.slice(0, 150)}`);
+  if (!hasSupabase()) {
+    parseSupabaseError(new Error("Chưa nhập Supabase URL và Anon Key"), 401, "Kiểm tra kết nối");
+    throw new Error("Chưa nhập Supabase URL và Anon Key");
   }
-  return true;
+  notifySupabaseSyncing("Đang kiểm tra kết nối Supabase...");
+  const url = `${getSupabaseUrl()}/rest/v1/quotes?select=id&limit=1`;
+  try {
+    const resp = await fetch(url, { headers: getHeaders() });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      const err = new Error(`Supabase kết nối thất bại (${resp.status}): ${errText.slice(0, 150)}`);
+      parseSupabaseError(err, resp.status, "Kiểm tra kết nối");
+      throw err;
+    }
+    notifySupabaseSuccess("Kiểm tra kết nối", 0);
+    return true;
+  } catch (err) {
+    parseSupabaseError(err, null, "Kiểm tra kết nối");
+    throw err;
+  }
 }
 
 async function fetchWithRetry(url, options = {}, retries = 2, delayMs = 300) {
@@ -91,6 +228,7 @@ export async function fetchSupabaseQuotes() {
   }
 
   console.log("⚡ Supabase: Đang kết nối tải danh sách báo giá...");
+  notifySupabaseSyncing("Đang tải Báo giá từ Supabase...");
 
   // Cách 1: Tải nhanh trực tiếp 1 request
   try {
@@ -100,6 +238,7 @@ export async function fetchSupabaseQuotes() {
       const rows = await resp.json();
       if (Array.isArray(rows) && rows.length > 0) {
         console.log(`⚡ Supabase: Đã tải thành công ${rows.length} báo giá`);
+        notifySupabaseSuccess("Tải Báo giá", rows.length);
         return rows.map(r => {
           if (r.payload && typeof r.payload === "object") {
             return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber, payload: r.payload };
@@ -116,8 +255,12 @@ export async function fetchSupabaseQuotes() {
           };
         });
       }
+    } else if (resp && !resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Báo giá");
     }
   } catch(err) {
+    parseSupabaseError(err, null, "Tải Báo giá");
     console.warn("Direct quotes fetch failed, fallback to chunked pagination:", err.message);
   }
 
@@ -131,7 +274,11 @@ export async function fetchSupabaseQuotes() {
     try {
       const url = `${getSupabaseUrl()}/rest/v1/quotes?select=*&limit=${limit}&offset=${offset}`;
       const resp = await fetchWithRetry(url, { headers: getHeaders() }, 2, 250);
-      if (!resp.ok) {
+      if (!resp || !resp.ok) {
+        if (resp) {
+          const errText = await resp.text().catch(() => "");
+          parseSupabaseError(new Error(errText), resp.status, "Tải Báo giá (phân trang)");
+        }
         hasMore = false;
         break;
       }
@@ -147,6 +294,7 @@ export async function fetchSupabaseQuotes() {
         hasMore = false;
       }
     } catch (err) {
+      parseSupabaseError(err, null, "Tải Báo giá (phân trang)");
       console.warn(`Lỗi chunk offset ${offset}:`, err.message);
       hasMore = false;
     }
@@ -155,6 +303,7 @@ export async function fetchSupabaseQuotes() {
   if (allRows.length === 0) return [];
 
   console.log(`⚡ Supabase (Phân trang): Đã tải thành công ${allRows.length} báo giá`);
+  notifySupabaseSuccess("Tải Báo giá (phân trang)", allRows.length);
   return allRows.map(r => {
     if (r.payload && typeof r.payload === "object") {
       return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber, payload: r.payload };
@@ -177,6 +326,7 @@ export async function fetchSupabaseQuotes() {
  */
 export async function upsertSupabaseQuotes(quotes, masterData = null) {
   if (!hasSupabase() || !Array.isArray(quotes)) return false;
+  notifySupabaseSyncing("Đang lưu Báo giá lên Supabase...");
   try {
     const chunkSize = 50;
     for (let i = 0; i < quotes.length; i += chunkSize) {
@@ -201,6 +351,7 @@ export async function upsertSupabaseQuotes(quotes, masterData = null) {
       if (!resp.ok) {
         const errText = await resp.text();
         console.warn("Lỗi upsert chunk quotes Supabase:", errText);
+        parseSupabaseError(new Error(errText), resp.status, "Lưu Báo giá");
       }
     }
 
@@ -224,8 +375,10 @@ export async function upsertSupabaseQuotes(quotes, masterData = null) {
       });
     }
 
+    notifySupabaseSuccess("Lưu Báo giá", quotes.length);
     return true;
   } catch (err) {
+    parseSupabaseError(err, null, "Lưu Báo giá");
     console.warn("Supabase quotes upsert error:", err);
     return false;
   }
@@ -242,8 +395,15 @@ export async function deleteSupabaseQuote(id) {
       method: "DELETE",
       headers: getHeaders()
     });
+    if (resp.ok) {
+      notifySupabaseSuccess("Xóa Báo giá", 1);
+    } else {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Xóa Báo giá");
+    }
     return resp.ok;
-  } catch {
+  } catch (err) {
+    parseSupabaseError(err, null, "Xóa Báo giá");
     return false;
   }
 }
@@ -256,11 +416,16 @@ export async function fetchSupabaseProducts() {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/products?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Sản phẩm");
+      return [];
+    }
     const rows = await resp.json();
     if (!Array.isArray(rows)) return [];
     return rows.map(r => r.payload || { id: r.id, name: r.name, unit: r.unit, price: r.price, cost: r.cost, vatRate: r.vat_rate, image: r.image });
   } catch (err) {
+    parseSupabaseError(err, null, "Tải Sản phẩm");
     console.warn("Lỗi tải Sản Phẩm từ Supabase:", err);
     return [];
   }
@@ -304,6 +469,7 @@ export async function upsertSupabaseProducts(products, catalog = [], quotes = []
   }
 
   if (itemsToSync.length === 0) return false;
+  notifySupabaseSyncing("Đang lưu Sản phẩm lên Supabase...");
   try {
     const chunkSize = 50;
     for (let i = 0; i < itemsToSync.length; i += chunkSize) {
@@ -321,14 +487,20 @@ export async function upsertSupabaseProducts(products, catalog = [], quotes = []
       }));
 
       const url = `${getSupabaseUrl()}/rest/v1/products?on_conflict=id`;
-      await fetch(url, {
+      const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(rows)
       });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        parseSupabaseError(new Error(errText), resp.status, "Lưu Sản phẩm");
+      }
     }
+    notifySupabaseSuccess("Lưu Sản phẩm", itemsToSync.length);
     return true;
   } catch (e) {
+    parseSupabaseError(e, null, "Lưu Sản phẩm");
     console.warn("Supabase product upsert error:", e);
     return false;
   }
@@ -341,6 +513,7 @@ export async function upsertSupabaseDebtRecs(debtRecsMap) {
   if (!hasSupabase() || !debtRecsMap || typeof debtRecsMap !== "object") return false;
   const list = Object.values(debtRecsMap);
   if (list.length === 0) return false;
+  notifySupabaseSyncing("Đang lưu Đối chiếu Công nợ lên Supabase...");
   try {
     const rows = list.map(d => ({
       id: d.id || d.refNum || `dr_${Date.now()}`,
@@ -353,8 +526,17 @@ export async function upsertSupabaseDebtRecs(debtRecsMap) {
     }));
     const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Lưu Đối chiếu Công nợ");
+    } else {
+      notifySupabaseSuccess("Lưu Đối chiếu Công nợ", list.length);
+    }
     return resp.ok;
-  } catch { return false; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Lưu Đối chiếu Công nợ");
+    return false;
+  }
 }
 
 export async function fetchSupabaseDebtRecs() {
@@ -362,14 +544,21 @@ export async function fetchSupabaseDebtRecs() {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return {};
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Đối chiếu Công nợ");
+      return {};
+    }
     const rows = await resp.json();
     const map = {};
     if (Array.isArray(rows)) {
       rows.forEach(r => { if (r.id) map[r.id] = r.payload || r; });
     }
     return map;
-  } catch { return {}; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Tải Đối chiếu Công nợ");
+    return {};
+  }
 }
 
 /**
@@ -379,6 +568,7 @@ export async function upsertSupabasePaymentRequests(reqsMap) {
   if (!hasSupabase() || !reqsMap || typeof reqsMap !== "object") return false;
   const list = Object.values(reqsMap);
   if (list.length === 0) return false;
+  notifySupabaseSyncing("Đang lưu Đề nghị Thanh toán lên Supabase...");
   try {
     const rows = list.map(r => ({
       id: r.id || r.reqNumber || `pr_${Date.now()}`,
@@ -390,8 +580,17 @@ export async function upsertSupabasePaymentRequests(reqsMap) {
     }));
     const url = `${getSupabaseUrl()}/rest/v1/payment_requests?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Lưu Đề nghị Thanh toán");
+    } else {
+      notifySupabaseSuccess("Lưu Đề nghị Thanh toán", list.length);
+    }
     return resp.ok;
-  } catch { return false; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Lưu Đề nghị Thanh toán");
+    return false;
+  }
 }
 
 export async function fetchSupabasePaymentRequests() {
@@ -399,14 +598,21 @@ export async function fetchSupabasePaymentRequests() {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/payment_requests?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return {};
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Đề nghị Thanh toán");
+      return {};
+    }
     const rows = await resp.json();
     const map = {};
     if (Array.isArray(rows)) {
       rows.forEach(r => { if (r.id) map[r.id] = r.payload || r; });
     }
     return map;
-  } catch { return {}; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Tải Đề nghị Thanh toán");
+    return {};
+  }
 }
 
 /**
@@ -416,6 +622,7 @@ export async function upsertSupabaseHandovers(handoversMap) {
   if (!hasSupabase() || !handoversMap || typeof handoversMap !== "object") return false;
   const list = Object.values(handoversMap);
   if (list.length === 0) return false;
+  notifySupabaseSyncing("Đang lưu Biên bản & Giao hàng lên Supabase...");
   try {
     const rows = list.map(h => ({
       id: h.id || `hw_${Date.now()}`,
@@ -427,8 +634,17 @@ export async function upsertSupabaseHandovers(handoversMap) {
     }));
     const url = `${getSupabaseUrl()}/rest/v1/handovers?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Lưu Biên bản & Giao hàng");
+    } else {
+      notifySupabaseSuccess("Lưu Biên bản & Giao hàng", list.length);
+    }
     return resp.ok;
-  } catch { return false; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Lưu Biên bản & Giao hàng");
+    return false;
+  }
 }
 
 export async function fetchSupabaseHandovers() {
@@ -436,14 +652,21 @@ export async function fetchSupabaseHandovers() {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/handovers?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return {};
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Biên bản & Giao hàng");
+      return {};
+    }
     const rows = await resp.json();
     const map = {};
     if (Array.isArray(rows)) {
       rows.forEach(r => { if (r.id) map[r.id] = r.payload || r; });
     }
     return map;
-  } catch { return {}; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Tải Biên bản & Giao hàng");
+    return {};
+  }
 }
 
 /**
@@ -451,6 +674,7 @@ export async function fetchSupabaseHandovers() {
  */
 export async function upsertSupabaseCustomers(customers) {
   if (!hasSupabase() || !Array.isArray(customers) || customers.length === 0) return false;
+  notifySupabaseSyncing("Đang lưu Khách hàng lên Supabase...");
   try {
     const chunkSize = 50;
     for (let i = 0; i < customers.length; i += chunkSize) {
@@ -470,14 +694,20 @@ export async function upsertSupabaseCustomers(customers) {
       }));
 
       const url = `${getSupabaseUrl()}/rest/v1/customers?on_conflict=id`;
-      await fetch(url, {
+      const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(rows)
       });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        parseSupabaseError(new Error(errText), resp.status, "Lưu Khách hàng");
+      }
     }
+    notifySupabaseSuccess("Lưu Khách hàng", customers.length);
     return true;
   } catch (e) {
+    parseSupabaseError(e, null, "Lưu Khách hàng");
     console.warn("Supabase customer upsert error:", e);
     return false;
   }
@@ -488,9 +718,14 @@ export async function fetchSupabaseCustomers() {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/customers?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Khách hàng");
+      return [];
+    }
     const rows = await resp.json();
     if (!Array.isArray(rows)) return [];
+    notifySupabaseSuccess("Tải Khách hàng", rows.length);
     return rows.map(r => {
       if (r.payload && typeof r.payload === "object") {
         return { ...r.payload, id: r.id || r.payload.id, customer: r.customer || r.payload.customer };
@@ -509,6 +744,7 @@ export async function fetchSupabaseCustomers() {
       };
     });
   } catch (err) {
+    parseSupabaseError(err, null, "Tải Khách hàng");
     console.warn("Lỗi tải Khách Hàng từ Supabase:", err);
     return [];
   }
@@ -519,8 +755,17 @@ export async function deleteSupabaseCustomer(id) {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/customers?id=eq.${encodeURIComponent(id)}`;
     const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
+    if (resp.ok) {
+      notifySupabaseSuccess("Xóa Khách hàng", 1);
+    } else {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Xóa Khách hàng");
+    }
     return resp.ok;
-  } catch { return false; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Xóa Khách hàng");
+    return false;
+  }
 }
 
 /**
@@ -528,6 +773,7 @@ export async function deleteSupabaseCustomer(id) {
  */
 export async function upsertSupabaseTasks(tasks) {
   if (!hasSupabase() || !Array.isArray(tasks) || tasks.length === 0) return false;
+  notifySupabaseSyncing("Đang lưu Công việc lên Supabase...");
   try {
     const chunkSize = 50;
     for (let i = 0; i < tasks.length; i += chunkSize) {
@@ -546,14 +792,20 @@ export async function upsertSupabaseTasks(tasks) {
       }));
 
       const url = `${getSupabaseUrl()}/rest/v1/tasks?on_conflict=id`;
-      await fetch(url, {
+      const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(rows)
       });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        parseSupabaseError(new Error(errText), resp.status, "Lưu Công việc");
+      }
     }
+    notifySupabaseSuccess("Lưu Công việc", tasks.length);
     return true;
   } catch (e) {
+    parseSupabaseError(e, null, "Lưu Công việc");
     console.warn("Supabase tasks upsert error:", e);
     return false;
   }
@@ -564,9 +816,14 @@ export async function fetchSupabaseTasks() {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/tasks?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Công việc");
+      return [];
+    }
     const rows = await resp.json();
     if (!Array.isArray(rows)) return [];
+    notifySupabaseSuccess("Tải Công việc", rows.length);
     return rows.map(r => {
       if (r.payload && typeof r.payload === "object") {
         return { ...r.payload, id: r.id || r.payload.id, title: r.title || r.payload.title };
@@ -584,6 +841,7 @@ export async function fetchSupabaseTasks() {
       };
     });
   } catch (err) {
+    parseSupabaseError(err, null, "Tải Công việc");
     console.warn("Lỗi tải Công Việc từ Supabase:", err);
     return [];
   }
@@ -594,8 +852,17 @@ export async function deleteSupabaseTask(id) {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/tasks?id=eq.${encodeURIComponent(id)}`;
     const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
+    if (resp.ok) {
+      notifySupabaseSuccess("Xóa Công việc", 1);
+    } else {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Xóa Công việc");
+    }
     return resp.ok;
-  } catch { return false; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Xóa Công việc");
+    return false;
+  }
 }
 
 /**
@@ -603,6 +870,7 @@ export async function deleteSupabaseTask(id) {
  */
 export async function upsertSupabaseNotes(notes) {
   if (!hasSupabase() || !Array.isArray(notes) || notes.length === 0) return false;
+  notifySupabaseSyncing("Đang lưu Ghi chú lên Supabase...");
   try {
     const chunkSize = 50;
     for (let i = 0; i < notes.length; i += chunkSize) {
@@ -618,14 +886,20 @@ export async function upsertSupabaseNotes(notes) {
       }));
 
       const url = `${getSupabaseUrl()}/rest/v1/notes?on_conflict=id`;
-      await fetch(url, {
+      const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
         body: JSON.stringify(rows)
       });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "");
+        parseSupabaseError(new Error(errText), resp.status, "Lưu Ghi chú");
+      }
     }
+    notifySupabaseSuccess("Lưu Ghi chú", notes.length);
     return true;
   } catch (e) {
+    parseSupabaseError(e, null, "Lưu Ghi chú");
     console.warn("Supabase notes upsert error:", e);
     return false;
   }
@@ -636,9 +910,14 @@ export async function fetchSupabaseNotes() {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/notes?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return [];
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Ghi chú");
+      return [];
+    }
     const rows = await resp.json();
     if (!Array.isArray(rows)) return [];
+    notifySupabaseSuccess("Tải Ghi chú", rows.length);
     return rows.map(r => {
       if (r.payload && typeof r.payload === "object") {
         return { ...r.payload, id: r.id || r.payload.id, title: r.title || r.payload.title, pinned: r.pinned !== undefined ? !!r.pinned : !!r.payload.pinned };
@@ -654,6 +933,7 @@ export async function fetchSupabaseNotes() {
       };
     });
   } catch (err) {
+    parseSupabaseError(err, null, "Tải Ghi chú");
     console.warn("Lỗi tải Ghi Chú từ Supabase:", err);
     return [];
   }
@@ -664,8 +944,17 @@ export async function deleteSupabaseNote(id) {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/notes?id=eq.${encodeURIComponent(id)}`;
     const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
+    if (resp.ok) {
+      notifySupabaseSuccess("Xóa Ghi chú", 1);
+    } else {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Xóa Ghi chú");
+    }
     return resp.ok;
-  } catch { return false; }
+  } catch (err) {
+    parseSupabaseError(err, null, "Xóa Ghi chú");
+    return false;
+  }
 }
 
 /**
@@ -676,10 +965,15 @@ export async function fetchSupabaseSettings(key) {
   try {
     const url = `${getSupabaseUrl()}/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}&select=value`;
     const resp = await fetch(url, { headers: getHeaders() });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Tải Cài đặt hệ thống");
+      return null;
+    }
     const rows = await resp.json();
     return (rows && rows[0]) ? rows[0].value : null;
-  } catch {
+  } catch (err) {
+    parseSupabaseError(err, null, "Tải Cài đặt hệ thống");
     return null;
   }
 }
@@ -701,8 +995,13 @@ export async function upsertSupabaseSettings(key, value) {
       headers: getHeaders(),
       body: JSON.stringify(row)
     });
+    if (!resp.ok) {
+      const errText = await resp.text().catch(() => "");
+      parseSupabaseError(new Error(errText), resp.status, "Lưu Cài đặt hệ thống");
+    }
     return resp.ok;
-  } catch {
+  } catch (err) {
+    parseSupabaseError(err, null, "Lưu Cài đặt hệ thống");
     return false;
   }
 }
