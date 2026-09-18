@@ -134,14 +134,26 @@ export function hasSupabase() {
   return !!(url && url.startsWith("http"));
 }
 
+export function getRestApiBase() {
+  const raw = (getSupabaseUrl() || "").trim().replace(/\/+$/, "");
+  if (!raw) return "";
+  if (raw.endsWith("/rest/v1")) return raw;
+  if (raw.includes("supabase.co")) {
+    return `${raw}/rest/v1`;
+  }
+  return raw;
+}
+
 function getHeaders() {
   const key = (getSupabaseKey() || "").trim();
+  const url = getSupabaseUrl();
+  const isSupabaseCloud = url.includes("supabase.co");
   const isJwt = key.startsWith("eyJ") && key.split(".").length === 3;
   const headers = {
     "Content-Type": "application/json",
     "Prefer": "return=representation,resolution=merge-duplicates"
   };
-  if (isJwt) {
+  if (isSupabaseCloud && isJwt) {
     headers["apikey"] = key;
     headers["Authorization"] = `Bearer ${key}`;
   }
@@ -164,7 +176,7 @@ export async function checkSupabaseHealth() {
   }
 
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/quotes?select=id&limit=1`;
+    const url = `${getRestApiBase()}/quotes?select=id&limit=1`;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 7000);
     const resp = await fetch(url, { headers: getHeaders(), signal: ctrl.signal });
@@ -193,7 +205,7 @@ export async function testSupabaseConnection() {
     throw new Error("Chưa nhập Supabase URL và Anon Key");
   }
   notifySupabaseSyncing("Đang kiểm tra kết nối Supabase...");
-  const url = `${getSupabaseUrl()}/rest/v1/quotes?select=id&limit=1`;
+  const url = `${getRestApiBase()}/quotes?select=id&limit=1`;
   try {
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
@@ -235,7 +247,7 @@ export async function fetchSupabaseQuotes() {
 
   // Cách 1: Tải nhanh trực tiếp 1 request
   try {
-    const directUrl = `${getSupabaseUrl()}/rest/v1/quotes?select=*`;
+    const directUrl = `${getRestApiBase()}/quotes?select=*`;
     const resp = await fetchWithRetry(directUrl, { headers: getHeaders() }, 1, 200);
     if (resp && resp.ok) {
       const rows = await resp.json();
@@ -275,7 +287,7 @@ export async function fetchSupabaseQuotes() {
 
   while (hasMore) {
     try {
-      const url = `${getSupabaseUrl()}/rest/v1/quotes?select=*&limit=${limit}&offset=${offset}`;
+      const url = `${getRestApiBase()}/quotes?select=*&limit=${limit}&offset=${offset}`;
       const resp = await fetchWithRetry(url, { headers: getHeaders() }, 2, 250);
       if (!resp || !resp.ok) {
         if (resp) {
@@ -345,7 +357,7 @@ export async function upsertSupabaseQuotes(quotes, masterData = null) {
         updated_at: new Date().toISOString()
       }));
 
-      const url = `${getSupabaseUrl()}/rest/v1/quotes?on_conflict=id`;
+      const url = `${getRestApiBase()}/quotes?on_conflict=id`;
       const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
@@ -370,7 +382,7 @@ export async function upsertSupabaseQuotes(quotes, masterData = null) {
         payload: masterData,
         updated_at: new Date().toISOString()
       }];
-      const sysUrl = `${getSupabaseUrl()}/rest/v1/quotes?on_conflict=id`;
+      const sysUrl = `${getRestApiBase()}/quotes?on_conflict=id`;
       await fetch(sysUrl, {
         method: "POST",
         headers: getHeaders(),
@@ -393,7 +405,7 @@ export async function upsertSupabaseQuotes(quotes, masterData = null) {
 export async function deleteSupabaseQuote(id) {
   if (!hasSupabase() || !id) return false;
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/quotes?id=eq.${encodeURIComponent(id)}`;
+    const url = `${getRestApiBase()}/quotes?id=eq.${encodeURIComponent(id)}`;
     const resp = await fetch(url, {
       method: "DELETE",
       headers: getHeaders()
@@ -417,7 +429,7 @@ export async function deleteSupabaseQuote(id) {
 export async function fetchSupabaseProducts() {
   if (!hasSupabase()) return [];
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/products?select=*`;
+    const url = `${getRestApiBase()}/products?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -489,7 +501,7 @@ export async function upsertSupabaseProducts(products, catalog = [], quotes = []
         updated_at: new Date().toISOString()
       }));
 
-      const url = `${getSupabaseUrl()}/rest/v1/products?on_conflict=id`;
+      const url = `${getRestApiBase()}/products?on_conflict=id`;
       const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
@@ -527,7 +539,7 @@ export async function upsertSupabaseDebtRecs(debtRecsMap) {
       payload: d,
       updated_at: new Date().toISOString()
     }));
-    const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations?on_conflict=id`;
+    const url = `${getRestApiBase()}/debt_reconciliations?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -545,7 +557,7 @@ export async function upsertSupabaseDebtRecs(debtRecsMap) {
 export async function fetchSupabaseDebtRecs() {
   if (!hasSupabase()) return {};
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/debt_reconciliations?select=*`;
+    const url = `${getRestApiBase()}/debt_reconciliations?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -581,7 +593,7 @@ export async function upsertSupabasePaymentRequests(reqsMap) {
       payload: r,
       updated_at: new Date().toISOString()
     }));
-    const url = `${getSupabaseUrl()}/rest/v1/payment_requests?on_conflict=id`;
+    const url = `${getRestApiBase()}/payment_requests?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -599,7 +611,7 @@ export async function upsertSupabasePaymentRequests(reqsMap) {
 export async function fetchSupabasePaymentRequests() {
   if (!hasSupabase()) return {};
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/payment_requests?select=*`;
+    const url = `${getRestApiBase()}/payment_requests?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -635,7 +647,7 @@ export async function upsertSupabaseHandovers(handoversMap) {
       payload: h,
       updated_at: new Date().toISOString()
     }));
-    const url = `${getSupabaseUrl()}/rest/v1/handovers?on_conflict=id`;
+    const url = `${getRestApiBase()}/handovers?on_conflict=id`;
     const resp = await fetch(url, { method: "POST", headers: getHeaders(), body: JSON.stringify(rows) });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -653,7 +665,7 @@ export async function upsertSupabaseHandovers(handoversMap) {
 export async function fetchSupabaseHandovers() {
   if (!hasSupabase()) return {};
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/handovers?select=*`;
+    const url = `${getRestApiBase()}/handovers?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -696,7 +708,7 @@ export async function upsertSupabaseCustomers(customers) {
         updated_at: new Date().toISOString()
       }));
 
-      const url = `${getSupabaseUrl()}/rest/v1/customers?on_conflict=id`;
+      const url = `${getRestApiBase()}/customers?on_conflict=id`;
       const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
@@ -719,7 +731,7 @@ export async function upsertSupabaseCustomers(customers) {
 export async function fetchSupabaseCustomers() {
   if (!hasSupabase()) return [];
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/customers?select=*`;
+    const url = `${getRestApiBase()}/customers?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -756,7 +768,7 @@ export async function fetchSupabaseCustomers() {
 export async function deleteSupabaseCustomer(id) {
   if (!hasSupabase() || !id) return false;
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/customers?id=eq.${encodeURIComponent(id)}`;
+    const url = `${getRestApiBase()}/customers?id=eq.${encodeURIComponent(id)}`;
     const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
     if (resp.ok) {
       notifySupabaseSuccess("Xóa Khách hàng", 1);
@@ -794,7 +806,7 @@ export async function upsertSupabaseTasks(tasks) {
         updated_at: new Date().toISOString()
       }));
 
-      const url = `${getSupabaseUrl()}/rest/v1/tasks?on_conflict=id`;
+      const url = `${getRestApiBase()}/tasks?on_conflict=id`;
       const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
@@ -817,7 +829,7 @@ export async function upsertSupabaseTasks(tasks) {
 export async function fetchSupabaseTasks() {
   if (!hasSupabase()) return [];
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/tasks?select=*`;
+    const url = `${getRestApiBase()}/tasks?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -853,7 +865,7 @@ export async function fetchSupabaseTasks() {
 export async function deleteSupabaseTask(id) {
   if (!hasSupabase() || !id) return false;
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/tasks?id=eq.${encodeURIComponent(id)}`;
+    const url = `${getRestApiBase()}/tasks?id=eq.${encodeURIComponent(id)}`;
     const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
     if (resp.ok) {
       notifySupabaseSuccess("Xóa Công việc", 1);
@@ -888,7 +900,7 @@ export async function upsertSupabaseNotes(notes) {
         updated_at: new Date().toISOString()
       }));
 
-      const url = `${getSupabaseUrl()}/rest/v1/notes?on_conflict=id`;
+      const url = `${getRestApiBase()}/notes?on_conflict=id`;
       const resp = await fetch(url, {
         method: "POST",
         headers: getHeaders(),
@@ -911,7 +923,7 @@ export async function upsertSupabaseNotes(notes) {
 export async function fetchSupabaseNotes() {
   if (!hasSupabase()) return [];
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/notes?select=*`;
+    const url = `${getRestApiBase()}/notes?select=*`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -945,7 +957,7 @@ export async function fetchSupabaseNotes() {
 export async function deleteSupabaseNote(id) {
   if (!hasSupabase() || !id) return false;
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/notes?id=eq.${encodeURIComponent(id)}`;
+    const url = `${getRestApiBase()}/notes?id=eq.${encodeURIComponent(id)}`;
     const resp = await fetch(url, { method: "DELETE", headers: getHeaders() });
     if (resp.ok) {
       notifySupabaseSuccess("Xóa Ghi chú", 1);
@@ -966,7 +978,7 @@ export async function deleteSupabaseNote(id) {
 export async function fetchSupabaseSettings(key) {
   if (!hasSupabase() || !key) return null;
   try {
-    const url = `${getSupabaseUrl()}/rest/v1/app_settings?key=eq.${encodeURIComponent(key)}&select=value`;
+    const url = `${getRestApiBase()}/app_settings?key=eq.${encodeURIComponent(key)}&select=value`;
     const resp = await fetch(url, { headers: getHeaders() });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -992,7 +1004,7 @@ export async function upsertSupabaseSettings(key, value) {
       value: value,
       updated_at: new Date().toISOString()
     }];
-    const url = `${getSupabaseUrl()}/rest/v1/app_settings?on_conflict=key`;
+    const url = `${getRestApiBase()}/app_settings?on_conflict=key`;
     const resp = await fetch(url, {
       method: "POST",
       headers: getHeaders(),
