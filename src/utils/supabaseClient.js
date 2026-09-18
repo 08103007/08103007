@@ -135,16 +135,15 @@ export function hasSupabase() {
 }
 
 function getHeaders() {
-  const key = getSupabaseKey();
+  const key = (getSupabaseKey() || "").trim();
+  const isJwt = key.startsWith("eyJ") && key.split(".").length === 3;
   const headers = {
     "Content-Type": "application/json",
     "Prefer": "return=representation,resolution=merge-duplicates"
   };
-  if (key) {
+  if (isJwt) {
     headers["apikey"] = key;
-    if (key.startsWith("eyJ")) {
-      headers["Authorization"] = `Bearer ${key}`;
-    }
+    headers["Authorization"] = `Bearer ${key}`;
   }
   return headers;
 }
