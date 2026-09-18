@@ -234,54 +234,18 @@ async function fetchWithRetry(url, options = {}, retries = 2, delayMs = 300) {
 }
 
 /**
- * Fetch all quotes from Supabase (Fast direct fetch with fallback pagination)
+ * Fetch all quotes from Supabase / PostgREST (Full multi-page pagination for 1000+ quotes)
  */
 export async function fetchSupabaseQuotes() {
   if (!hasSupabase()) {
-    console.log("ℹ️ Supabase chưa được cấu hình hoặc chưa nhập Key");
+    console.log("ℹ️ CSDL chưa được cấu hình URL kết nối");
     return [];
   }
 
-  console.log("⚡ Supabase: Đang kết nối tải danh sách báo giá...");
-  notifySupabaseSyncing("Đang tải Báo giá từ Supabase...");
+  notifySupabaseSyncing("Đang tải danh sách Báo giá từ CSDL...");
 
-  // Cách 1: Tải nhanh trực tiếp 1 request
-  try {
-    const directUrl = `${getRestApiBase()}/quotes?select=*`;
-    const resp = await fetchWithRetry(directUrl, { headers: getHeaders() }, 1, 200);
-    if (resp && resp.ok) {
-      const rows = await resp.json();
-      if (Array.isArray(rows) && rows.length > 0) {
-        console.log(`⚡ Supabase: Đã tải thành công ${rows.length} báo giá`);
-        notifySupabaseSuccess("Tải Báo giá", rows.length);
-        return rows.map(r => {
-          if (r.payload && typeof r.payload === "object") {
-            return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber, payload: r.payload };
-          }
-          return {
-            id: r.id,
-            quoteNumber: r.quote_number,
-            date: r.date,
-            customer: r.customer,
-            status: r.status,
-            total: r.total,
-            items: [],
-            updatedAt: r.updated_at
-          };
-        });
-      }
-    } else if (resp && !resp.ok) {
-      const errText = await resp.text().catch(() => "");
-      parseSupabaseError(new Error(errText), resp.status, "Tải Báo giá");
-    }
-  } catch(err) {
-    parseSupabaseError(err, null, "Tải Báo giá");
-    console.warn("Direct quotes fetch failed, fallback to chunked pagination:", err.message);
-  }
-
-  // Cách 2: Phân trang theo từng chunk nếu request trực tiếp bị nghẽn gói tin
   const allRows = [];
-  const limit = 100;
+  const limit = 500;
   let offset = 0;
   let hasMore = true;
 
@@ -292,13 +256,13 @@ export async function fetchSupabaseQuotes() {
       if (!resp || !resp.ok) {
         if (resp) {
           const errText = await resp.text().catch(() => "");
-          parseSupabaseError(new Error(errText), resp.status, "Tải Báo giá (phân trang)");
+          parseSupabaseError(new Error(errText), resp.status, "Tải Báo giá");
         }
         hasMore = false;
         break;
       }
       const rows = await resp.json();
-      if (Array.isArray(rows)) {
+      if (Array.isArray(rows) && rows.length > 0) {
         allRows.push(...rows);
         if (rows.length < limit) {
           hasMore = false;
@@ -309,16 +273,16 @@ export async function fetchSupabaseQuotes() {
         hasMore = false;
       }
     } catch (err) {
-      parseSupabaseError(err, null, "Tải Báo giá (phân trang)");
-      console.warn(`Lỗi chunk offset ${offset}:`, err.message);
+      parseSupabaseError(err, null, "Tải Báo giá");
+      console.warn(`Lỗi tải chunk offset ${offset}:`, err.message);
       hasMore = false;
     }
   }
 
   if (allRows.length === 0) return [];
 
-  console.log(`⚡ Supabase (Phân trang): Đã tải thành công ${allRows.length} báo giá`);
-  notifySupabaseSuccess("Tải Báo giá (phân trang)", allRows.length);
+  console.log(`⚡ CSDL: Đã tải thành công tổng cộng ${allRows.length} bản ghi báo giá`);
+  notifySupabaseSuccess("Tải Báo giá", allRows.length);
   return allRows.map(r => {
     if (r.payload && typeof r.payload === "object") {
       return { ...r.payload, id: r.id || r.payload.id, quoteNumber: r.quote_number || r.payload.quoteNumber, payload: r.payload };
